@@ -1,0 +1,19 @@
+"use client"
+
+import Link from "next/link"
+import { motion } from "motion/react"
+import { algorithmConfigs } from "@/lib/algorithms"
+import { CircuitSpine } from "@/components/home/accents/CircuitSpine"
+
+const statusStyles = { mastered: { border: "border-l-[#4ADE80]", pill: "bg-[#4ADE80]/10 text-[#4ADE80]", dot: "bg-[#4ADE80]", label: "Mastered" }, "in-progress": { border: "border-l-[#00D4FF]", pill: "bg-[#00D4FF]/10 text-[#00D4FF]", dot: "bg-[#00D4FF]", label: "In progress" }, next: { border: "border-l-[#FFB800]", pill: "bg-[#FFB800]/10 text-[#FFB800]", dot: "bg-[#FFB800]", label: "Next up" }, locked: { border: "border-l-white/15", pill: "bg-white/5 text-white/40", dot: "bg-white/20", label: "Locked" } }
+const configs = Object.values(algorithmConfigs)
+
+export function AlgorithmsList() {
+  return <motion.section initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-40px" }} className="relative mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
+    <CircuitSpine />
+    <div className="relative flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-semibold text-white">Quantum algorithms</h3><p className="mt-0.5 text-xs text-white/45">Core curriculum tracks · {configs.length} sequences</p></div><span className="text-[11px] font-medium text-white/40">Sorted by track</span></div>
+    <ul className="relative mt-4 flex flex-col gap-2">{configs.map((config, index) => { const status = index < 2 ? "mastered" : index === 2 ? "in-progress" : index === 3 ? "next" : "locked"; const style = statusStyles[status]; const disabled = status === "locked"; return <motion.li key={config.meta.slug} initial={{ opacity: 0, x: -8 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: "-40px" }} transition={{ duration: 0.3, delay: index * 0.06 }} whileHover={disabled ? undefined : { y: -2 }} className={`group relative overflow-hidden rounded-xl border border-white/5 border-l-2 ${style.border} bg-black/20 transition-all hover:shadow-[0_0_18px_-6px_currentColor] ${disabled ? "opacity-50" : "hover:bg-black/30"}`} style={{ color: status === "mastered" ? "#4ADE80" : status === "in-progress" ? "#00D4FF" : status === "next" ? "#FFB800" : "transparent" }}>
+      {status === "mastered" && <motion.span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-[#4ADE80]/20 to-transparent" initial={{ x: "-100%" }} whileInView={{ x: "300%" }} viewport={{ once: true }} transition={{ duration: 1.1, delay: 0.4 + index * 0.06, ease: "easeInOut" }} />}
+      <Link aria-disabled={disabled} href={disabled ? "/home" : `/lab/${config.meta.slug}`} className="relative flex items-center gap-4 px-4 py-3"><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-medium text-white">{config.meta.title}</p><span className="shrink-0 text-[10px] font-medium text-white/35">Track {String(config.meta.trackNumber).padStart(2, "0")}</span></div><p className="mt-0.5 truncate text-xs text-white/45">{config.meta.tagline}</p></div><div className="hidden shrink-0 items-center gap-1 sm:flex" aria-label={`${config.meta.title} progress`} >{Array.from({ length: 9 }).map((_, i) => <motion.span key={i} initial={{ scale: 0 }} whileInView={{ scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.2, delay: 0.2 + index * 0.06 + i * 0.02 }} className={`h-1.5 w-1.5 rounded-full ${i < (status === "mastered" ? 9 : status === "in-progress" ? 4 : 0) ? style.dot : "bg-white/10"}`} />)}</div><span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${style.pill}`}>{style.label}</span></Link></motion.li> })}</ul>
+  </motion.section>
+}
