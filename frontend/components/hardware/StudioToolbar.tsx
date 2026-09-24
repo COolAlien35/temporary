@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { FolderOpen, Layers, List, Plus, Redo2, Save, Sparkles, Trash2, Workflow } from "lucide-react"
+import { Box, FolderOpen, Layers, List, Plus, Redo2, Save, Sparkles, Trash2, Workflow } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -160,6 +160,13 @@ export function StudioToolbar() {
           className={cn("rounded px-2 py-1", view === "diagram" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70")}
         >
           <Workflow className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => setView("3d")}
+          aria-label="3D cryostat view"
+          className={cn("rounded px-2 py-1", view === "3d" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70")}
+        >
+          <Box className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => setView("list")}

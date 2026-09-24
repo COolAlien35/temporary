@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { getComponent } from "@/lib/hardware/components"
 import { LINES } from "@/lib/hardware/lines"
@@ -30,6 +30,7 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
   const selectedPlacedId = useHardware((s) => s.selectedPlacedId)
   const selectedRouteId = useHardware((s) => s.selectedRouteId)
   const pendingRoute = useHardware((s) => s.pendingRoute)
+  const pendingLineType = useHardware((s) => s.pendingLineType)
   const hiddenLines = useHardware((s) => s.hiddenLines)
   const select = useHardware((s) => s.select)
   const selectRoute = useHardware((s) => s.selectRoute)
@@ -41,6 +42,8 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
 
   const [dragId, setDragId] = useState<string | null>(null)
   const [hoverPort, setHoverPort] = useState<string | null>(null)
+  const [wireCursor, setWireCursor] = useState<{ x: number; y: number } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   const stageIndexById = useMemo(() => {
     const m = new Map<string, number>()
@@ -58,8 +61,29 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
     return { x, y }
   }
 
+  function getPortPoint(placedId: string, portId: string) {
+    const p = design.placed.find((pp) => pp.id === placedId)
+    if (!p) return null
+    const def = getComponent(p.componentId)
+    if (!def) return null
+    const idx = stageIndexById.get(p.stageId) ?? 0
+    const { cx, cy } = iconCenter(p, idx)
+    const portCount = def.ports.length
+    const pi = def.ports.findIndex((port) => port.id === portId)
+    if (pi === -1) return null
+    return { x: cx - ICON_W / 2 + ((pi + 1) / (portCount + 1)) * ICON_W, y: cy + ICON_H / 2 }
+  }
+
   function handleBandClick(stageId: string, evt: React.MouseEvent<SVGSVGElement>) {
-    if (!armedComponentId) return
+    if (pendingRoute) {
+      cancelRoute()
+      return
+    }
+    if (!armedComponentId) {
+      select(null)
+      selectRoute(null)
+      return
+    }
     const { x, y } = toSvgPoint(evt)
     const idx = stageIndexById.get(stageId) ?? 0
     const fracX = Math.min(1, Math.max(0, (x - PAD_X) / (CANVAS_WIDTH - PAD_X * 2)))
@@ -68,13 +92,60 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
     onPlaced()
   }
 
-  function handlePortClick(placedId: string, portId: string) {
-    if (pendingRoute) {
-      completeRoute(placedId, portId)
-    } else {
+  function handlePortMouseDown(placedId: string, portId: string, evt: React.MouseEvent) {
+    evt.stopPropagation()
+    if (!pendingRoute) {
       beginRoute(placedId, portId, activeLineType)
     }
   }
+
+  // Drag-to-connect: while a route is pending, track the cursor for a live preview
+  // line and resolve whatever port (if any) the mouse is released over.
+  useEffect(() => {
+    if (!pendingRoute) {
+      setWireCursor(null)
+      return
+    }
+    let moved = false
+    let startX = 0
+    let startY = 0
+    let started = false
+
+    function onMove(e: MouseEvent) {
+      if (!started) {
+        startX = e.clientX
+        startY = e.clientY
+        started = true
+      }
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 4) moved = true
+      const svg = svgRef.current
+      if (!svg) return
+      const rect = svg.getBoundingClientRect()
+      setWireCursor({
+        x: ((e.clientX - rect.left) / rect.width) * CANVAS_WIDTH,
+        y: ((e.clientY - rect.top) / rect.height) * height,
+      })
+    }
+
+    function onUp(e: MouseEvent) {
+      const el = document.elementFromPoint(e.clientX, e.clientY)
+      const portEl = el?.closest("[data-port-owner]")
+      if (portEl) {
+        const owner = portEl.getAttribute("data-port-owner")
+        const portId = portEl.getAttribute("data-port-id")
+        if (owner && portId) completeRoute(owner, portId)
+        return
+      }
+      if (moved) cancelRoute()
+    }
+
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+  }, [pendingRoute, completeRoute, cancelRoute, height])
 
   return (
     <div className="relative h-full w-full overflow-auto rounded-xl border border-white/10 bg-black/30">
@@ -213,27 +284,54 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
                 const isPending = pendingRoute?.placedId === p.id && pendingRoute.port === port.id
                 const isHovered = hoverPort === `${p.id}:${port.id}`
                 return (
-                  <circle
-                    key={port.id}
-                    cx={px}
-                    cy={py}
-                    r={isPending || isHovered ? 5 : 3.5}
-                    fill={isPending ? "#f97316" : "#94a3b8"}
-                    stroke="#0a0a0f"
-                    strokeWidth={1}
-                    className="cursor-crosshair"
-                    onMouseEnter={() => setHoverPort(`${p.id}:${port.id}`)}
-                    onMouseLeave={() => setHoverPort(null)}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handlePortClick(p.id, port.id)
-                    }}
-                  />
+                  <g key={port.id}>
+                    <circle
+                      cx={px}
+                      cy={py}
+                      r={9}
+                      fill="transparent"
+                      data-port-owner={p.id}
+                      data-port-id={port.id}
+                      className="cursor-crosshair"
+                      onMouseEnter={() => setHoverPort(`${p.id}:${port.id}`)}
+                      onMouseLeave={() => setHoverPort(null)}
+                      onMouseDown={(e) => handlePortMouseDown(p.id, port.id, e)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <circle
+                      cx={px}
+                      cy={py}
+                      r={isPending || isHovered ? 5 : 3.5}
+                      fill={isPending ? "#f97316" : "#94a3b8"}
+                      stroke="#0a0a0f"
+                      strokeWidth={1}
+                      className="pointer-events-none"
+                    />
+                  </g>
                 )
               })}
             </g>
           )
         })}
+
+        {pendingRoute && wireCursor && (() => {
+          const origin = getPortPoint(pendingRoute.placedId, pendingRoute.port)
+          if (!origin) return null
+          const midY = (origin.y + wireCursor.y) / 2
+          const path = `M ${origin.x} ${origin.y} C ${origin.x} ${midY}, ${wireCursor.x} ${midY}, ${wireCursor.x} ${wireCursor.y}`
+          const line = LINES[pendingLineType]
+          return (
+            <path
+              d={path}
+              fill="none"
+              stroke={line?.color ?? "#f97316"}
+              strokeWidth={2}
+              strokeDasharray="4 3"
+              strokeOpacity={0.85}
+              className="pointer-events-none"
+            />
+          )
+        })()}
       </svg>
 
       {armedComponentId && (
@@ -243,7 +341,12 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
       )}
       {pendingRoute && (
         <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-sky-400/40 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-200">
-          Click a destination port to complete the route, or click empty space to cancel
+          Drag to another port to complete the route, or release on empty space to cancel
+        </div>
+      )}
+      {!pendingRoute && !armedComponentId && design.placed.length > 0 && (
+        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white/50">
+          Drag from a port to another port to add a wire
         </div>
       )}
     </div>

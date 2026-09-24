@@ -23,7 +23,7 @@ interface HardwareState {
   pendingRoute: PendingRoute | null
   pendingLineType: LineTypeId
   hiddenLines: LineTypeId[]
-  view: "diagram" | "list"
+  view: "diagram" | "3d" | "list"
   issues: Issue[]
   thermal: ThermalResult | null
   tourCompleted: boolean
@@ -49,7 +49,7 @@ interface HardwareState {
   select: (placedId: string | null) => void
   selectRoute: (routeId: string | null) => void
   toggleLineVisibility: (lineType: LineTypeId) => void
-  setView: (v: "diagram" | "list") => void
+  setView: (v: "diagram" | "3d" | "list") => void
 
   toggleFavorite: (componentId: string) => void
   toggleBookmark: (id: string) => void

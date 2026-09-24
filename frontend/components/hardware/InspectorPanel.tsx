@@ -5,6 +5,7 @@ import { getComponent } from "@/lib/hardware/components"
 import { LINES } from "@/lib/hardware/lines"
 import { CABLES } from "@/lib/hardware/cables"
 import { useHardware } from "@/store/use-hardware"
+import { ComponentViewer } from "@/components/hardware/three/ComponentViewer"
 
 export function InspectorPanel() {
   const design = useHardware((s) => s.design)
@@ -41,6 +42,9 @@ export function InspectorPanel() {
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
+        </div>
+        <div className="h-40 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+          <ComponentViewer componentId={def.id} controls className="h-full w-full" />
         </div>
         <p className="text-xs leading-relaxed text-white/60">{def.description}</p>
         <div>

@@ -10,6 +10,7 @@ import { InspectorPanel } from "@/components/hardware/InspectorPanel"
 import { DiagnosticsPanel } from "@/components/hardware/DiagnosticsPanel"
 import { StudioToolbar } from "@/components/hardware/StudioToolbar"
 import { DesignListView } from "@/components/hardware/DesignListView"
+import { CryostatScene } from "@/components/hardware/three/CryostatScene"
 import type { LineTypeId } from "@/lib/hardware/types"
 import { useHardware } from "@/store/use-hardware"
 
@@ -17,6 +18,9 @@ export default function HardwareStudioPage() {
   const [armedComponentId, setArmedComponentId] = useState<string | null>(null)
   const [activeLineType] = useState<LineTypeId>("xy")
   const view = useHardware((s) => s.view)
+  const design = useHardware((s) => s.design)
+  const hiddenLines = useHardware((s) => s.hiddenLines)
+  const selectedPlacedId = useHardware((s) => s.selectedPlacedId)
 
   return (
     <AppShell variant="hardware">
@@ -39,11 +43,17 @@ export default function HardwareStudioPage() {
         </GlassCard>
 
         <GlassCard interactive={false} className="lg:h-[640px]">
-          {view === "diagram" ? (
+          {view === "diagram" && (
             <div className="h-full max-h-[600px]">
               <WiringCanvas armedComponentId={armedComponentId} onPlaced={() => setArmedComponentId(null)} activeLineType={activeLineType} />
             </div>
-          ) : (
+          )}
+          {view === "3d" && (
+            <div className="h-full max-h-[600px] overflow-hidden rounded-xl border border-white/10">
+              <CryostatScene design={design} hiddenLines={hiddenLines} selectedPlacedId={selectedPlacedId} className="h-full w-full" />
+            </div>
+          )}
+          {view === "list" && (
             <div className="h-full max-h-[600px] overflow-y-auto">
               <DesignListView />
             </div>

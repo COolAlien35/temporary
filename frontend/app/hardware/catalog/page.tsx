@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { COMPONENTS } from "@/lib/hardware/components"
 import { STAGE_LIST } from "@/lib/hardware/stages"
 import { LINES } from "@/lib/hardware/lines"
+import { ComponentViewer } from "@/components/hardware/three/ComponentViewer"
 
 const CATEGORY_LIST = Array.from(new Set(COMPONENTS.map((c) => c.category)))
 
@@ -56,6 +57,9 @@ export default function HardwareCatalogPage() {
             {filtered.map((c, i) => (
               <Reveal key={c.id} delay={Math.min(i, 6) * 0.05}>
                 <GlassCard className="h-full">
+                  <div className="mb-3 h-40 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                    <ComponentViewer componentId={c.id} controls className="h-full w-full" />
+                  </div>
                   <div className="mb-2 flex items-center justify-between">
                     <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/50">
                       {c.category}

@@ -60,7 +60,7 @@ export function GlassCard({
           }}
         />
       )}
-      <div className="relative z-0">{children}</div>
+      <div className="relative z-0 h-full">{children}</div>
     </div>
   )
 }
