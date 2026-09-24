@@ -12,7 +12,7 @@ import { useReducedMotion } from "@/hooks/use-reduced-motion"
 
 const LAYER_SPEEDS = [0.05, 0.1, 0.2, 0.35, 0.55]
 
-export type BackdropVariant = "roadmap" | "passport" | "studio" | "curriculum" | "cohorts" | "docs"
+export type BackdropVariant = "roadmap" | "passport" | "studio" | "curriculum" | "cohorts" | "docs" | "hardware"
 export type TraceSection = { label: string }
 
 const GRADIENTS: Record<BackdropVariant, string> = {
@@ -22,6 +22,7 @@ const GRADIENTS: Record<BackdropVariant, string> = {
   curriculum: "radial-gradient(ellipse 60% 60% at 25% 30%, rgba(74,222,128,0.08), transparent 65%), radial-gradient(ellipse 60% 50% at 85% 80%, rgba(0,212,255,0.10), transparent 65%), #0A0E17",
   cohorts: "radial-gradient(ellipse 60% 50% at 20% 20%, rgba(245,185,66,0.10), transparent 65%), radial-gradient(ellipse 60% 50% at 80% 80%, rgba(0,212,255,0.11), transparent 65%), #0A0E17",
   docs: "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(0,212,255,0.08), transparent 65%), #0A0E17",
+  hardware: "radial-gradient(ellipse 65% 55% at 50% 0%, rgba(125,211,252,0.10), transparent 60%), radial-gradient(ellipse 55% 45% at 90% 90%, rgba(0,212,255,0.08), transparent 65%), #060911",
 }
 
 export function ParallaxBackdrop({

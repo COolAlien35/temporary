@@ -3,17 +3,30 @@
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { motion } from "motion/react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { ChevronDown } from "lucide-react"
 import { AtomSvg } from "@/components/quantumloop/atom-svg"
 import { DashboardFooter } from "@/components/dashboard/dashboard-footer"
 import { ParallaxBackdrop, type TraceSection } from "@/components/shared/ParallaxBackdrop"
 import { CommandPalette } from "@/components/shared/CommandPalette"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useHardware } from "@/store/use-hardware"
 import { cn } from "@/lib/utils"
 
 const NAV_LINKS = [
   { label: "Roadmap", href: "/home", layoutId: "nav-roadmap" },
   { label: "Curriculum", href: "/curriculum", layoutId: "nav-curriculum" },
   { label: "Circuit Studio", href: "/studio", layoutId: "nav-studio" },
+]
+
+const HARDWARE_LINKS = [
+  { label: "Overview", href: "/hardware", description: "What the Hardware Studio is for" },
+  { label: "Component Catalog", href: "/hardware/catalog", description: "Browse cryostat hardware & wiring rules" },
+  { label: "Builder Studio", href: "/hardware/studio", description: "Design a fridge wiring diagram" },
+  { label: "System Checks", href: "/hardware/checks", description: "Validation rules & thermal budgets" },
+]
+
+const NAV_LINKS_2 = [
   { label: "Cohorts", href: "/cohorts", layoutId: "nav-cohorts" },
   { label: "Docs", href: "/docs", layoutId: "nav-docs" },
 ]
@@ -23,20 +36,30 @@ export function AppShell({
   variant = "roadmap",
   sections,
   userName = "Maya Chen",
+  disableBackdrop = false,
 }: {
   children: React.ReactNode
-  variant?: "roadmap" | "passport" | "studio" | "curriculum" | "cohorts" | "docs"
+  variant?: "roadmap" | "passport" | "studio" | "curriculum" | "cohorts" | "docs" | "hardware"
   sections?: TraceSection[]
   userName?: string
+  disableBackdrop?: boolean
 }) {
   const pathname = usePathname()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const streakDays = 12
 
+  // The hardware store persists to localStorage but is created with
+  // `skipHydration: true` so the server-rendered markup always matches the
+  // client's pre-hydration state. Rehydrate manually once mounted.
+  useEffect(() => {
+    void useHardware.persist.rehydrate()
+  }, [])
+
   const getActiveLink = () => {
     if (pathname === "/home" || pathname === "/") return "Roadmap"
     if (pathname.startsWith("/curriculum")) return "Curriculum"
     if (pathname.startsWith("/studio")) return "Circuit Studio"
+    if (pathname.startsWith("/hardware")) return "Hardware Studio"
     if (pathname.startsWith("/cohorts")) return "Cohorts"
     if (pathname.startsWith("/docs")) return "Docs"
     return null
@@ -46,7 +69,7 @@ export function AppShell({
 
   return (
     <div className="relative min-h-screen bg-[#0A0E17] text-white">
-      <ParallaxBackdrop variant={variant as any} sections={sections} />
+      {!disableBackdrop && <ParallaxBackdrop variant={variant as any} sections={sections} />}
       <CommandPalette />
 
       {/* Top Navigation */}
@@ -72,6 +95,56 @@ export function AppShell({
           {/* Desktop Navigation */}
           <nav className="hidden items-center gap-5 md:flex" aria-label="Primary">
             {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="relative py-1 text-xs font-medium text-white/50 transition-colors hover:text-white/80"
+              >
+                {link.label}
+                {activeLink === link.label && (
+                  <motion.div
+                    layoutId="nav-underline"
+                    className="absolute -bottom-[1px] left-0 right-0 h-[2px] bg-[#00D4FF] rounded-full"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+              </Link>
+            ))}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <button
+                    type="button"
+                    className="relative flex items-center gap-1 py-1 text-xs font-medium text-white/50 transition-colors hover:text-white/80 focus:outline-none"
+                  />
+                }
+              >
+                Hardware Studio
+                <ChevronDown className="h-3 w-3" />
+                {activeLink === "Hardware Studio" && (
+                  <motion.div
+                    layoutId="nav-underline"
+                    className="absolute -bottom-[1px] left-0 right-0 h-[2px] bg-[#00D4FF] rounded-full"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64 border-white/10 bg-[#10141F] text-white">
+                {HARDWARE_LINKS.map((link) => (
+                  <DropdownMenuItem
+                    key={link.href}
+                    render={<Link href={link.href} />}
+                    className="flex flex-col items-start gap-0.5 py-2 cursor-pointer focus:bg-white/10 focus:text-white"
+                  >
+                    <span className="text-xs font-medium text-white">{link.label}</span>
+                    <span className="text-[11px] text-white/50">{link.description}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {NAV_LINKS_2.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -168,6 +241,33 @@ export function AppShell({
           >
             <nav className="flex flex-col gap-1 px-4 py-3" aria-label="Mobile">
               {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    activeLink === link.label ? "bg-white/10 text-white" : "text-white/70 hover:text-white/90",
+                  )}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+              <p className="px-3 pt-2 text-[10px] font-medium uppercase tracking-wider text-white/30">Hardware Studio</p>
+              {HARDWARE_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    pathname === link.href ? "bg-white/10 text-white" : "text-white/70 hover:text-white/90",
+                  )}
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+              {NAV_LINKS_2.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
