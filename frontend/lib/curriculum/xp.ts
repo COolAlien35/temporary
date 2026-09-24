@@ -1,0 +1,2 @@
+export const XP_RULES = { lessonConcept: 10, lessonInteractive: 15, checkpoint: 5, quizCorrect: 2, quizPass: 20, practical: 25, capstone: 150 } as const
+export const levelForXp = (xp: number) => xp >= 600 ? { level: 5, title: "Quantum Architect" } : xp >= 420 ? { level: 4, title: "Scholar" } : xp >= 220 ? { level: 3, title: "Circuit Builder" } : xp >= 80 ? { level: 2, title: "Qubit Apprentice" } : { level: 1, title: "Explorer" }

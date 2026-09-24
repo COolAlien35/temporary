@@ -19,6 +19,10 @@ export type LearnerProgress = {
   savedCircuits: SavedCircuit[]
   notebookNotes: Array<{ id: string; content: string; timestamp: number }>
   cohortMembership: string[]
+  lessonsCompleted: string[]
+  quizScores: Record<string, number>
+  flaggedQuestions: string[]
+  lastLessonId: string | null
 }
 
 const initialState: LearnerProgress = {
@@ -30,6 +34,10 @@ const initialState: LearnerProgress = {
   savedCircuits: [],
   notebookNotes: [],
   cohortMembership: [],
+  lessonsCompleted: [],
+  quizScores: {},
+  flaggedQuestions: [],
+  lastLessonId: null,
 }
 
 export const useLearnerProgress = create<LearnerProgress & {
@@ -40,6 +48,8 @@ export const useLearnerProgress = create<LearnerProgress & {
   addCalibration: (algoSlug: string, score: number) => void
   saveCircuit: (circuit: SavedCircuit) => void
   addNote: (content: string) => void
+  completeLesson: (lessonId: string, amount: number) => void
+  saveQuizScore: (unitId: string, score: number) => void
 }>()(
   persist(
     (set) => ({
@@ -69,11 +79,10 @@ export const useLearnerProgress = create<LearnerProgress & {
         }),
       addNote: (content: string) =>
         set((state) => ({
-          notebookNotes: [
-            ...state.notebookNotes,
-            { id: Date.now().toString(), content, timestamp: Date.now() },
-          ],
+          notebookNotes: [...state.notebookNotes, { id: Date.now().toString(), content, timestamp: Date.now() }],
         })),
+      completeLesson: (lessonId: string, amount: number) => set((state) => ({ lessonsCompleted: state.lessonsCompleted.includes(lessonId) ? state.lessonsCompleted : [...state.lessonsCompleted, lessonId], lastLessonId: lessonId, xp: state.lessonsCompleted.includes(lessonId) ? state.xp : state.xp + amount })),
+      saveQuizScore: (unitId: string, score: number) => set((state) => ({ quizScores: { ...state.quizScores, [unitId]: Math.max(state.quizScores[unitId] ?? 0, score) } })),
     }),
     {
       name: "learner-progress-storage",

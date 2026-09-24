@@ -56,6 +56,12 @@ export function CatalogPalette({ armedComponentId, onArm }: CatalogPaletteProps)
           return (
             <div
               key={c.id}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "copy"
+                event.dataTransfer.setData("application/x-hardware-component", c.id)
+              }}
+              onDragEnd={() => onArm(null)}
               className={cn(
                 "group flex items-center gap-2 rounded-lg border px-2.5 py-2 transition-colors",
                 isArmed ? "border-orange-400/50 bg-orange-500/10" : "border-white/10 bg-white/[0.03] hover:border-white/20",

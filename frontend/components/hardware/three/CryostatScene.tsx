@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Html, OrbitControls, QuadraticBezierLine } from "@react-three/drei"
+import { OrbitControls, QuadraticBezierLine } from "@react-three/drei"
 import { getComponent } from "@/lib/hardware/components"
 import { LINES } from "@/lib/hardware/lines"
 import { buildTransformMap, getPlateLayouts, getPortWorldPosition, STAGE_SPACING_MM } from "@/lib/hardware/three/layout"
@@ -43,14 +43,6 @@ function Plate({ y, radius, thickness, color, label, tempLabel }: { y: number; r
         <ringGeometry args={[radius - 4, radius, 64]} />
         <meshBasicMaterial color={color} transparent opacity={0.7} side={2} />
       </mesh>
-      <Html position={[-radius - 14, thickness / 2, 0]} center={false} distanceFactor={0} occlude={false} zIndexRange={[1, 0]}>
-        <div className="pointer-events-none -translate-x-full whitespace-nowrap rounded-md border border-white/10 bg-black/70 px-2 py-1 text-[10px] text-white backdrop-blur-sm">
-          <span className="font-semibold" style={{ color }}>
-            {label}
-          </span>
-          <span className="ml-1.5 text-white/50">{tempLabel}</span>
-        </div>
-      </Html>
     </group>
   )
 }

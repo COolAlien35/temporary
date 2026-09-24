@@ -31,7 +31,7 @@ export function StagePredict() {
               </span>
               <Slider
                 value={[hypothesis[state] ?? 0]}
-                onValueChange={([v]) => setHypothesis(state, v)}
+                onValueChange={(value) => setHypothesis(state, Array.isArray(value) ? (value[0] ?? 0) : value)}
                 max={100}
                 step={1}
                 disabled={predictionLocked}
@@ -60,7 +60,7 @@ export function StagePredict() {
         <div className="mt-4 flex items-center gap-4">
           <Slider
             value={[confidence]}
-            onValueChange={([v]) => setConfidence(v)}
+            onValueChange={(value) => setConfidence(Array.isArray(value) ? (value[0] ?? 0) : value)}
             max={100}
             step={1}
             disabled={predictionLocked}

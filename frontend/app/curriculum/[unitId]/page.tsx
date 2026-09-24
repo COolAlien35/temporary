@@ -1,0 +1,6 @@
+import Link from "next/link"
+import { notFound } from "next/navigation"
+import { getUnit, units } from "@/lib/curriculum/units"
+import { LessonList } from "@/components/curriculum/CurriculumUI"
+export function generateStaticParams(){return units.map(u=>({unitId:u.id}))}
+export default async function UnitPage({params}:{params:Promise<{unitId:string}>}){const {unitId}=await params; const unit=getUnit(unitId); if(!unit) notFound(); return <main className="min-h-screen bg-[#0A0E17] px-5 py-10 text-white md:px-10"><div className="mx-auto max-w-5xl"><Link href="/curriculum" className="text-sm text-[#00D4FF]">← Curriculum</Link><header className="mt-8 rounded-3xl border border-white/10 bg-white/[.04] p-7"><p className="text-sm uppercase tracking-[.25em] text-[#00D4FF]">{unit.level} · {unit.minutes} minutes</p><h1 className="mt-3 text-4xl font-semibold">{unit.title}</h1><p className="mt-3 max-w-2xl text-white/60">{unit.tagline}</p><p className="mt-5 text-sm text-[#F5B942]">Badge: {unit.badge} · {unit.xpTotal} XP available</p></header><div className="mt-8 flex items-center justify-between"><h2 className="text-2xl font-semibold">Lessons</h2><Link href={`/curriculum/${unit.id}/quiz`} className="rounded-xl bg-[#00D4FF] px-4 py-2 text-sm font-semibold text-[#0A0E17]">Start unit quiz</Link></div><div className="mt-4"><LessonList unit={unit}/></div></div></main>}

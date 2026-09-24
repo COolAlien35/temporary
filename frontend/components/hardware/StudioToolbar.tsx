@@ -7,7 +7,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -58,39 +57,40 @@ export function StudioToolbar() {
           <FolderOpen className="h-3.5 w-3.5" /> Load
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64 border-white/10 bg-[#10141F] text-white">
-          <DropdownMenuLabel className="text-white/50">Saved designs</DropdownMenuLabel>
-          {savedDesigns.length === 0 && <p className="px-2 py-1.5 text-xs text-white/40">Nothing saved yet</p>}
-          {savedDesigns.map((sd) => (
-            <DropdownMenuItem key={sd.id} className="flex items-center justify-between gap-2 focus:bg-white/10 focus:text-white">
-              <button onClick={() => loadSaved(sd.id)} className="flex-1 truncate text-left">
-                {sd.design.meta.name}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  deleteSaved(sd.id)
-                }}
-                aria-label={`Delete ${sd.design.meta.name}`}
-                className="text-white/30 hover:text-red-400"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </DropdownMenuItem>
-          ))}
+          <div className="px-1.5 py-1 text-xs font-medium text-white/50">Saved designs</div>
+            {savedDesigns.length === 0 && <p className="px-2 py-1.5 text-xs text-white/40">Nothing saved yet</p>}
+            {savedDesigns.map((sd) => (
+              <div key={sd.id} className="flex items-center gap-1 px-1">
+                <DropdownMenuItem
+                  onClick={() => loadSaved(sd.id)}
+                  className="min-w-0 flex-1 focus:bg-white/10 focus:text-white"
+                >
+                  <span className="truncate">{sd.design.meta.name}</span>
+                </DropdownMenuItem>
+                <button
+                  type="button"
+                  onClick={() => deleteSaved(sd.id)}
+                  aria-label={`Delete ${sd.design.meta.name}`}
+                  className="shrink-0 rounded p-1 text-white/30 hover:bg-white/10 hover:text-red-400"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
           <DropdownMenuSeparator className="bg-white/10" />
-          <DropdownMenuLabel className="text-white/50">Presets</DropdownMenuLabel>
-          {PRESETS.map((preset) => (
-            <DropdownMenuItem
-              key={preset.slug}
-              onClick={() => {
-                loadDesign(preset.design)
-                setNameDraft(preset.design.meta.name)
-              }}
-              className="focus:bg-white/10 focus:text-white"
-            >
-              <Sparkles className="mr-2 h-3 w-3 text-[#00D4FF]" /> {preset.title}
-            </DropdownMenuItem>
-          ))}
+          <div className="px-1.5 py-1 text-xs font-medium text-white/50">Presets</div>
+            {PRESETS.map((preset) => (
+              <DropdownMenuItem
+                key={preset.slug}
+                onClick={() => {
+                  loadDesign(preset.design)
+                  setNameDraft(preset.design.meta.name)
+                }}
+                className="focus:bg-white/10 focus:text-white"
+              >
+                <Sparkles className="mr-2 h-3 w-3 text-[#00D4FF]" /> {preset.title}
+              </DropdownMenuItem>
+            ))}
         </DropdownMenuContent>
       </DropdownMenu>
 

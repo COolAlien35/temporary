@@ -2,7 +2,6 @@
 
 import { Suspense, type ReactNode } from "react"
 import { Canvas } from "@react-three/fiber"
-import { Environment } from "@react-three/drei"
 import { ErrorBoundary3D } from "./ErrorBoundary3D"
 
 interface SceneCanvasProps {
@@ -13,11 +12,12 @@ interface SceneCanvasProps {
   className?: string
   dpr?: [number, number]
   fallbackLabel?: string
+  background?: "dark" | "light"
 }
 
 /**
  * Shared canvas shell used by every 3D view in the Hardware Studio: consistent
- * lighting, camera defaults, an environment map for metal reflections, and a
+ * lighting and camera defaults, plus a
  * render-error boundary so a single broken view never breaks the page.
  */
 export function SceneCanvas({
@@ -27,6 +27,7 @@ export function SceneCanvas({
   className,
   dpr = [1, 1.75],
   fallbackLabel,
+  background = "dark",
 }: SceneCanvasProps) {
   return (
     <ErrorBoundary3D fallbackLabel={fallbackLabel}>
@@ -36,15 +37,12 @@ export function SceneCanvas({
         gl={{ antialias: true, powerPreference: "high-performance" }}
         camera={{ position: cameraPosition, fov, near: 0.1, far: 5000 }}
       >
-        <color attach="background" args={["#05070c"]} />
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[120, 160, 80]} intensity={1.1} castShadow={false} />
-        <directionalLight position={[-100, 40, -60]} intensity={0.35} color="#5eead4" />
-        <pointLight position={[0, 40, 40]} intensity={0.25} color="#00D4FF" />
-        <Suspense fallback={null}>
-          <Environment preset="city" environmentIntensity={0.5} />
-          {children}
-        </Suspense>
+        <color attach="background" args={[background === "light" ? "#f8fafc" : "#05070c"]} />
+        <ambientLight intensity={background === "light" ? 1.15 : 0.55} />
+        <directionalLight position={[120, 160, 80]} intensity={background === "light" ? 1.65 : 1.1} castShadow={false} />
+        <directionalLight position={[-100, 40, -60]} intensity={background === "light" ? 0.7 : 0.35} color="#5eead4" />
+        <pointLight position={[0, 40, 40]} intensity={background === "light" ? 0.45 : 0.25} color="#00D4FF" />
+        <Suspense fallback={null}>{children}</Suspense>
       </Canvas>
     </ErrorBoundary3D>
   )

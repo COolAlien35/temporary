@@ -7,11 +7,11 @@ import { LINES } from "@/lib/hardware/lines"
 import type { LineTypeId, PlacedComponent } from "@/lib/hardware/types"
 import { useHardware } from "@/store/use-hardware"
 
-const BAND_HEIGHT = 128
-const ICON_W = 92
-const ICON_H = 40
-const CANVAS_WIDTH = 960
-const PAD_X = 64
+const BAND_HEIGHT = 156
+const ICON_W = 128
+const ICON_H = 56
+const CANVAS_WIDTH = 1120
+const PAD_X = 84
 
 interface WiringCanvasProps {
   armedComponentId: string | null
@@ -43,6 +43,9 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
   const [dragId, setDragId] = useState<string | null>(null)
   const [hoverPort, setHoverPort] = useState<string | null>(null)
   const [wireCursor, setWireCursor] = useState<{ x: number; y: number } | null>(null)
+  const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: CANVAS_WIDTH, h: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const panRef = useRef({ clientX: 0, clientY: 0, viewX: 0, viewY: 0 })
   const svgRef = useRef<SVGSVGElement>(null)
 
   const stageIndexById = useMemo(() => {
@@ -53,12 +56,34 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
 
   const height = Math.max(design.stages.length * BAND_HEIGHT, BAND_HEIGHT)
 
-  function toSvgPoint(evt: React.MouseEvent<SVGSVGElement>) {
-    const svg = evt.currentTarget
+  useEffect(() => {
+    setViewBox((current) => ({ ...current, h: height, y: Math.min(current.y, Math.max(0, height - current.h)) }))
+  }, [height])
+
+  function toSvgPoint(evt: { clientX: number; clientY: number }) {
+    const svg = svgRef.current
+    if (!svg) return { x: 0, y: 0 }
     const rect = svg.getBoundingClientRect()
-    const x = ((evt.clientX - rect.left) / rect.width) * CANVAS_WIDTH
-    const y = ((evt.clientY - rect.top) / rect.height) * height
-    return { x, y }
+    return {
+      x: viewBox.x + ((evt.clientX - rect.left) / rect.width) * viewBox.w,
+      y: viewBox.y + ((evt.clientY - rect.top) / rect.height) * viewBox.h,
+    }
+  }
+
+  function zoomAt(clientX: number, clientY: number, factor: number) {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const anchorX = viewBox.x + ((clientX - rect.left) / rect.width) * viewBox.w
+    const anchorY = viewBox.y + ((clientY - rect.top) / rect.height) * viewBox.h
+    const nextW = Math.min(CANVAS_WIDTH, Math.max(360, viewBox.w * factor))
+    const nextH = Math.min(height, Math.max(220, viewBox.h * factor))
+    setViewBox({
+      w: nextW,
+      h: nextH,
+      x: Math.max(0, Math.min(CANVAS_WIDTH - nextW, anchorX - ((clientX - rect.left) / rect.width) * nextW)),
+      y: Math.max(0, Math.min(height - nextH, anchorY - ((clientY - rect.top) / rect.height) * nextH)),
+    })
   }
 
   function getPortPoint(placedId: string, portId: string) {
@@ -148,12 +173,57 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
   }, [pendingRoute, completeRoute, cancelRoute, height])
 
   return (
-    <div className="relative h-full w-full overflow-auto rounded-xl border border-white/10 bg-black/30">
+    <div
+      className={cn("relative h-full w-full select-none overflow-hidden rounded-xl border border-white/10 bg-black/30", isPanning ? "cursor-grabbing" : "cursor-grab")}
+      style={{ WebkitUserSelect: "none", userSelect: "none", touchAction: "none" }}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("application/x-hardware-component")) event.preventDefault()
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        const componentId = event.dataTransfer.getData("application/x-hardware-component")
+        if (!componentId) return
+        const point = toSvgPoint(event)
+        const idx = Math.max(0, Math.min(design.stages.length - 1, Math.floor(point.y / BAND_HEIGHT)))
+        const stage = design.stages[idx]
+        if (!stage) return
+        const fracX = Math.min(1, Math.max(0, (point.x - PAD_X) / (CANVAS_WIDTH - PAD_X * 2)))
+        const localY = Math.min(BAND_HEIGHT / 2 - ICON_H, Math.max(-(BAND_HEIGHT / 2 - ICON_H), point.y - (idx * BAND_HEIGHT + BAND_HEIGHT / 2)))
+        placeComponent(componentId, stage.id, { x: fracX, y: localY })
+        onPlaced()
+      }}
+      onWheel={(event) => {
+        event.preventDefault()
+        zoomAt(event.clientX, event.clientY, event.deltaY > 0 ? 1.1 : 0.9)
+      }}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        const target = event.target as Element
+        if (target.closest("[data-port-owner], [data-component-node]")) return
+        setIsPanning(true)
+        panRef.current = { clientX: event.clientX, clientY: event.clientY, viewX: viewBox.x, viewY: viewBox.y }
+        event.currentTarget.setPointerCapture(event.pointerId)
+      }}
+      onPointerMove={(event) => {
+        if (!isPanning) return
+        const rect = svgRef.current?.getBoundingClientRect()
+        if (!rect) return
+        setViewBox((current) => ({
+          ...current,
+          x: Math.max(0, Math.min(CANVAS_WIDTH - current.w, panRef.current.viewX - ((event.clientX - panRef.current.clientX) / rect.width) * current.w)),
+          y: Math.max(0, Math.min(height - current.h, panRef.current.viewY - ((event.clientY - panRef.current.clientY) / rect.height) * current.h)),
+        }))
+      }}
+      onPointerUp={() => setIsPanning(false)}
+    >
       <svg
-        viewBox={`0 0 ${CANVAS_WIDTH} ${height}`}
+        ref={svgRef}
+        viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h || height}`}
         width="100%"
-        height={height}
-        className="block min-w-[640px]"
+        height="100%"
+        preserveAspectRatio="xMidYMid meet"
+        className="block h-full w-full select-none"
+        style={{ WebkitUserSelect: "none", userSelect: "none" }}
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             select(null)
@@ -174,10 +244,10 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
               onClick={(e) => handleBandClick(stage.id, e as unknown as React.MouseEvent<SVGSVGElement>)}
             />
             <line x1={0} y1={idx * BAND_HEIGHT} x2={CANVAS_WIDTH} y2={idx * BAND_HEIGHT} stroke={stage.color} strokeOpacity={0.35} strokeWidth={1} />
-            <text x={16} y={idx * BAND_HEIGHT + 22} fill={stage.color} fontSize={13} fontWeight={600}>
+            <text x={24} y={idx * BAND_HEIGHT + 30} fill={stage.color} fontSize={22} fontWeight={700}>
               {stage.label}
             </text>
-            <text x={16} y={idx * BAND_HEIGHT + 40} fill="white" fillOpacity={0.5} fontSize={11}>
+            <text x={24} y={idx * BAND_HEIGHT + 53} fill="white" fillOpacity={0.55} fontSize={17}>
               {stage.temperatureLabel}
               {stage.coolingPowerW !== undefined ? ` · ~${stage.coolingPowerW}W` : ""}
             </text>
@@ -247,6 +317,7 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
           return (
             <g
               key={p.id}
+              data-component-node
               className="cursor-move"
               onMouseDown={() => setDragId(p.id)}
               onMouseMove={(e) => {
@@ -272,10 +343,10 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
                 stroke={isSelected ? "#f97316" : "rgba(255,255,255,0.25)"}
                 strokeWidth={isSelected ? 2 : 1}
               />
-              <text x={cx} y={cy - 2} textAnchor="middle" fill="white" fontSize={11} fontWeight={600}>
+              <text x={cx} y={cy - 3} textAnchor="middle" fill="white" fontSize={15} fontWeight={700} style={{ userSelect: "none" }}>
                 {def.abbreviation}
               </text>
-              <text x={cx} y={cy + 12} textAnchor="middle" fill="white" fillOpacity={0.45} fontSize={8}>
+              <text x={cx} y={cy + 18} textAnchor="middle" fill="white" fillOpacity={0.55} fontSize={11} style={{ userSelect: "none" }}>
                 {def.category}
               </text>
               {def.ports.map((port, pi) => {
@@ -301,7 +372,7 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
                     <circle
                       cx={px}
                       cy={py}
-                      r={isPending || isHovered ? 5 : 3.5}
+                      r={isPending || isHovered ? 8 : 6}
                       fill={isPending ? "#f97316" : "#94a3b8"}
                       stroke="#0a0a0f"
                       strokeWidth={1}
@@ -335,17 +406,17 @@ export function WiringCanvas({ armedComponentId, onPlaced, activeLineType }: Wir
       </svg>
 
       {armedComponentId && (
-        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-orange-400/40 bg-orange-500/10 px-3 py-1.5 text-xs text-orange-200">
+        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-orange-400/40 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200">
           Click a stage band to place the armed component
         </div>
       )}
       {pendingRoute && (
-        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-sky-400/40 bg-sky-500/10 px-3 py-1.5 text-xs text-sky-200">
+        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-sky-400/40 bg-sky-500/10 px-4 py-2 text-sm font-medium text-sky-200">
           Drag to another port to complete the route, or release on empty space to cancel
         </div>
       )}
       {!pendingRoute && !armedComponentId && design.placed.length > 0 && (
-        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-xs text-white/50">
+        <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/10 bg-black/40 px-4 py-2 text-sm font-medium text-white/60">
           Drag from a port to another port to add a wire
         </div>
       )}

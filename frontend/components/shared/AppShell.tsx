@@ -17,6 +17,8 @@ const NAV_LINKS = [
   { label: "Roadmap", href: "/home", layoutId: "nav-roadmap" },
   { label: "Curriculum", href: "/curriculum", layoutId: "nav-curriculum" },
   { label: "Circuit Studio", href: "/studio", layoutId: "nav-studio" },
+  { label: "Contests", href: "/contests", layoutId: "nav-contests" },
+  { label: "Instructor", href: "/instructor", layoutId: "nav-instructor" },
 ]
 
 const HARDWARE_LINKS = [
@@ -26,10 +28,6 @@ const HARDWARE_LINKS = [
   { label: "System Checks", href: "/hardware/checks", description: "Validation rules & thermal budgets" },
 ]
 
-const NAV_LINKS_2 = [
-  { label: "Cohorts", href: "/cohorts", layoutId: "nav-cohorts" },
-  { label: "Docs", href: "/docs", layoutId: "nav-docs" },
-]
 
 export function AppShell({
   children,
@@ -39,7 +37,7 @@ export function AppShell({
   disableBackdrop = false,
 }: {
   children: React.ReactNode
-  variant?: "roadmap" | "passport" | "studio" | "curriculum" | "cohorts" | "docs" | "hardware"
+  variant?: "roadmap" | "passport" | "studio" | "curriculum" | "cohorts" | "docs" | "hardware" | "instructor"
   sections?: TraceSection[]
   userName?: string
   disableBackdrop?: boolean
@@ -59,6 +57,8 @@ export function AppShell({
     if (pathname === "/home" || pathname === "/") return "Roadmap"
     if (pathname.startsWith("/curriculum")) return "Curriculum"
     if (pathname.startsWith("/studio")) return "Circuit Studio"
+    if (pathname.startsWith("/contests") || pathname.startsWith("/leaderboard") || pathname.startsWith("/discussions")) return "Contests"
+    if (pathname.startsWith("/instructor")) return "Instructor"
     if (pathname.startsWith("/hardware")) return "Hardware Studio"
     if (pathname.startsWith("/cohorts")) return "Cohorts"
     if (pathname.startsWith("/docs")) return "Docs"
@@ -98,7 +98,12 @@ export function AppShell({
               <Link
                 key={link.href}
                 href={link.href}
-                className="relative py-1 text-xs font-medium text-white/50 transition-colors hover:text-white/80"
+                className={cn(
+                  "relative rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                  link.label === "Contests"
+                    ? "border border-[#F5B942]/40 bg-[#F5B942]/10 text-[#F5B942] hover:border-[#F5B942]/70 hover:bg-[#F5B942]/20"
+                    : "py-1 text-white/50 hover:text-white/80",
+                )}
               >
                 {link.label}
                 {activeLink === link.label && (
@@ -144,22 +149,6 @@ export function AppShell({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {NAV_LINKS_2.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="relative py-1 text-xs font-medium text-white/50 transition-colors hover:text-white/80"
-              >
-                {link.label}
-                {activeLink === link.label && (
-                  <motion.div
-                    layoutId="nav-underline"
-                    className="absolute -bottom-[1px] left-0 right-0 h-[2px] bg-[#00D4FF] rounded-full"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-              </Link>
-            ))}
           </nav>
 
           {/* Right Section */}
@@ -174,6 +163,7 @@ export function AppShell({
 
             {/* User Name */}
             <div className="hidden text-right sm:block">
+              {pathname.startsWith("/instructor") && <p className="mb-0.5 text-[9px] uppercase tracking-[.16em] text-[#F5B942]">Instructor view</p>}
               <p className="text-xs font-medium text-white">{userName}</p>
             </div>
 
@@ -261,19 +251,6 @@ export function AppShell({
                   className={cn(
                     "rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     pathname === link.href ? "bg-white/10 text-white" : "text-white/70 hover:text-white/90",
-                  )}
-                  onClick={() => setMobileNavOpen(false)}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              {NAV_LINKS_2.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    activeLink === link.label ? "bg-white/10 text-white" : "text-white/70 hover:text-white/90",
                   )}
                   onClick={() => setMobileNavOpen(false)}
                 >

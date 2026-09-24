@@ -1,13 +1,16 @@
 "use client"
 
-import { Trash2 } from "lucide-react"
+import { Maximize2, Minimize2, Trash2 } from "lucide-react"
+import { useState } from "react"
 import { getComponent } from "@/lib/hardware/components"
 import { LINES } from "@/lib/hardware/lines"
 import { CABLES } from "@/lib/hardware/cables"
 import { useHardware } from "@/store/use-hardware"
 import { ComponentViewer } from "@/components/hardware/three/ComponentViewer"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export function InspectorPanel() {
+  const [isViewerOpen, setIsViewerOpen] = useState(false)
   const design = useHardware((s) => s.design)
   const selectedPlacedId = useHardware((s) => s.selectedPlacedId)
   const selectedRouteId = useHardware((s) => s.selectedRouteId)
@@ -43,9 +46,33 @@ export function InspectorPanel() {
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="h-40 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+        <div className="relative h-40 overflow-hidden rounded-lg border border-white/10 bg-black/40">
           <ComponentViewer componentId={def.id} controls className="h-full w-full" />
+          <button
+            type="button"
+            onClick={() => setIsViewerOpen(true)}
+            aria-label={`Open ${def.name} in fullscreen`}
+            title="Open fullscreen"
+            className="absolute right-2 top-2 z-10 rounded-md border border-white/10 bg-black/60 p-2 text-white/70 backdrop-blur-sm transition-colors hover:border-[#00D4FF]/50 hover:text-[#00D4FF]"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
         </div>
+        <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
+          <DialogContent className="w-[min(92vw,900px)] max-w-none border-white/10 bg-[#0b1019] p-5">
+            <DialogHeader>
+              <DialogTitle>{def.name}</DialogTitle>
+              <DialogDescription>Interactive component viewer. Drag to orbit and use the controls to inspect the model.</DialogDescription>
+            </DialogHeader>
+            <div className="relative h-[min(68vh,620px)] overflow-hidden rounded-xl border border-white/10 bg-black/50">
+              <ComponentViewer componentId={def.id} controls autoRotate={false} className="h-full w-full" />
+              <DialogClose className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-md border border-white/10 bg-black/60 px-2.5 py-1.5 text-xs text-white/70 backdrop-blur-sm transition-colors hover:border-[#00D4FF]/50 hover:text-[#00D4FF]">
+                <Minimize2 className="h-3.5 w-3.5" />
+                Exit fullscreen
+              </DialogClose>
+            </div>
+          </DialogContent>
+        </Dialog>
         <p className="text-xs leading-relaxed text-white/60">{def.description}</p>
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/40">Key specs</p>

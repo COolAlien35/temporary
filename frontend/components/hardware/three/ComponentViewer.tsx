@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
-import { OrbitControls, Html, Center } from "@react-three/drei"
+import { OrbitControls, Center } from "@react-three/drei"
 import { useFrame } from "@react-three/fiber"
-import { Box, Layers3, Ruler, MousePointerClick } from "lucide-react"
+import { Box, Layers3, Ruler, MousePointerClick, Sun, Moon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getComponent } from "@/lib/hardware/components"
 import { getShapeModel } from "./models"
@@ -70,15 +70,6 @@ function DimensionLines({ x, y, z }: { x: number; y: number; z: number }) {
       <line geometry={mkGeo(points.depth)}>
         <lineBasicMaterial color="#00D4FF" />
       </line>
-      <Html position={[0, -y / 2 - 8, z / 2 + 4]} center distanceFactor={60} className="pointer-events-none">
-        <span className="whitespace-nowrap rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-[#00D4FF]">{x.toFixed(1)} mm</span>
-      </Html>
-      <Html position={[x / 2 + 4, 0, z / 2 + 4]} center distanceFactor={60} className="pointer-events-none">
-        <span className="whitespace-nowrap rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-[#00D4FF]">{y.toFixed(1)} mm</span>
-      </Html>
-      <Html position={[x / 2 + 4, -y / 2 - 8, 0]} center distanceFactor={60} className="pointer-events-none">
-        <span className="whitespace-nowrap rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-[#00D4FF]">{z.toFixed(1)} mm</span>
-      </Html>
     </group>
   )
 }
@@ -94,11 +85,6 @@ function PortLabels({ shape, compatibleLines }: { shape: string; compatibleLines
             <sphereGeometry args={[0.9, 12, 12]} />
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
           </mesh>
-          <Html distanceFactor={50} className="pointer-events-none">
-            <span className="whitespace-nowrap rounded border border-white/10 bg-black/80 px-1.5 py-0.5 text-[9px] font-medium text-white">
-              {a.id}
-            </span>
-          </Html>
         </group>
       ))}
     </group>
@@ -180,6 +166,7 @@ export function ComponentViewer({ componentId, className, controls = false, auto
   const [exploded, setExploded] = useState(false)
   const [showDimensions, setShowDimensions] = useState(false)
   const [showPorts, setShowPorts] = useState(false)
+  const [lightMode, setLightMode] = useState(false)
   const { ref, inView } = useInView()
   const def = getComponent(componentId)
   const maxDim = def ? Math.max(def.dimensionsMm.x, def.dimensionsMm.y, def.dimensionsMm.z) : 40
@@ -188,7 +175,7 @@ export function ComponentViewer({ componentId, className, controls = false, auto
   return (
     <div ref={ref} className={cn("relative", className)}>
       {inView ? (
-        <SceneCanvas cameraPosition={[camDist * 0.6, camDist * 0.45, camDist * 0.8]} fov={38} fallbackLabel="Model preview unavailable">
+        <SceneCanvas cameraPosition={[camDist * 0.6, camDist * 0.45, camDist * 0.8]} fov={38} fallbackLabel="Model preview unavailable" background={lightMode ? "light" : "dark"}>
           <ModelStage
             componentId={componentId}
             wireframe={wireframe}
@@ -207,10 +194,11 @@ export function ComponentViewer({ componentId, className, controls = false, auto
 
       {controls && (
         <div className="pointer-events-none absolute bottom-2 left-2 right-2 flex flex-wrap items-center gap-1.5">
-          <ViewerToggle icon={Layers3} label="Explode" active={exploded} onClick={() => setExploded((v) => !v)} />
-          <ViewerToggle icon={Box} label="Wireframe" active={wireframe} onClick={() => setWireframe((v) => !v)} />
-          <ViewerToggle icon={Ruler} label="Dimensions" active={showDimensions} onClick={() => setShowDimensions((v) => !v)} />
-          <ViewerToggle icon={MousePointerClick} label="Ports" active={showPorts} onClick={() => setShowPorts((v) => !v)} />
+          <ViewerToggle lightMode={lightMode} icon={Layers3} label="Explode" active={exploded} onClick={() => setExploded((v) => !v)} />
+          <ViewerToggle lightMode={lightMode} icon={Box} label="Wireframe" active={wireframe} onClick={() => setWireframe((v) => !v)} />
+          <ViewerToggle lightMode={lightMode} icon={Ruler} label="Dimensions" active={showDimensions} onClick={() => setShowDimensions((v) => !v)} />
+          <ViewerToggle lightMode={lightMode} icon={MousePointerClick} label="Ports" active={showPorts} onClick={() => setShowPorts((v) => !v)} />
+          <ViewerToggle lightMode={lightMode} icon={lightMode ? Moon : Sun} label={lightMode ? "Dark" : "Light"} active={lightMode} onClick={() => setLightMode((v) => !v)} />
         </div>
       )}
     </div>
@@ -218,11 +206,13 @@ export function ComponentViewer({ componentId, className, controls = false, auto
 }
 
 function ViewerToggle({
+  lightMode,
   icon: Icon,
   label,
   active,
   onClick,
 }: {
+  lightMode: boolean
   icon: typeof Box
   label: string
   active: boolean
@@ -233,7 +223,13 @@ function ViewerToggle({
       onClick={onClick}
       className={cn(
         "pointer-events-auto flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium backdrop-blur-sm transition-colors",
-        active ? "border-[#00D4FF]/50 bg-[#00D4FF]/15 text-[#00D4FF]" : "border-white/10 bg-black/40 text-white/60 hover:text-white",
+        lightMode
+          ? active
+            ? "border-sky-500 bg-sky-100 text-sky-700"
+            : "border-slate-300 bg-white/95 text-slate-700 shadow-sm hover:border-sky-400 hover:bg-sky-50 hover:text-slate-900"
+          : active
+            ? "border-[#00D4FF]/50 bg-[#00D4FF]/15 text-[#00D4FF]"
+            : "border-white/10 bg-black/40 text-white/70 hover:text-white",
       )}
     >
       <Icon className="h-3 w-3" /> {label}

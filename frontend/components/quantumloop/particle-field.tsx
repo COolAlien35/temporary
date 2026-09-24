@@ -25,7 +25,8 @@ export function ParticleField() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext("2d")
+    const canvasElement = canvas
+    const ctx = canvasElement.getContext("2d")
     if (!ctx) return
 
     reducedMotionRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -38,10 +39,10 @@ export function ParticleField() {
     function resize() {
       width = window.innerWidth
       height = window.innerHeight
-      canvas.width = width * dpr
-      canvas.height = height * dpr
-      canvas.style.width = `${width}px`
-      canvas.style.height = `${height}px`
+      canvasElement.width = width * dpr
+      canvasElement.height = height * dpr
+      canvasElement.style.width = `${width}px`
+      canvasElement.style.height = `${height}px`
       ctx?.scale(dpr, dpr)
     }
 
