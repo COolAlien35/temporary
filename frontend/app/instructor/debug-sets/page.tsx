@@ -1,11 +1,11 @@
 import { AppShell } from "@/components/shared/AppShell"
-import { ChallengeManagerPage } from "@/components/instructor/ChallengeManagerPage"
+import { DebugSetManagerPage } from "@/components/instructor/DebugSetManagerPage"
 
-export default function InstructorChallengesPage() {
+export default function InstructorDebugSetsPage() {
   return (
     <AppShell variant="instructor">
       <div className="relative z-0 mx-auto max-w-7xl px-5 py-9 md:px-8">
-        <ChallengeManagerPage />
+        <DebugSetManagerPage />
       </div>
     </AppShell>
   )
