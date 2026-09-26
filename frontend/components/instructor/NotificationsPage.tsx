@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   Atom,
@@ -333,7 +333,7 @@ function DrawerShell({
   headerExtra?: React.ReactNode
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-x-0 bottom-0 top-14 z-[70] flex justify-end overscroll-contain" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative flex h-full w-full max-w-lg flex-col border-l border-white/10 bg-[#0b0f18] shadow-2xl">
         <div className="border-b border-white/10 p-6">
@@ -1136,6 +1136,15 @@ function LogDrawer({
 }) {
   const [filter, setFilter] = useState<LogFilter>("All")
   const visible = filter === "All" ? log : log.filter((e) => logFilterEvents[filter].includes(e.event))
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [])
 
   return (
     <DrawerShell
