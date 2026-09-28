@@ -48,6 +48,15 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
             )
             assert learning.status_code == 201, learning.text
             session_id = learning.json()["id"]
+            history_url = f"/api/v1/learning-sessions/{session_id}/agreement-history"
+            empty_history = client.get(history_url)
+            assert empty_history.status_code == 200
+            assert empty_history.json()["items"] == []
+            assert empty_history.json()["unavailable_sources"] == [
+                "missed_questions",
+                "hints",
+                "next_lessons",
+            ]
             prediction_key = str(uuid4())
             prediction_body = {
                 "schema_version": 1,
@@ -87,6 +96,9 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
                 == "pending"
             )
             assert client.get(pair_url).status_code == 409
+            pending_history = client.get(history_url).json()
+            assert pending_history["items"] == []
+            assert pending_history["scanned_count"] == 1
             assert (
                 client.post(
                     "/api/v1/experiments/runs", headers={"Idempotency-Key": key}, json=run_body
@@ -157,8 +169,25 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
             assert sampled_pair.json()["simulated_vector"] in ([1.0, 0.0], [0.0, 1.0])
             assert sampled_pair.json()["comparison_basis"] == "sampled_frequency"
             assert sampled_pair.json()["shots"] == 1
+            history = client.get(history_url)
+            assert history.status_code == 200, history.text
+            assert {item["prediction_id"] for item in history.json()["items"]} == {
+                prediction_id,
+                sampled_prediction_id,
+            }
+            assert {item["comparison_basis"] for item in history.json()["items"]} == {
+                "ideal_probability",
+                "sampled_frequency",
+            }
+            for item in history.json()["items"]:
+                assert len(item["largest_deltas"]) == 2
+                assert item["metric_version"] == "tvd-v1"
+                assert any(
+                    item["prediction_match"] == pytest.approx(expected) for expected in (0.25, 0.75)
+                )
             current = IdentityClaims(second_subject, "pair-second@example.test")
             assert client.get("/api/v1/me").status_code == 200
+            assert client.get(history_url).status_code == 404
             assert client.get(pair_url).status_code == 404
             assert client.get(f"/api/v1/predictions/{prediction_id}").status_code == 404
             other_circuit = client.post(

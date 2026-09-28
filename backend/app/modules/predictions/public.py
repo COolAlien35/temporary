@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import ApiHTTPException
 from app.modules.identity.public import Actor
 from app.modules.predictions.models import Prediction
+from app.modules.predictions.schemas import AgreementHistory
 
 
 def bind_prediction(
@@ -38,3 +39,12 @@ def bind_prediction(
             422, "measurement_mismatch", "Prediction measurement does not match the circuit"
         )
     prediction.run_id = run_id
+
+
+def tutor_agreement_history(
+    session: Session, actor: Actor, learning_session_id: UUID
+) -> AgreementHistory:
+    """A bounded owner-scoped projection for tutor context."""
+    from app.modules.predictions.service import recent_agreement_history
+
+    return recent_agreement_history(session, actor, learning_session_id)

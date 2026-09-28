@@ -11,13 +11,21 @@ from sqlalchemy.orm import Session
 from app.core.errors import ApiHTTPException
 from app.modules.curriculum.public import find_lesson
 from app.modules.experiments.public import read_owned_run
+from app.modules.experiments.schemas import RunRead
 from app.modules.identity.public import Actor
 from app.modules.predictions.metric import prediction_agreement
 from app.modules.predictions.models import LearningSession, Prediction
-from app.modules.predictions.repository import get_owned_prediction, get_owned_session
+from app.modules.predictions.repository import (
+    get_owned_prediction,
+    get_owned_session,
+    recent_session_predictions,
+)
 from app.modules.predictions.schemas import (
+    AgreementHistory,
+    AgreementHistoryItem,
     ComparisonBasis,
     LearningSessionCreate,
+    OutcomeDelta,
     PredictionPair,
     PredictionRead,
     PredictionSubmission,
@@ -205,6 +213,11 @@ def read_prediction_pair(session: Session, actor: Actor, prediction_id: UUID) ->
     run = read_owned_run(session, actor, record.run_id)
     if run.status != "succeeded" or run.result is None:
         raise ApiHTTPException(409, "result_unavailable", "The paired run has no successful result")
+    return _completed_pair(record, run)
+
+
+def _completed_pair(record: Prediction, run: RunRead) -> PredictionPair:
+    assert run.result is not None
     result = run.result
     labels = record.basis_labels
     if result.get("measurement_qubits") != record.measurement_qubits:
@@ -239,4 +252,59 @@ def read_prediction_pair(session: Session, actor: Actor, prediction_id: UUID) ->
         shots=run.shots,
         seed=run.seed,
         circuit_revision=run.circuit_revision,
+    )
+
+
+def recent_agreement_history(
+    session: Session, actor: Actor, learning_session_id: UUID
+) -> AgreementHistory:
+    learning = read_learning_session(session, actor, learning_session_id)
+    candidates = recent_session_predictions(session, actor.id, learning.id, 26)
+    items: list[AgreementHistoryItem] = []
+    scanned_count = 0
+    for prediction in candidates[:25]:
+        scanned_count += 1
+        if prediction.run_id is None:
+            continue
+        run = read_owned_run(session, actor, prediction.run_id)
+        if run.status != "succeeded" or run.result is None:
+            continue
+        pair = _completed_pair(prediction, run)
+        deltas = [
+            OutcomeDelta(
+                basis_label=label,
+                predicted=predicted,
+                simulated=simulated,
+                delta=simulated - predicted,
+            )
+            for label, predicted, simulated in zip(
+                pair.basis_labels, pair.prediction_vector, pair.simulated_vector, strict=True
+            )
+        ]
+        deltas.sort(key=lambda value: (-abs(value.delta), value.basis_label))
+        items.append(
+            AgreementHistoryItem(
+                prediction_id=prediction.id,
+                run_id=run.id,
+                locked_at=prediction.locked_at,
+                comparison_basis=pair.comparison_basis,
+                prediction_match=pair.prediction_match,
+                confidence=prediction.confidence,
+                backend=pair.backend,
+                shots=pair.shots,
+                seed=pair.seed,
+                circuit_revision=pair.circuit_revision,
+                largest_deltas=deltas[:3],
+            )
+        )
+        if len(items) == 5:
+            break
+    return AgreementHistory(
+        lesson_id=learning.lesson_id,
+        lesson_version=learning.lesson_version,
+        learning_session_id=learning.id,
+        items=items,
+        scanned_count=scanned_count,
+        older_records_not_scanned=len(candidates) > scanned_count,
+        unavailable_sources=["missed_questions", "hints", "next_lessons"],
     )

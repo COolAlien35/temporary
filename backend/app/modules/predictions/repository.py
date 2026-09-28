@@ -25,3 +25,19 @@ def get_owned_prediction(
             Prediction.id == prediction_id, Prediction.learner_id == learner_id
         )
     )
+
+
+def recent_session_predictions(
+    session: Session, learner_id: UUID, learning_session_id: UUID, limit: int
+) -> list[Prediction]:
+    return list(
+        session.scalars(
+            select(Prediction)
+            .where(
+                Prediction.learner_id == learner_id,
+                Prediction.learning_session_id == learning_session_id,
+            )
+            .order_by(Prediction.locked_at.desc(), Prediction.id.desc())
+            .limit(limit)
+        )
+    )

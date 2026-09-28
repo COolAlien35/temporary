@@ -108,3 +108,35 @@ class PredictionPair(BaseModel):
         if self.comparison_basis == "sampled_frequency" and self.shots is None:
             raise ValueError("Sampled comparisons require a shot count")
         return self
+
+
+class OutcomeDelta(BaseModel):
+    basis_label: str
+    predicted: FiniteFloat = Field(ge=0, le=1)
+    simulated: FiniteFloat = Field(ge=0, le=1)
+    delta: FiniteFloat = Field(ge=-1, le=1)
+
+
+class AgreementHistoryItem(BaseModel):
+    prediction_id: UUID
+    run_id: UUID
+    locked_at: datetime
+    comparison_basis: ComparisonBasis
+    metric_version: Literal["tvd-v1"] = METRIC_VERSION
+    prediction_match: FiniteFloat = Field(ge=0, le=1)
+    confidence: FiniteFloat | None = Field(default=None, ge=0, le=1)
+    backend: str
+    shots: int | None
+    seed: int | None
+    circuit_revision: int
+    largest_deltas: list[OutcomeDelta] = Field(max_length=3)
+
+
+class AgreementHistory(BaseModel):
+    lesson_id: str
+    lesson_version: int
+    learning_session_id: UUID
+    items: list[AgreementHistoryItem] = Field(max_length=5)
+    scanned_count: int = Field(ge=0, le=25)
+    older_records_not_scanned: bool
+    unavailable_sources: list[Literal["missed_questions", "hints", "next_lessons"]]

@@ -7,6 +7,7 @@ from app.db.session import get_session
 from app.modules.identity.public import Actor, get_actor
 from app.modules.predictions import service
 from app.modules.predictions.schemas import (
+    AgreementHistory,
     LearningSessionCreate,
     LearningSessionRead,
     PredictionPair,
@@ -38,6 +39,18 @@ def read_learning_session(
     return LearningSessionRead.model_validate(
         service.read_learning_session(session, actor, learning_session_id)
     )
+
+
+@router.get(
+    "/learning-sessions/{learning_session_id}/agreement-history",
+    response_model=AgreementHistory,
+)
+def agreement_history(
+    learning_session_id: UUID,
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> AgreementHistory:
+    return service.recent_agreement_history(session, actor, learning_session_id)
 
 
 @router.post(
