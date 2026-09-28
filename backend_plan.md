@@ -287,12 +287,12 @@ The current backend implements operator-only instructor promotion, cohort creati
 
 - [x] Implement the internal `ai_tutor` client and prompt builder using the chosen OpenAI-compatible interface and environment configuration.
 - [x] Implement a coordinator and three role-scoped prompt modules within the same service: Pedagogical Guide, Circuit Debugger, and Analytics Planner. This is internal routing, not three new deployed services or an autonomous agent framework.
-- [ ] Route deterministically by lesson stage, validated execution error, and request type. Use one specialist call by default; define a strict call/token/time budget before allowing combined responses. Record selected role, prompt version, model, and source record IDs.
+- [x] Route deterministically by lesson stage, validated execution error, and request type. Use one specialist call by default; define a strict call/token/time budget before allowing combined responses. Record selected role, prompt version, model, and source record IDs.
 - [x] Give the Pedagogical Guide the active lesson and authorized experiment context for scaffolded explanations; give the Circuit Debugger circuit JSON, backend capabilities, and sanitized errors for incremental hints without complete assessed solutions.
 - [ ] Give the Analytics Planner the bounded B05.P history projection and approved curriculum/challenge candidates. Validate suggested IDs/prerequisites server-side; return a reason and valid next-experiment link, with a deterministic fallback for missing history or invalid output.
 - [ ] Keep trusted grading in B10/B11. Tutor roles cannot assign scores, award XP, execute generated code, expose answer keys, or directly apply circuit changes.
 - [ ] Load authorized circuit revisions, current/previous results, lesson, prediction, recent actions, and bounded learner history; distinguish unsaved client drafts from verified run records.
-- [ ] Support explain, changed, unexpected, optimize, and generate actions; persist conversations/messages and source metadata.
+- [x] Support explain, changed, unexpected, optimize, and generate actions; persist conversations/messages and source metadata.
 - [ ] Add authenticated streaming with request/message IDs, completion/error events, disconnect cancellation, and saved-message recovery.
 - [ ] Return generated circuit suggestions as validated structured previews for explicit frontend apply/undo; do not execute model-produced code.
 - [ ] Treat learner text and circuit labels as untrusted prompt content; exclude secrets, other learners' data, and hidden assessment answers.

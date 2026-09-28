@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException
 from app.core.config import Settings, get_settings
 from app.core.errors import ApiHTTPException
 from app.db.session import build_engine, get_engine
+from app.modules.ai_tutor.router import router as tutor_router
 from app.modules.circuits.router import router as circuits_router
 from app.modules.cohorts.router import router as cohorts_router
 from app.modules.curriculum.router import router as curriculum_router
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(experiments_router, prefix="/api/v1")
     application.include_router(jobs_router, prefix="/api/v1")
     application.include_router(predictions_router, prefix="/api/v1")
+    application.include_router(tutor_router, prefix="/api/v1")
     return application
 
 

@@ -6,3 +6,4 @@
 - 2026-09-28: Built the internal role-scoped tutor coordinator with bounded owner-scoped context and a single-call provider adapter.
 - 2026-09-29: Added stage-aware tutor routing and bounded verified Aer capabilities, result previews, and sanitized errors.
 - 2026-09-29: Validated tutor planner recommendations against current-lesson catalog links with safe deterministic fallbacks.
+- 2026-09-29: Exposed owner-scoped tutor messages with durable idempotency, saved role/source metadata, and a daily request cap.

@@ -115,6 +115,8 @@ def test_one_specialist_call_routes_and_keeps_untrusted_text_in_user_data():
     assert select_role("explain", context(stage="build")) == "circuit_debugger"
     assert select_role("explain", context(stage="learn")) == "pedagogical_guide"
     assert select_role("plan", context(error_code="simulation_failed")) == "analytics_planner"
+    for action in ("changed", "unexpected", "optimize", "generate"):
+        assert select_role(action, context()) == "circuit_debugger"
     assert json.loads(provider.calls[1][0][1]["content"])["backend_capabilities"] == [
         "exact_probabilities",
         "shot_counts",

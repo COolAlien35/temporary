@@ -2,6 +2,7 @@ from alembic import context
 
 from app.db.base import Base
 from app.db.session import get_engine
+from app.modules.ai_tutor import models as tutor_models  # noqa: F401
 from app.modules.circuits import models as circuit_models  # noqa: F401
 from app.modules.cohorts import models as cohort_models  # noqa: F401
 from app.modules.experiments import models as experiment_models  # noqa: F401
