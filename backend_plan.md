@@ -4,7 +4,7 @@
 
 Implement the backend selected in [tech-stack-decisions.md](tech-stack-decisions.md), replacing browser-only demo services with authenticated, durable, shared services for the journeys in [pages.md](pages.md) and [plan.md](plan.md).
 
-This is an implementation checklist. The repository now includes a backend infrastructure scaffold, Docker Compose, and GitHub Actions; domain services are not implemented yet. Checkboxes remain open until their full acceptance criteria and required tests pass. Existing frontend contracts are the starting point; identity, grading, authorization, and async execution require changes to those contracts.
+This is an implementation checklist. The repository includes a backend infrastructure scaffold, Docker Compose, GitHub Actions, verified Supabase bearer tokens, durable profiles and cohorts, read-only learner curriculum, locked prediction intake, circuit revisions, and an internal durable job pipeline. Major learning, simulation, grading, tutor, storage, and collaboration flows remain open. Checkboxes remain open until their full acceptance criteria and required tests pass. Existing frontend contracts are the starting point; identity, grading, authorization, and async execution require changes to those contracts.
 
 See [the architecture review](docs/backend-review.md) for identified flaws and resolutions, [development and CI instructions](docs/development.md) for executable checks, and [backend module rules](backend/AGENTS.md) for implementation boundaries.
 
@@ -48,6 +48,12 @@ P0 establishes the platform and a complete learner/instructor teaching loop. P1 
 
 Start B20–B23 infrastructure and checks early. Deploy a thin authenticated API and worker before implementing every feature; expand that deployment as milestones pass.
 
+### MVP critical path — learner loop first
+
+For the first demonstrable MVP, prioritize the journey that differentiates QuantumLoop and can run without paid hardware: **sign in → open lesson → save/reopen a circuit → submit a prediction → run the exact saved revision on local Aer → compare the server-derived result → see calibration and tutor guidance**. The required slices are B04, B05.P, B06 circuit library, B07 simulation dispatch/results, B08 local Aer, B13 tutor roles, B20 learner screens, B21 minimum production controls, and B22 keyboard/screen-reader acceptance. Keep these connected end to end before spending time on sharing, storage uploads, qBraid, contests, discussions, or hardware design.
+
+After that learner loop works, add the smallest instructor loop: cohort assignment publishing (B09), server-graded quiz and circuit challenges (B10), learner submission/history, and instructor progress review (B14–B15). Finish deployment and recovery gates (B23) before calling the backend release-ready. This sequence narrows the first release; it does not remove the remaining plan scope.
+
 Within the learning-loop workstream, lock the sequence to **prediction contract and trusted pairing (B05.P/B14) → role-scoped tutor (B13) → persistent comparison UI (B20.P)**. Authentication and a working run/result pipeline remain prerequisites. Start the accessibility workstream with B06/B19/B20 from day one, with its own B22 release gate. This ordering does not require finishing unrelated progress/badge functionality before the tutor.
 
 ## Architecture to implement
@@ -57,7 +63,7 @@ Within the learning-loop workstream, lock the sequence to **prediction contract 
 - Celery executes simulation, optimization, grading, export, and scheduled maintenance tasks. Redis supplies the broker, transient caches, rankings, and realtime fan-out.
 - Keep durable jobs, results, scores, messages, room revisions, and membership in PostgreSQL. Redis loss must not erase authoritative records.
 - A quantum adapter layer normalizes Qiskit Aer, PennyLane, Cirq, and hosted qBraid execution.
-- A private Piston or Judge0 service executes untrusted code. User code never runs inside the FastAPI or ordinary Celery process.
+- A private Piston service executes untrusted code. User code never runs inside the FastAPI or ordinary Celery process.
 - One `ai_tutor` module wraps the configured OpenAI-compatible `chat.completions` client; provider credentials stay on the server.
 - S3-compatible storage holds exports and large artifacts; PostgreSQL stores ownership, metadata, checksums, and object keys.
 - Keep initial implementation as one modular backend with separately deployed API and workers. Separate worker queues/images where quantum SDK or sandbox dependencies require it.
@@ -91,12 +97,12 @@ compose.yaml
 
 ### B01 — Finalize provider choices and contracts
 
-- [ ] Select one option from each unresolved stack decision: Clerk/Supabase Auth, Neon/Supabase PostgreSQL, Piston/Judge0, R2/Supabase Storage, and Render/Railway. Record the selected AI provider/model and qBraid access configuration.
+- [x] Select one option from each unresolved stack decision: Supabase Auth/PostgreSQL/Storage, isolated Piston, and Render API/workers/Key Value. Record OpenAI `gpt-5.4-mini` and server-only qBraid API v2 configuration in [provider decisions](docs/provider-decisions.md). Deployment and live credentials remain B23/B08 work.
 - [ ] Verify selected Redis hosting supports the actual Celery broker and Socket.IO Redis manager connection requirements, including TLS, persistent connections, quotas, and pub/sub. Record the compatible plan or revise the hosting choice explicitly.
 - [ ] Pin compatible Python, FastAPI, quantum SDK, Celery, Socket.IO, ORM, migration, and client dependencies; prove installation in the intended worker image.
-- [ ] Inventory every persistent frontend store and direct local/mock call; map each to an owning backend module and frontend integration task.
-- [ ] Specify request/response schemas, stable identifiers, pagination, UTC timestamps, learner timezone handling, and a structured error format with request ID.
-- [ ] Define API versioning, idempotency keys, optimistic concurrency revisions, and retry behavior for writes.
+- [x] Inventory every persistent frontend store and direct local/mock call; map each to an owning backend module and frontend integration task in [frontend state inventory](docs/frontend-state-inventory.md).
+- [ ] Specify request/response schemas, stable identifiers, pagination, UTC timestamps, learner timezone handling, and a structured error format with request ID. The shared conventions and route inventory are drafted in [API contract revision 1](docs/api-contract.md); module-specific payloads and generated OpenAPI/TypeScript parity remain open.
+- [x] Define API versioning, idempotency keys, optimistic concurrency revisions, and retry behavior for writes in [API contract revision 1](docs/api-contract.md). Existing cohort/profile routes predate these rules and need migration as their modules advance.
 - [ ] Extend the existing contracts for profile/settings, coursework, job polling/cancellation, circuits, tutor streaming, cohorts, collaboration, hardware, and exports.
 - [ ] Resolve existing contract mismatches: demo password endpoints versus managed auth; client-supplied learner/author/voter IDs; client-visible quiz keys; simulation fields unavailable on remote devices; missing async status methods.
 - [ ] Define numerical resource limits, quotas, retention periods, latency/load targets, and cost ceilings before implementation; keep their values configurable.
@@ -105,11 +111,11 @@ compose.yaml
 
 ### B02 — Scaffold the backend and development environment
 
-- [ ] Create the FastAPI application, module structure, settings validation, dependency lockfile, lint/format/type-check commands, and test configuration.
+- [x] Create the FastAPI application, module structure, settings validation, dependency lockfile, lint/format/type-check commands, and test configuration.
 - [ ] Add environment examples for database, Redis, auth issuer/audience, object storage, quantum credentials, grading service, tutor configuration, allowed origins, and limits.
-- [ ] Configure database pooling and transaction lifecycle for API and worker processes separately.
+- [x] Configure database pooling and transaction lifecycle for API and worker processes separately. The worker initializes its own engine after fork, uses task-local sessions, and disposes the child pool on exit; a Celery/PostgreSQL round trip verifies the path.
 - [ ] Add local containers for API, worker, PostgreSQL, Redis, and development object storage; document the selected sandbox service startup.
-- [ ] Add liveness/readiness endpoints, structured errors, request IDs, CORS allowlists, and graceful shutdown.
+- [x] Add liveness/readiness endpoints, structured errors, request IDs, CORS allowlists, and graceful shutdown.
 - [ ] Document setup, migration, seed, API, worker, and test commands; validate startup from a clean checkout.
 
 **Done when:** a developer can start the backend and dependencies, open OpenAPI documentation, and execute a database-backed request.
@@ -118,7 +124,7 @@ compose.yaml
 
 Implement migration infrastructure and the identity foundation first. The following domain groups describe schema ownership to settle here; create their tables, seeds, and indexes incrementally with B04–B19. Do not block authentication behind an unused complete-product schema.
 
-- [ ] Model users mapped to auth-provider subjects, preferences, roles, cohorts, instructor memberships, learner enrollments, and invitations.
+- [x] Model users mapped to auth-provider subjects, preferences, roles, cohorts, instructor memberships, learner enrollments, and invitations.
 - [ ] Model versioned curriculum, lessons, quiz questions/answer keys, challenge definitions/rubrics, and faculty review state.
 - [ ] Model circuits and revisions, artifacts, share grants, learning sessions, predictions, experiment runs, and optimization iterations.
 - [ ] Model template versions, assignment versions, recipients, response drafts, submissions, assessment attempts, grading results, and feedback history.
@@ -133,10 +139,13 @@ Implement migration infrastructure and the identity foundation first. The follow
 
 ### B04 — Managed authentication, authorization, and cohorts
 
+The current backend implements operator-only instructor promotion, cohort creation/listing, owner-controlled instructor assignment, member listing/removal, single-use email-bound learner invitations, and revision-protected self-profile/settings edits with an IANA timezone. Browser CORS now allows the required `If-Match` request header and exposes the `ETag` response header. Cohort APIs derive actors from verified tokens; frontend provider flows, account workflows, connected assignments, and authorization for future resources are still open.
+
 - [ ] Integrate provider signup, login, logout, session refresh, and password recovery through the provider's supported frontend flow.
 - [ ] Verify JWT signature, issuer, audience, expiry, and key rotation in FastAPI and Socket.IO handshakes; define token expiry/revalidation for long connections.
-- [ ] Create/update local profiles from verified identities. If using webhooks, verify signatures and handle replay and duplicate delivery.
-- [ ] Add self-profile and preferences APIs, account export/deletion workflows, and session cleanup on sign-out.
+- [x] Create/update local profiles from verified identities. This implementation uses authenticated requests, not webhooks.
+- [x] Add self-profile and preferences APIs with timezone validation, `ETag`/`If-Match` revisions, and stale-write rejection.
+- [ ] Add account export/deletion workflows and session cleanup on sign-out.
 - [ ] Define learner/instructor permissions and an operator-controlled instructor provisioning path. Never accept instructor role selection from the demo UI.
 - [ ] Add cohort creation, instructor assignment, enrollment/invitation acceptance, and removal. Scope “all learners” assignments to an authorized cohort.
 - [ ] Enforce resource ownership and cohort membership on every read/write, job, file, invitation, and room operation; derive actor identity from authentication.
@@ -144,6 +153,8 @@ Implement migration infrastructure and the identity foundation first. The follow
 **Done when:** two real users can sign in on separate browsers, retain their settings, and cannot access another learner's private records or an unrelated cohort.
 
 ### B05 — Curriculum and experiment learning sessions
+
+**Current checkpoint:** Read-only unit list/detail routes serve the exported curriculum with stable IDs, lesson content, separate format/content versions, review labels, and placeholder flags. Explicit learner schemas omit checkpoint answer keys and unreleased explanations. Matching prediction submission/pair shapes and a versioned TVD agreement function exist, with explicit 0–100% to 0–1 conversion utilities. Authenticated learners can now create and read durable lesson sessions, submit immutable locked predictions with idempotency keys, and read only their own predictions. Predictions are not yet linked to circuit revisions or trusted runs, so no simulated vector or score is returned. Current authored checkpoint answers heavily favor the first option and frontend demo bundles still contain keys; these checkpoints cannot be trusted for grading. Versioned database content, full stage progress, quiz/glossary/algorithm routes, and connected frontend pages remain open.
 
 - [ ] Serve units, lessons, quizzes, glossary/concept references, and supported algorithm metadata using existing IDs and review labels.
 - [ ] Exclude correct answers and unreleased explanations from learner-facing assessment payloads.
@@ -154,12 +165,12 @@ Implement migration infrastructure and the identity foundation first. The follow
 
 #### B05.P — Prediction contract and immutable result pairing (consolidated item #1)
 
-- [ ] Add matching TypeScript and Pydantic schemas for prediction submission and paired prediction/result responses. Include `prediction_vector`, server-derived `simulated_vector`, ordered basis labels, qubit/measurement mapping, schema version, and metric version. These are probability distributions, not complex statevectors.
+- [ ] Add matching TypeScript and Pydantic schemas for prediction submission and paired prediction/result responses. Include `prediction_vector`, server-derived `simulated_vector`, ordered basis labels, qubit/measurement mapping, schema version, and metric version. These are probability distributions, not complex statevectors. Matching shapes are implemented; prove server-derived result construction before closing this item.
 - [ ] Use probabilities in `[0, 1]` on the wire; convert the current UI's percentages explicitly. Require finite values, supported dimensions, nonnegative entries, matching basis order, and total probability within a documented tolerance of 1. Reject invalid inputs rather than silently normalizing them.
 - [ ] Persist prediction ID, authenticated learner, lesson/version, learning session, circuit revision/hash, prediction lock time, run ID, and pairing status. Permit a prediction to exist before a run; bind it atomically when the run is requested, and complete the pair only on a successful authorized result.
 - [ ] Lock the prediction before execution; enforce immutable pairings and uniqueness of `(prediction_id, run_id)`. Edited circuits/new prediction rounds get new identities. Define whether repeat runs are practice or eligible calibration attempts so repeated sampling cannot inflate progress.
 - [ ] Accept only the learner's prediction as input. Derive the paired simulated distribution from the persisted run; never trust a client-uploaded simulated vector or calibration score. Retain failed/cancelled/pending runs without inventing a paired score.
-- [ ] Implement `TVD(p,q) = 0.5 * sum(abs(p_i - q_i))` and `prediction_match = 1 - TVD`, versioned and bounded to `[0, 1]`; round only for display. The existing local percentage score already approximates this rule, so preserve its meaning during migration.
+- [x] Implement `TVD(p,q) = 0.5 * sum(abs(p_i - q_i))` and `prediction_match = 1 - TVD`, versioned and bounded to `[0, 1]`; round only for display. The existing local percentage score already approximates this rule, so preserve its meaning during migration.
 - [ ] Record comparison basis (`ideal_probability`, `noisy_probability`, or `sampled_frequency`), backend, shot count, seed, and noise settings. Compare against the quantity the learner was asked to predict; do not mix exact and sampled targets in one unlabeled trend.
 - [ ] Describe this metric as prediction agreement. Do not infer statistical confidence calibration, learning gains, or quantum state fidelity from it. Keep any self-reported confidence separately labeled.
 - [ ] Define a bounded tutor history projection: recent eligible pairs for the active lesson/concepts, metric/basis/version, attempt IDs, missed-question IDs, hint counts, and allowed next lessons. Cap records/tokens, exclude other learners and hidden answer keys, and return an honest empty state.
@@ -169,9 +180,14 @@ Implement migration infrastructure and the identity foundation first. The follow
 
 ### B06 — Circuits, revisions, sharing, and storage
 
+**Current checkpoint:** Authenticated learners can create and reopen owner-scoped circuits, update them with `If-Match` revision checks, and read immutable historical revision snapshots. Simulation requests now pin an exact circuit revision and checksum. Creation requires an idempotency key. The validator bounds qubits, gates, steps, angles, IDs, and payload bytes, rejects collisions, and prevents later operations on measured qubits. Local Aer supports ideal terminal measurement and rejects later gates after a measurement. Circuit listing/archive, sharing, import/export, object storage, accessible browser editing, and connected frontend use remain open.
+
 - [ ] Apply the cross-cutting accessibility workstream below: synchronized readable gate sequence, keyboard placement/editing, and step inspection tied to immutable run snapshots.
-- [ ] Implement circuit create/list/read/update/archive, immutable snapshots for runs/submissions, and revision checks for concurrent saves.
-- [ ] Validate the existing gate model, qubit references, controls, angles, time steps, measurement semantics, and maximum payload sizes.
+- [x] Implement owner-scoped circuit create/read/update, immutable revision snapshots, and stale-save checks using `If-Match`.
+- [x] Pin every submitted simulation to the exact authorized circuit revision and checksum.
+- [ ] Add paginated circuit list and archive/restore lifecycle.
+- [x] Validate gate IDs, references, controls, angles, steps, collisions, and bounded payloads; reject unsupported mid-circuit measurement for local Aer.
+- [ ] Define and implement reset, measurement collapse, and other dynamic-circuit semantics across supported adapters.
 - [ ] Add private-by-default share links with explicit view/edit permissions, expiry, revocation, and safe copy-to-own-library behavior.
 - [ ] Implement QASM/JSON/Qiskit export and bounded import parsing. Treat imported Python as text; do not execute it to reconstruct a circuit.
 - [ ] Support PNG artifact uploads or export jobs as appropriate to the existing frontend renderer, with size/type checks and ownership checks.
@@ -182,25 +198,34 @@ Implement migration infrastructure and the identity foundation first. The follow
 
 ### B07 — Reliable async jobs and event delivery
 
-- [ ] Define durable job records and transitions: queued, running, succeeded, failed, cancelled, and timed out; map these explicitly to existing frontend statuses.
-- [ ] Return `202` plus job/run ID and status URL for async requests; add authorized status, result, history, and cancellation endpoints.
+**Current checkpoint:** Job persistence, transitions, an owner-scoped status read, transactional outbox, and bounded recovery are implemented. Simulation submission now creates a durable run snapshot and job/outbox intent in one transaction, returns `202`, and stores the worker result in PostgreSQL under a fenced lease. Local Aer runs are deterministic/replay-safe; duplicate deliveries cannot replace completed results. Job cancellation/history, additional domain task policies, and release-wide operations remain open.
+
+- [x] Define durable job records and transitions: queued, running, succeeded, failed, cancelled, timed out, and unknown; map them to frontend statuses.
+- [x] For local simulation, return `202` plus run/job ID and status URL, then provide owner-scoped run/job status and results.
+- [ ] Add authorized cancellation and paginated run/job history endpoints.
 - [ ] Create separate Celery queues and concurrency/resource limits for simulation, optimization, code grading, and maintenance/export tasks.
-- [ ] Use a transactional outbox or equivalent durable dispatch mechanism so committed jobs are eventually enqueued after broker outages.
-- [ ] Make tasks idempotent; prevent duplicate submissions, scores, XP, and provider charges when delivery or workers retry.
-- [ ] Add retry classification, backoff, worker time limits, cancellation propagation, stale-job detection, and reconciliation after process restarts.
-- [ ] Persist results before broadcasting completion; provide polling recovery because realtime notifications may be missed.
-- [ ] Isolate Redis key namespaces and evaluate broker/cache eviction separately so leaderboard caching cannot evict queued work.
-- [ ] Use a separate non-evicting broker instance; configure visibility timeout above hard task duration, prefetch limits, and per-task acknowledgement/recovery policy. Do not blanket-retry unknown provider submission outcomes.
-- [ ] Use worker leases/fencing and unique domain operation IDs to reject stale completion after retry/cancellation. Where a provider lacks idempotency or submission lookup, retain an explicit unknown/reconciliation state; exactly-once external execution cannot be guaranteed.
-- [ ] Run a single scheduled dispatcher/reconciler or a database-elected leader. Use transactional outbox consumption with retry and duplicate suppression; Redis pub/sub alone does not guarantee dispatch or replay.
+- [x] Use a transactional outbox so committed jobs remain dispatchable through broker outages.
+- [x] Make local simulation delivery idempotent across API retries and duplicate worker delivery; other side-effecting tasks remain open.
+- [x] Classify local retry/recovery, apply backoff/time limits, and reconcile stale or unclaimed jobs after restarts.
+- [ ] Add cancellation propagation for active and queued domain jobs.
+- [x] Persist simulation results before response and provide polling recovery for missed notifications.
+- [ ] Add realtime completion broadcasts with durable replay where required.
+- [x] Separate broker Redis (non-evicting) from cache Redis (evictable).
+- [x] Configure broker visibility timeout, prefetch limits, and explicit task acknowledgement/recovery behavior; unknown remote outcomes remain unreplayed.
+- [x] Use worker leases/fencing to reject stale completion after retry or cancellation. Remote provider reconciliation remains open.
+- [x] Run one Compose dispatcher/reconciler using PostgreSQL row locks, retry, duplicate suppression, and bounded recovery; Redis pub/sub is not authoritative.
 
 **Done when:** a job survives an API restart, recovers from worker interruption, and reaches a truthful terminal state without duplicate side effects.
 
 ### B08 — Quantum execution adapters and results
 
+**Current checkpoint:** The local Qiskit Aer adapter executes supported ideal circuits with exact probabilities, seeded shot counts, explicit measured-qubit bit ordering, and bounded optional statevectors. Async run submission is wired through the durable job/outbox worker. The API and migration images omit quantum SDKs; only the worker and test images install the `quantum` dependency group. Prediction pairing, noise, provider-neutral adapter contracts, cancellation, PennyLane, Cirq, and qBraid remain open.
+
 - [ ] Define `run_circuit(circuit, backend, shots)` plus validation, capabilities, cancellation, and normalized error/result contracts.
-- [ ] Establish shared gate ordering, qubit/bitstring endianness, radians, measurement mapping, random seed behavior, and tolerance rules.
-- [ ] Implement Qiskit Aer first for the P0 teaching loop, including ideal simulation, shot sampling, and supported noise configuration.
+- [x] Define and test the current local result conventions: gates execute by `(step, qubit, id)`, angles use radians, and result bitstrings follow the explicit left-to-right measured-qubit list.
+- [ ] Extend those conventions into the shared multi-provider capability, cancellation, and statistical-tolerance contract.
+- [x] Implement Qiskit Aer ideal simulation and shot sampling for saved circuit revisions; bound shots to 8,192, simulator memory to 64 MB, and inline statevectors to five qubits.
+- [ ] Add configured noise models and explicit noise/readout result labels.
 - [ ] Implement PennyLane and Cirq adapters with explicit supported gate/noise/result capabilities and equivalent circuit translation.
 - [ ] Implement hosted qBraid submission, remote job ID persistence, polling, provider timeouts, cancellation where supported, and quota handling.
 - [ ] Prevent automatic retries from resubmitting a known remote job; reconcile provider state after connection failures.

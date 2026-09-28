@@ -12,6 +12,8 @@ from app.core.config import Settings
         {"task_soft_time_limit": 301},
         {"broker_visibility_timeout": 100},
         {"db_pool_size": 0},
+        {"worker_db_pool_size": 0},
+        {"worker_db_max_overflow": -1},
         {"environment": "production"},
         {"environment": "production", "database_url": "postgresql+psycopg://user:pass@db/prod"},
     ],
@@ -27,5 +29,6 @@ def test_production_accepts_explicit_configuration():
         environment="production",
         database_url="postgresql+psycopg://user:pass@db/prod",
         cors_origins=["https://app.example.test"],
+        auth_issuer="https://example.supabase.co/auth/v1",
     )
     assert settings.environment == "production"

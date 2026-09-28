@@ -1,5 +1,6 @@
 import { askTutor } from "@/lib/ai/tutor"
 import { getUnit, units } from "@/lib/curriculum/units"
+import type { Unit } from "@/lib/curriculum/types"
 import { runCircuit } from "@/lib/sim/run-circuit"
 import { assessmentHistory } from "@/lib/assessments/attempts"
 import { useLearnerProgress } from "@/store/use-learner-progress"
@@ -7,7 +8,7 @@ import { useAssessmentTemplates } from "@/store/use-assessment-templates"
 import { useCoursework } from "@/store/use-coursework"
 import { useCommunity } from "@/store/use-community"
 import { demoAuth } from "./demo-auth"
-import type { ExperimentRun, LearnerSummary, PlatformServices, RunRequest } from "./contracts"
+import type { ExperimentRun, LearnerSummary, LearnerUnit, PlatformServices, RunRequest } from "./contracts"
 
 export type DemoScenario = "success" | "empty" | "failure"
 export type DemoFeature = Exclude<keyof PlatformServices, "auth">
@@ -22,6 +23,19 @@ const sampleCohort = {
   learnerCount: 128,
   learnersNeedingAttention: ["sample-aisha", "sample-jonah", "sample-sofia", "sample-david"],
   conceptMissRates: { entanglement: 0.31, superposition: 0.24, grover: 0.18 },
+}
+
+function learnerUnit(unit: Unit): LearnerUnit {
+  return {
+    ...unit,
+    content_version: 1,
+    review_status: "pending",
+    is_placeholder: ["u4", "u5", "u6", "u7", "u8"].includes(unit.id),
+    lessons: unit.lessons.map((lesson) => ({
+      ...lesson,
+      checkpoints: lesson.checkpoints.map(({ id, prompt, options }) => ({ id, prompt, options })),
+    })),
+  }
 }
 
 function stableId(request: RunRequest): string {
@@ -52,8 +66,8 @@ export function createDemoPlatform({ delayMs = 180, scenarios = {} }: DemoOption
   return {
     auth: demoAuth,
     curriculum: {
-      async listUnits() { return await prepare("curriculum") ? [] : units },
-      async getUnit(id) { return await prepare("curriculum") ? null : getUnit(id) ?? null },
+      async listUnits() { return await prepare("curriculum") ? [] : units.map(learnerUnit) },
+      async getUnit(id) { const unit = getUnit(id); return await prepare("curriculum") || !unit ? null : learnerUnit(unit) },
     },
     experiments: {
       async run(request): Promise<ExperimentRun> {

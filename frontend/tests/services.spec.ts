@@ -3,13 +3,30 @@ import { createDemoPlatform } from '../lib/services/demo-platform'
 import { createApiPlatform } from '../lib/services/api-platform'
 import { circuitToQiskit } from '../lib/circuit-to-qiskit'
 import { qiskitToCircuit } from '../lib/qiskit-to-circuit'
+import { percentConfidenceToUnit, percentagesToPredictionVector } from '../lib/services/prediction-vector'
+
+test('prediction percentages convert to ordered wire probabilities', () => {
+  expect(percentagesToPredictionVector({ '0': 25, '1': 75 }, ['1', '0'])).toEqual([0.75, 0.25])
+  expect(percentConfidenceToUnit(80)).toBe(0.8)
+  expect(() => percentagesToPredictionVector({ '0': 50, '1': 40 }, ['0', '1'])).toThrow('sum to 100')
+  expect(() => percentagesToPredictionVector({ '0': 50, '1': 50, extra: 0 }, ['0', '1'])).toThrow('exactly')
+  expect(() => percentagesToPredictionVector({ '0': Number.NaN, '1': 100 }, ['0', '1'])).toThrow('finite')
+  expect(() => percentagesToPredictionVector({ '0': 50, '1': 50 }, ['0', '0'])).toThrow('distinct')
+  expect(() => percentConfidenceToUnit(Number.POSITIVE_INFINITY)).toThrow('finite')
+})
 
 test('demo service has distinct success, empty and failure states', async () => {
   const success = createDemoPlatform({ delayMs: 0 })
   const empty = createDemoPlatform({ delayMs: 0, scenarios: { curriculum: 'empty' } })
   const failure = createDemoPlatform({ delayMs: 0, scenarios: { curriculum: 'failure' } })
 
-  expect((await success.curriculum.listUnits()).length).toBe(9)
+  const units = await success.curriculum.listUnits()
+  expect(units.length).toBe(9)
+  expect(units[0].lessons[0].type).toBe('Concept')
+  expect(units[8].lessons[0].type).toBe('Lab')
+  expect(units[0].lessons[0].checkpoints[0]).toEqual(expect.objectContaining({ id: expect.any(String), prompt: expect.any(String), options: expect.any(Array) }))
+  expect(JSON.stringify(units)).not.toContain('"answer"')
+  expect(JSON.stringify(units)).not.toContain('"explanation"')
   expect(await empty.curriculum.listUnits()).toEqual([])
   await expect(failure.curriculum.listUnits()).rejects.toThrow('temporarily unavailable')
 })

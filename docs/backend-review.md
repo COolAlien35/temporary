@@ -19,17 +19,17 @@ The original plan covered the product surface well, but several instructions wer
 | Service-layer abstraction was only a directory sketch | Cross-feature imports and transaction coupling grow unchecked | Module ownership rules plus architecture tests, explicit public interfaces and service transactions |
 | SQL/async and database pool behavior were unspecified | Blocking the event loop and exhausting managed PostgreSQL connections | Sync DB routes initially; bounded async offload and process-wide connection budgets |
 | Tests were mostly a final release phase | Faults accumulate before discovery | Task-specific gate after every major task, production frontend tests, real-service backend integration, required CI check |
-| Provider alternatives were still open | A production deploy cannot be honestly automated end to end | Automate portable build/test/image publication now; keep provider deployment and credentialed smoke gates open |
+| Provider alternatives were still open | A production deploy cannot be honestly automated end to end | Providers are now selected in `provider-decisions.md`; keep deployment and credentialed smoke gates open |
 
 ## What the initial setup proves
 
-The scaffold contains FastAPI health/error/configuration handling, SQLAlchemy sessions, Alembic migration tracking, Celery queues, and a diagnostic task. Compose starts PostgreSQL, separate broker/cache Redis instances, one migration process, API, worker, and an optional frontend. Test containers exercise actual infrastructure. No learner/auth/grading/tutor endpoint has been fabricated to suggest feature completion.
+The initial scaffold contained FastAPI health/error/configuration handling, SQLAlchemy sessions, Alembic migration tracking, Celery queues, and a diagnostic task. Compose starts PostgreSQL, separate broker/cache Redis instances, one migration process, API, worker, and an optional frontend. Test containers exercise actual infrastructure. The later identity/cohort APIs are described in `development.md`; grading and tutor remain unimplemented.
 
 The baseline migration intentionally creates no domain tables. B04 owns the first user/cohort models. Integration tests compare the database to Alembic's configured head so later migrations extend the existing gate.
 
 ## Remaining design decisions
 
-- Select managed auth, storage, sandbox, and hosting providers before implementing their integrations. The local Compose passwords and exposed localhost ports are development defaults, not production configuration.
+- Provision and validate the selected providers in [provider decisions](provider-decisions.md). The local Compose passwords and exposed localhost ports are development defaults, not production configuration.
 - Decide qBraid execution/device capabilities and whether code challenges require a custom quantum runtime before committing to their acceptance criteria.
 - Specify actual numerical latency/load/cost budgets in B01. Horizontal process separation provides a scaling path; capacity is established through measurements, not directory structure.
 - The local setup does not provision an unused object store, sandbox, model endpoint, or Socket.IO server. Add each with its feature, health checks, and meaningful tests. The CI test collector will pick up newly added suites automatically.

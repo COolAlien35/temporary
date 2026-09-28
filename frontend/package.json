@@ -7,6 +7,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
+    "curriculum:export": "node scripts/export-curriculum.mjs",
+    "curriculum:check": "node scripts/export-curriculum.mjs --check",
     "test:e2e": "playwright test"
   },
   "dependencies": {

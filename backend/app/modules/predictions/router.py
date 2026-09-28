@@ -1,0 +1,65 @@
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Header
+from sqlalchemy.orm import Session
+
+from app.db.session import get_session
+from app.modules.identity.public import Actor, get_actor
+from app.modules.predictions import service
+from app.modules.predictions.schemas import (
+    LearningSessionCreate,
+    LearningSessionRead,
+    PredictionRead,
+    PredictionSubmission,
+)
+
+router = APIRouter(tags=["learning"])
+
+
+@router.post("/learning-sessions", response_model=LearningSessionRead, status_code=201)
+def create_learning_session(
+    body: LearningSessionCreate,
+    idempotency_key: UUID = Header(),  # noqa: B008
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> LearningSessionRead:
+    return LearningSessionRead.model_validate(
+        service.create_learning_session(session, actor, body, idempotency_key)
+    )
+
+
+@router.get("/learning-sessions/{learning_session_id}", response_model=LearningSessionRead)
+def read_learning_session(
+    learning_session_id: UUID,
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> LearningSessionRead:
+    return LearningSessionRead.model_validate(
+        service.read_learning_session(session, actor, learning_session_id)
+    )
+
+
+@router.post(
+    "/learning-sessions/{learning_session_id}/predictions",
+    response_model=PredictionRead,
+    status_code=201,
+)
+def create_prediction(
+    learning_session_id: UUID,
+    body: PredictionSubmission,
+    idempotency_key: UUID = Header(),  # noqa: B008
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> PredictionRead:
+    return service.prediction_read(
+        service.create_prediction(session, actor, learning_session_id, body, idempotency_key)
+    )
+
+
+@router.get("/predictions/{prediction_id}", response_model=PredictionRead)
+def read_prediction(
+    prediction_id: UUID,
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> PredictionRead:
+    return service.prediction_read(service.read_prediction(session, actor, prediction_id))

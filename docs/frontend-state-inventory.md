@@ -1,0 +1,28 @@
+# Browser state and mock call inventory (B01)
+
+This inventories the frontend's persistent stores and direct local service paths as they exist today. B20 replaces connected-mode writes with authenticated API calls; browser state may remain as an unsynchronized draft or view preference. Importing an old demo store into an account requires an explicit one-time migration and server validation, especially for scores and roles.
+
+| Frontend source / storage key | Persisted or local data | Backend owner | Integration work |
+| --- | --- | --- | --- |
+| `store/use-session.ts` / `quantumloop-demo-session` | Demo user, role/mode, profile name, learning preferences | B04 identity | Use Supabase session plus `/me`; never accept a locally selected instructor role. Keep only harmless UI preferences locally. |
+| `store/use-learner-progress.ts` / `learner-progress-storage` | Learner-keyed stages, lessons, quiz/challenge/assessment attempts, XP, streaks, badges, calibration, hints, activity, notes, circuits, cohort names | B05 learning; B06 circuits; B10 assessments; B14 progress; B04 cohorts | Split into server-owned records and projections. Server computes scores, XP, streaks and awards. B20 hydrates authenticated queries; B05.P pairs full prediction/result vectors before calibration is awarded. |
+| `store/use-studio.ts` / `studio:circuit-v1` | Working circuit, saved circuits, shots/noise, view and code preferences | B06 circuits; B07/B08 runs | Persist named circuits and revisions to API; retain an optional local unsaved draft and UI preferences. |
+| `store/use-hardware.ts` / `hardware:design-v1` | Draft/saved designs, favorites, bookmarks, view, tour flag | B19 hardware; B04 preferences | Persist saved designs and user collections; keep disposable view/tour state local. |
+| `store/use-coursework.ts` / `quantumloop-demo-coursework` | Assignments, submissions, response drafts | B09 coursework; B10 grading | Instructor publish and feedback plus learner submission go through scoped APIs. Local drafts may remain until synced. |
+| `store/use-community.ts` / `quantumloop-demo-community` | Threads, replies, votes, contest entries | B18 discussions; B17 contests | Replace local mutations with authenticated APIs and pagination. |
+| `store/use-assessment-templates.ts` / `quantumloop-demo-assessment-templates` | Assessment templates and rubrics | B10 assessments; B09 assignment association | Keep answer keys/rubrics server-side in connected mode. |
+| `lib/lab-context.tsx` / `quantumloop-demo-lab:<learner>:<algorithm>` | Stage, hypothesis/prediction, confidence, gates, run result, hints, attempts, scores, UI state | B05.P learning sessions/predictions; B07/B08 runs; B10 grades; B14 progress | Save prediction before run and pair it to a trusted result; server owns attempts, grading and awards. View-only state may stay local. |
+| `components/lab/CodeEditorPanel.tsx` / component-specific key | Code draft | B11 code submissions; B09 drafts | Keep draft local or sync it; send submitted code only to the isolated grader path. |
+| `store/use-circuit.ts` | Ephemeral circuit gate array; no persistence middleware | B06 circuits | Reconcile with Studio draft before connected save; no existing migration key. |
+
+The service entry point `lib/services/index.ts` always binds `demoPlatform`. `lib/services/demo-platform.ts` handles mock auth, curriculum, runs, tutor responses, assessment grading, summaries, instructor views, and community calls. `lib/services/api-platform.ts` is an unused provisional HTTP client whose password routes, cookie assumption, client-supplied actor IDs and synchronous run/grade shapes do not match the managed-auth backend. B20 must replace the binding per feature, use Supabase bearer tokens, adopt `/api/v1` endpoints and structured errors, and add job polling/cancellation and streaming. `lib/instructor/local-cohort.ts` synthesizes an instructor cohort from one browser's progress; B04/B15 replace it with authorized cohort queries and server analytics. Static curriculum, challenges, algorithm presets, hardware catalog/rules, and browser simulation helpers are source code, not persistent stores; B05/B08/B10/B19 decide which parts become server authoritative.
+
+Direct local paths outside `platformServices` also need connected-mode replacements:
+
+| Local path | Connected owner / B20 replacement |
+| --- | --- |
+| `lib/lab-context.tsx` calls `runCircuit`, calculates challenge scores, and records XP/progress in stores | B05.P/B07/B08 own runs and paired predictions; B10 grades; B14 grants XP. Keep local simulation only as an explicitly untrusted preview. |
+| `app/curriculum/[unitId]/quiz/page.tsx`, `app/curriculum/practice/page.tsx`, `app/assignments/[id]/page.tsx`, and challenge pages compare browser-visible answers or compute scores | B10/B09 provide server-held keys, versioned questions, submissions, and trusted results; B20 removes connected-mode award paths. |
+| `components/lab/variational-lab.tsx`, Studio simulation components, and `components/studio/TutorDrawer.tsx` call browser simulation or `askTutor` directly | B08/B12 run simulation and optimization jobs; B13 handles tutor streaming. B20 retains any browser calculator as labeled preview only. |
+| Instructor assignment/assessment/student pages mutate `useCoursework`/`useAssessmentTemplates` and read `useLocalCohort` | B04/B09/B10/B15 enforce cohort scoping and provide server views. |
+| Contest, leaderboard, discussion, hardware and Studio pages read/mutate their Zustand stores directly | B17/B18/B19/B06 own durable records; B20 queries them while keeping unsaved editor state local. |

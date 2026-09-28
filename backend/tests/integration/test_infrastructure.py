@@ -50,6 +50,16 @@ def test_real_worker_round_trip():
         result.forget()
 
 
+def test_worker_uses_its_own_database_pool():
+    with get_engine().connect() as connection:
+        expected_database = connection.scalar(text("SELECT current_database()"))
+    result = celery_app.send_task("quantumloop.db_ping", ignore_result=False)
+    try:
+        assert result.get(timeout=30) == expected_database
+    finally:
+        result.forget()
+
+
 def test_readiness_with_real_services():
     with TestClient(create_app()) as client:
         assert client.get("/api/v1/health/ready").status_code == 200

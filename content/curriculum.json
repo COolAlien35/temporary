@@ -1,0 +1,1337 @@
+{
+  "schema_version": 1,
+  "content_version": 1,
+  "units": [
+    {
+      "id": "u1",
+      "title": "Quantum Foundations",
+      "tagline": "Build the mental model for qubits, measurement, and phase.",
+      "level": "Beginner",
+      "badge": "Foundations Cadet",
+      "tools": [
+        "Circuit Studio"
+      ],
+      "prereq": [],
+      "prerequisites": [],
+      "lessons": [
+        {
+          "id": "u1-quantum-foundations",
+          "title": "Quantum Foundations",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Quantum Foundations"
+            },
+            {
+              "type": "paragraph",
+              "text": "Quantum computing uses quantum states to process information. A classical bit is either 0 or 1; a qubit is described by amplitudes α and β with |α|² + |β|² = 1. Measurement samples an outcome and changes the state. Superposition is not uncertainty caused by missing knowledge: it is a state with multiple amplitudes. Relative phase affects interference, while global phase does not change measurement probabilities."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "What describes the state of a single qubit?",
+              "options": [
+                "Two complex amplitudes whose squared magnitudes sum to 1",
+                "A hidden classical bit that never changes",
+                "A measurement result only",
+                "A pair of probabilities that need not sum to 1"
+              ],
+              "answer": 0,
+              "explanation": "A normalized qubit state α|0⟩ + β|1⟩ has |α|² + |β|² = 1.",
+              "id": "u1-quantum-foundations-q1"
+            },
+            {
+              "prompt": "What does a computational-basis measurement tell you?",
+              "options": [
+                "One sampled outcome, not every amplitude",
+                "The full state with certainty",
+                "Only the global phase",
+                "The circuit's intended answer"
+              ],
+              "answer": 0,
+              "explanation": "Measurement returns one outcome; repeated shots estimate its probability distribution.",
+              "id": "u1-quantum-foundations-q2"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio?template=superposition"
+            }
+          ]
+        },
+        {
+          "id": "u1-qubits-and-measurement",
+          "title": "Qubits and measurement",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Qubits and measurement"
+            },
+            {
+              "type": "paragraph",
+              "text": "For |ψ⟩ = α|0⟩ + β|1⟩, measuring in the computational basis returns 0 with probability |α|² and 1 with probability |β|². Repeating the experiment estimates these probabilities; one shot does not reveal the whole state. The Bloch sphere is a geometric representation of a pure single-qubit state, with poles for |0⟩ and |1⟩ and phase represented around the equator."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "For |ψ⟩ = α|0⟩ + β|1⟩, what is the probability of measuring 1?",
+              "options": [
+                "|β|²",
+                "β",
+                "|α|² + |β|²",
+                "Always 1/2"
+              ],
+              "answer": 0,
+              "explanation": "Born's rule squares the magnitude of the amplitude for the measured outcome.",
+              "id": "u1-qubits-and-measurement-q1"
+            },
+            {
+              "prompt": "Why run the same circuit many times?",
+              "options": [
+                "To estimate outcome probabilities from samples",
+                "To reveal all amplitudes in one shot",
+                "To prevent measurement from changing a state",
+                "To remove every source of noise"
+              ],
+              "answer": 0,
+              "explanation": "Repeated shots produce a histogram that estimates the measurement distribution.",
+              "id": "u1-qubits-and-measurement-q2"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio?template=superposition"
+            }
+          ]
+        },
+        {
+          "id": "u1-phase-and-interference",
+          "title": "Phase and interference",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Phase and interference"
+            },
+            {
+              "type": "paragraph",
+              "text": "Two states can have the same measurement probabilities but different relative phase. A later gate can make their amplitudes add or cancel. This is the engine of many algorithms: computation arranges interference so useful answers become more likely. A global phase e^{iγ}|ψ⟩ is physically unobservable, but a relative phase between basis states is observable through interference."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Two states have identical basis probabilities but different relative phase. What can distinguish them?",
+              "options": [
+                "A later gate can make their amplitudes interfere differently",
+                "Nothing; relative phase is always unobservable",
+                "A global phase change alone",
+                "Measuring more slowly"
+              ],
+              "answer": 0,
+              "explanation": "Relative phase affects interference after subsequent operations.",
+              "id": "u1-phase-and-interference-q1"
+            },
+            {
+              "prompt": "Which phase has no observable effect on measurement probabilities?",
+              "options": [
+                "A global phase shared by the whole state",
+                "A relative phase between basis states",
+                "A phase introduced on only |1⟩",
+                "Any phase before an H gate"
+              ],
+              "answer": 0,
+              "explanation": "Multiplying the entire state by e^{iγ} is a global phase and does not change physical predictions.",
+              "id": "u1-phase-and-interference-q2"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio?template=superposition"
+            }
+          ]
+        }
+      ],
+      "minutes": 36,
+      "xpTotal": 30,
+      "is_placeholder": false,
+      "review_status": "pending"
+    },
+    {
+      "id": "u2",
+      "title": "Gates and Circuits",
+      "tagline": "Read, build, and reason about quantum circuits.",
+      "level": "Beginner",
+      "badge": "Gate Wrangler",
+      "tools": [
+        "Circuit Studio"
+      ],
+      "prereq": [
+        "u1"
+      ],
+      "prerequisites": [
+        "u1"
+      ],
+      "lessons": [
+        {
+          "id": "u2-gate-toolkit",
+          "title": "Gate toolkit",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Gate toolkit"
+            },
+            {
+              "type": "paragraph",
+              "text": "Quantum gates are reversible unitary transformations. X swaps |0⟩ and |1⟩; H maps |0⟩ to (|0⟩+|1⟩)/√2; Z changes the phase of |1⟩. Y and rotations add other axes of control. Unitary means U†U=I, so the operation preserves total probability and has an inverse."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "What does X do to |0⟩?",
+              "options": [
+                "Maps it to |1⟩",
+                "Creates an equal superposition",
+                "Measures it",
+                "Adds a phase to |1⟩ only"
+              ],
+              "answer": 0,
+              "explanation": "X is the quantum NOT gate and swaps |0⟩ and |1⟩.",
+              "id": "u2-gate-toolkit-q1"
+            },
+            {
+              "prompt": "What is H|0⟩?",
+              "options": [
+                "(|0⟩ + |1⟩)/√2",
+                "|1⟩",
+                "(|0⟩ − |1⟩)/√2",
+                "A measured bit"
+              ],
+              "answer": 0,
+              "explanation": "Hadamard puts |0⟩ into an equal superposition with positive relative phase.",
+              "id": "u2-gate-toolkit-q2"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio?template=bell"
+            }
+          ]
+        },
+        {
+          "id": "u2-reading-circuits",
+          "title": "Reading circuits",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Reading circuits"
+            },
+            {
+              "type": "paragraph",
+              "text": "A circuit diagram is a timeline for qubits. Wires are qubit registers and gates act at a moment in time. A controlled gate applies an operation only when a control condition is met. Read barriers carefully: gates on different qubits may be parallel, but measurement is not an ordinary reversible gate."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "In the circuit convention used here, which way does time flow?",
+              "options": [
+                "Left to right",
+                "Right to left",
+                "Top to bottom",
+                "It depends on the gate color"
+              ],
+              "answer": 0,
+              "explanation": "Read gates along each wire from left to right.",
+              "id": "u2-reading-circuits-q1"
+            },
+            {
+              "prompt": "Can gates on separate qubits occur in the same circuit layer?",
+              "options": [
+                "Yes, when they act in parallel",
+                "No, every gate must be sequential",
+                "Only after measurement",
+                "Only if they are both X gates"
+              ],
+              "answer": 0,
+              "explanation": "Operations on independent wires can share a time step.",
+              "id": "u2-reading-circuits-q2"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio"
+            }
+          ]
+        },
+        {
+          "id": "u2-multi-qubit-gates",
+          "title": "Multi-qubit gates",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Multi-qubit gates"
+            },
+            {
+              "type": "paragraph",
+              "text": "Multi-qubit systems use tensor products. CNOT flips the target when the control is 1; applied after H, it can create a Bell state. CZ changes a phase when both qubits are 1. SWAP exchanges states. These gates let circuits create correlations that cannot be represented as independent single-qubit states."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "What does CNOT do when its control is |0⟩?",
+              "options": [
+                "It leaves the target unchanged",
+                "It always flips the target",
+                "It measures both qubits",
+                "It swaps control and target"
+              ],
+              "answer": 0,
+              "explanation": "CNOT flips the target only when the control is |1⟩.",
+              "id": "u2-multi-qubit-gates-q1"
+            },
+            {
+              "prompt": "How can H on q0 followed by CNOT(q0, q1) act on |00⟩?",
+              "options": [
+                "Create the Bell state (|00⟩ + |11⟩)/√2",
+                "Turn it into |01⟩ with certainty",
+                "Measure q0 and reset q1",
+                "Leave both qubits independent"
+              ],
+              "answer": 0,
+              "explanation": "H creates two branches and CNOT correlates q1 with q0.",
+              "id": "u2-multi-qubit-gates-q2"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio"
+            }
+          ]
+        }
+      ],
+      "minutes": 36,
+      "xpTotal": 30,
+      "is_placeholder": false,
+      "review_status": "pending"
+    },
+    {
+      "id": "u3",
+      "title": "Entanglement",
+      "tagline": "Understand tensor products, Bell states, and teleportation.",
+      "level": "Intermediate",
+      "badge": "Entanglement Explorer",
+      "tools": [
+        "Circuit Studio"
+      ],
+      "prereq": [
+        "u2"
+      ],
+      "prerequisites": [
+        "u2"
+      ],
+      "lessons": [
+        {
+          "id": "u3-bell-states",
+          "title": "Bell states",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Bell states"
+            },
+            {
+              "type": "paragraph",
+              "text": "Starting from |00⟩, a Hadamard on the first qubit creates (|00⟩ + |10⟩)/√2. A CNOT with q0 as control and q1 as target maps the second branch to |11⟩, preparing |Φ+⟩ = (|00⟩ + |11⟩)/√2. This joint state cannot be written as a product of single-qubit states."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Which sequence prepares (|00⟩ + |11⟩)/√2 from |00⟩?",
+              "options": [
+                "H on q0, then CNOT(q0,q1)",
+                "X on both qubits",
+                "Z on q0, then measure",
+                "CNOT before H"
+              ],
+              "answer": 0,
+              "explanation": "H creates a superposition on q0; CNOT copies that branch value into q1.",
+              "id": "u3-bell-states-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio?template=bell"
+            }
+          ]
+        },
+        {
+          "id": "u3-measurement-correlations",
+          "title": "Measurement correlations",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Measurement correlations"
+            },
+            {
+              "type": "paragraph",
+              "text": "Measuring either qubit of |Φ+⟩ alone gives a random 0 or 1. Measuring both in the computational basis gives only 00 or 11, with equal probability. The correlation is in the joint distribution; it does not let either observer choose an outcome or send a message."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "For |Φ+⟩ = (|00⟩ + |11⟩)/√2, what happens when both qubits are measured in the computational basis?",
+              "options": [
+                "Outcomes match: 00 or 11",
+                "Outcomes always differ",
+                "All four outcomes are equally likely",
+                "Only 00 can occur"
+              ],
+              "answer": 0,
+              "explanation": "The state contains only the 00 and 11 branches, each with probability 1/2.",
+              "id": "u3-measurement-correlations-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio?template=bell"
+            }
+          ]
+        },
+        {
+          "id": "u3-teleportation",
+          "title": "Teleportation",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Teleportation"
+            },
+            {
+              "type": "paragraph",
+              "text": "Quantum teleportation uses a shared Bell pair, a joint operation, measurements and two classical bits. The sender's unknown state is destroyed by measurement; the receiver applies a correction determined by the classical message. The protocol transfers a state description without copying it or sending matter faster than light."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "What does quantum teleportation transfer?",
+              "options": [
+                "An unknown quantum state using shared entanglement and classical communication",
+                "A qubit faster than light",
+                "A copy of an unknown state",
+                "A measurement result without a classical message"
+              ],
+              "answer": 0,
+              "explanation": "Teleportation reconstructs a state using entanglement plus two classical bits; it does not move matter or send information faster than light.",
+              "id": "u3-teleportation-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/studio?template=teleportation"
+            }
+          ]
+        }
+      ],
+      "minutes": 36,
+      "xpTotal": 30,
+      "is_placeholder": false,
+      "review_status": "pending"
+    },
+    {
+      "id": "u4",
+      "title": "First Algorithms",
+      "tagline": "See how oracles and interference create speedups.",
+      "level": "Intermediate",
+      "badge": "Oracle Whisperer",
+      "tools": [
+        "Lab"
+      ],
+      "prereq": [
+        "u3"
+      ],
+      "prerequisites": [
+        "u3"
+      ],
+      "lessons": [
+        {
+          "id": "u4-core",
+          "title": "First Algorithms",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "First Algorithms"
+            },
+            {
+              "type": "paragraph",
+              "text": "See how oracles and interference create speedups."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Which statement best matches this unit?",
+              "options": [
+                "See how oracles and interference create speedups.",
+                "A quantum state is a classical value with a new name",
+                "Measurement reveals every internal amplitude",
+                "A circuit's result can be known without running it"
+              ],
+              "answer": 0,
+              "explanation": "See how oracles and interference create speedups.",
+              "id": "u4-core-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/curriculum/practice"
+            }
+          ]
+        }
+      ],
+      "minutes": 12,
+      "xpTotal": 10,
+      "is_placeholder": true,
+      "review_status": "pending"
+    },
+    {
+      "id": "u5",
+      "title": "Search and Fourier Methods",
+      "tagline": "Explore Grover, QFT, phase estimation, and Shor.",
+      "level": "Advanced",
+      "badge": "Amplitude Amplifier",
+      "tools": [
+        "Lab"
+      ],
+      "prereq": [
+        "u4"
+      ],
+      "prerequisites": [
+        "u4"
+      ],
+      "lessons": [
+        {
+          "id": "u5-core",
+          "title": "Search and Fourier Methods",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Search and Fourier Methods"
+            },
+            {
+              "type": "paragraph",
+              "text": "Explore Grover, QFT, phase estimation, and Shor."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Which statement best matches this unit?",
+              "options": [
+                "Explore Grover, QFT, phase estimation, and Shor.",
+                "A quantum state is a classical value with a new name",
+                "Measurement reveals every internal amplitude",
+                "A circuit's result can be known without running it"
+              ],
+              "answer": 0,
+              "explanation": "Explore Grover, QFT, phase estimation, and Shor.",
+              "id": "u5-core-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/curriculum/practice"
+            }
+          ]
+        }
+      ],
+      "minutes": 12,
+      "xpTotal": 10,
+      "is_placeholder": true,
+      "review_status": "pending"
+    },
+    {
+      "id": "u6",
+      "title": "Variational Algorithms",
+      "tagline": "Connect parameterized circuits to optimization.",
+      "level": "Advanced",
+      "badge": "Variational Voyager",
+      "tools": [
+        "Lab"
+      ],
+      "prereq": [
+        "u5"
+      ],
+      "prerequisites": [
+        "u5"
+      ],
+      "lessons": [
+        {
+          "id": "u6-core",
+          "title": "Variational Algorithms",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Variational Algorithms"
+            },
+            {
+              "type": "paragraph",
+              "text": "Connect parameterized circuits to optimization."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Which statement best matches this unit?",
+              "options": [
+                "Connect parameterized circuits to optimization.",
+                "A quantum state is a classical value with a new name",
+                "Measurement reveals every internal amplitude",
+                "A circuit's result can be known without running it"
+              ],
+              "answer": 0,
+              "explanation": "Connect parameterized circuits to optimization.",
+              "id": "u6-core-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/curriculum/practice"
+            }
+          ]
+        }
+      ],
+      "minutes": 12,
+      "xpTotal": 10,
+      "is_placeholder": true,
+      "review_status": "pending"
+    },
+    {
+      "id": "u7",
+      "title": "Noise and Error Correction",
+      "tagline": "Model errors and the road to fault tolerance.",
+      "level": "Advanced",
+      "badge": "Noise Navigator",
+      "tools": [
+        "Lab"
+      ],
+      "prereq": [
+        "u6"
+      ],
+      "prerequisites": [
+        "u6"
+      ],
+      "lessons": [
+        {
+          "id": "u7-core",
+          "title": "Noise and Error Correction",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Noise and Error Correction"
+            },
+            {
+              "type": "paragraph",
+              "text": "Model errors and the road to fault tolerance."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Which statement best matches this unit?",
+              "options": [
+                "Model errors and the road to fault tolerance.",
+                "A quantum state is a classical value with a new name",
+                "Measurement reveals every internal amplitude",
+                "A circuit's result can be known without running it"
+              ],
+              "answer": 0,
+              "explanation": "Model errors and the road to fault tolerance.",
+              "id": "u7-core-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/curriculum/practice"
+            }
+          ]
+        }
+      ],
+      "minutes": 12,
+      "xpTotal": 10,
+      "is_placeholder": true,
+      "review_status": "pending"
+    },
+    {
+      "id": "u8",
+      "title": "Circuit Studio Mastery",
+      "tagline": "Turn concepts into reproducible experiments.",
+      "level": "Intermediate",
+      "badge": "Studio Craftsman",
+      "tools": [
+        "Circuit Studio"
+      ],
+      "prereq": [
+        "u2"
+      ],
+      "prerequisites": [
+        "u2"
+      ],
+      "lessons": [
+        {
+          "id": "u8-core",
+          "title": "Circuit Studio Mastery",
+          "type": "Concept",
+          "minutes": 12,
+          "xp": 10,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Circuit Studio Mastery"
+            },
+            {
+              "type": "paragraph",
+              "text": "Turn concepts into reproducible experiments."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Which statement best matches this unit?",
+              "options": [
+                "Turn concepts into reproducible experiments.",
+                "A quantum state is a classical value with a new name",
+                "Measurement reveals every internal amplitude",
+                "A circuit's result can be known without running it"
+              ],
+              "answer": 0,
+              "explanation": "Turn concepts into reproducible experiments.",
+              "id": "u8-core-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/curriculum/practice"
+            }
+          ]
+        }
+      ],
+      "minutes": 12,
+      "xpTotal": 10,
+      "is_placeholder": true,
+      "review_status": "pending"
+    },
+    {
+      "id": "u9",
+      "title": "Hardware Studio Mastery",
+      "tagline": "Design the cryogenic system around a quantum processor.",
+      "level": "Advanced",
+      "badge": "Cryostat Architect",
+      "tools": [
+        "Hardware Studio"
+      ],
+      "prereq": [
+        "u7"
+      ],
+      "prerequisites": [
+        "u7"
+      ],
+      "lessons": [
+        {
+          "id": "u9-cryostat-stages",
+          "title": "Cryostat stages",
+          "type": "Lab",
+          "minutes": 12,
+          "xp": 15,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Cryostat stages"
+            },
+            {
+              "type": "paragraph",
+              "text": "Open the single-transmon design. Inspect the six temperature stages and locate the sample holder on the mixing chamber. Add or move a component, then run the system checks and thermal budget to see the consequences."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Where should the superconducting sample be mounted?",
+              "options": [
+                "On the mixing chamber, the coldest stage",
+                "At room temperature",
+                "On the 50 K shield",
+                "Outside the refrigerator"
+              ],
+              "answer": 0,
+              "explanation": "The sample holder belongs at the mixing chamber, where the processor reaches its operating temperature.",
+              "id": "u9-cryostat-stages-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/hardware/studio?preset=single-qubit"
+            }
+          ]
+        },
+        {
+          "id": "u9-control-lines",
+          "title": "Control lines",
+          "type": "Lab",
+          "minutes": 12,
+          "xp": 15,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Control lines"
+            },
+            {
+              "type": "paragraph",
+              "text": "Open the single-transmon design. Trace an XY drive from the room-temperature feedthrough through cold attenuators to the sample. Compare its signal type and thermal load with the flux line; try adding a compatible route and rerun checks."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "What is the purpose of attenuation on an XY drive line?",
+              "options": [
+                "Reduce thermal noise reaching the qubit",
+                "Amplify the returning readout signal",
+                "Increase the cryostat temperature",
+                "Replace the qubit sample"
+              ],
+              "answer": 0,
+              "explanation": "Attenuators suppress room-temperature noise along the drive chain, with a thermal cost at each cold stage.",
+              "id": "u9-control-lines-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/hardware/studio?preset=single-qubit"
+            }
+          ]
+        },
+        {
+          "id": "u9-readout-chain",
+          "title": "Readout chain",
+          "type": "Lab",
+          "minutes": 12,
+          "xp": 15,
+          "sections": [
+            {
+              "type": "heading",
+              "text": "Readout chain"
+            },
+            {
+              "type": "paragraph",
+              "text": "Open the two-qubit design. Follow readout-in to each sample and readout-out through the cold amplifier and 4 K HEMT. Remove a readout component, run checks, then reload your saved starting design to compare."
+            },
+            {
+              "type": "callout",
+              "tone": "key",
+              "text": "Pending faculty review: use this checkpoint to connect the idea to a real circuit."
+            }
+          ],
+          "checkpoints": [
+            {
+              "prompt": "Which component provides low-noise amplification on the 4 K readout return path?",
+              "options": [
+                "HEMT amplifier",
+                "XY attenuator",
+                "Sample holder",
+                "DC filter"
+              ],
+              "answer": 0,
+              "explanation": "A HEMT at 4 K amplifies the weak returning readout signal before it reaches room temperature.",
+              "id": "u9-readout-chain-q1"
+            }
+          ],
+          "takeaways": [
+            "Connect the mathematical model to a testable prediction.",
+            "Use a small example to check your reasoning."
+          ],
+          "links": [
+            {
+              "label": "Open related tool",
+              "href": "/hardware/studio?preset=two-qubit-pair"
+            }
+          ]
+        }
+      ],
+      "minutes": 36,
+      "xpTotal": 45,
+      "is_placeholder": false,
+      "review_status": "pending"
+    }
+  ],
+  "questions_by_unit": {
+    "u1": [
+      {
+        "id": "u1-born-rule",
+        "prompt": "For |ψ⟩ = α|0⟩ + β|1⟩, what is the probability of measuring 1?",
+        "options": [
+          "|β|²",
+          "β",
+          "|α|² + |β|²",
+          "Always 1/2"
+        ],
+        "answer": 0,
+        "explanation": "Born's rule squares the magnitude of the amplitude: P(1) = |β|².",
+        "tags": [
+          "measurement"
+        ],
+        "xp": 2
+      },
+      {
+        "id": "u1-hadamard",
+        "prompt": "After applying H to |0⟩, what is P(|1⟩)?",
+        "options": [
+          "0",
+          "1/2",
+          "1",
+          "It depends on global phase"
+        ],
+        "answer": 1,
+        "explanation": "H|0⟩ = (|0⟩ + |1⟩)/√2, so both outcomes have probability 1/2.",
+        "tags": [
+          "superposition"
+        ],
+        "xp": 2
+      },
+      {
+        "id": "u1-phase",
+        "prompt": "Which phase cannot change observable measurement probabilities?",
+        "options": [
+          "A global phase on the whole state",
+          "A relative phase between basis states",
+          "A phase before interference",
+          "A phase on one basis state"
+        ],
+        "answer": 0,
+        "explanation": "A global phase multiplies every amplitude equally and has no observable effect.",
+        "tags": [
+          "phase"
+        ],
+        "xp": 2
+      }
+    ],
+    "u2": [
+      {
+        "id": "u2-x",
+        "prompt": "What does X do to |0⟩?",
+        "options": [
+          "Maps it to |1⟩",
+          "Creates equal amplitudes",
+          "Measures it",
+          "Adds phase to |1⟩"
+        ],
+        "answer": 0,
+        "explanation": "X swaps |0⟩ and |1⟩.",
+        "tags": [
+          "gates"
+        ],
+        "xp": 2
+      },
+      {
+        "id": "u2-cnot",
+        "prompt": "When does CNOT flip its target?",
+        "options": [
+          "When the control is |1⟩",
+          "Every time it runs",
+          "When the target is |0⟩",
+          "Only after measurement"
+        ],
+        "answer": 0,
+        "explanation": "CNOT applies X to the target conditioned on the control being |1⟩.",
+        "tags": [
+          "circuits"
+        ],
+        "xp": 2
+      },
+      {
+        "id": "u2-bell",
+        "prompt": "What state results from H on q0 then CNOT(q0,q1) applied to |00⟩?",
+        "options": [
+          "(|00⟩ + |11⟩)/√2",
+          "|01⟩",
+          "(|00⟩ + |01⟩)/√2",
+          "|11⟩"
+        ],
+        "answer": 0,
+        "explanation": "H creates two branches and CNOT correlates the second qubit with the first.",
+        "tags": [
+          "entanglement"
+        ],
+        "xp": 2
+      }
+    ],
+    "u3": [
+      {
+        "id": "u3-factor",
+        "prompt": "What is the defining property of an entangled pure state?",
+        "options": [
+          "It cannot be factored into independent states for each subsystem",
+          "Every qubit is measured as 1",
+          "Its probabilities fail to normalize",
+          "It contains no correlations"
+        ],
+        "answer": 0,
+        "explanation": "Entanglement means the joint state cannot be written as a product of individual subsystem states.",
+        "tags": [
+          "entanglement"
+        ],
+        "xp": 2
+      },
+      {
+        "id": "u3-bell",
+        "prompt": "For the Bell state (|00⟩ + |11⟩)/√2, if q0 is measured as 0, what is q1?",
+        "options": [
+          "0",
+          "1",
+          "Random and independent",
+          "Not measurable"
+        ],
+        "answer": 0,
+        "explanation": "The outcomes are perfectly correlated: observing 0 on q0 leaves q1 at 0.",
+        "tags": [
+          "correlations"
+        ],
+        "xp": 2
+      },
+      {
+        "id": "u3-signal",
+        "prompt": "Can entanglement alone send a controllable message faster than light?",
+        "options": [
+          "No; local outcomes remain random",
+          "Yes, by choosing a Bell state",
+          "Yes, after measuring both qubits",
+          "Only with three qubits"
+        ],
+        "answer": 0,
+        "explanation": "Entanglement creates correlations, but the local measurement result is random and cannot carry a chosen message.",
+        "tags": [
+          "no-signalling"
+        ],
+        "xp": 2
+      }
+    ],
+    "u4": [
+      {
+        "id": "u4-oracle",
+        "prompt": "What role does an oracle play in a query algorithm?",
+        "options": [
+          "It encodes a problem-dependent operation",
+          "It measures every qubit",
+          "It removes all noise",
+          "It guarantees an answer in one step"
+        ],
+        "answer": 0,
+        "explanation": "The oracle represents the problem-specific function queried by the algorithm.",
+        "tags": [
+          "oracles"
+        ],
+        "xp": 2
+      }
+    ],
+    "u5": [
+      {
+        "id": "u5-grover",
+        "prompt": "What speedup does ideal Grover search provide over unstructured classical search?",
+        "options": [
+          "Exponential",
+          "Quadratic",
+          "None",
+          "It solves every search in one step"
+        ],
+        "answer": 1,
+        "explanation": "Grover reduces query complexity from O(N) to O(√N), a quadratic speedup.",
+        "tags": [
+          "grover"
+        ],
+        "xp": 2
+      }
+    ],
+    "u6": [
+      {
+        "id": "u6-variational",
+        "prompt": "What is optimized in a variational quantum algorithm?",
+        "options": [
+          "Parameters of a circuit using a classical feedback loop",
+          "The number of measurement devices",
+          "A global phase only",
+          "The qubit labels"
+        ],
+        "answer": 0,
+        "explanation": "A classical optimizer updates circuit parameters based on measured objective values.",
+        "tags": [
+          "variational"
+        ],
+        "xp": 2
+      }
+    ],
+    "u7": [
+      {
+        "id": "u7-t1",
+        "prompt": "T1 primarily describes what in a superconducting qubit?",
+        "options": [
+          "Energy relaxation",
+          "Classical clock rate",
+          "Readout bandwidth",
+          "Room temperature"
+        ],
+        "answer": 0,
+        "explanation": "T1 is the characteristic energy-relaxation time.",
+        "tags": [
+          "noise"
+        ],
+        "xp": 2
+      },
+      {
+        "id": "u7-qec",
+        "prompt": "Why use quantum error correction?",
+        "options": [
+          "To detect and correct errors without directly measuring the encoded logical state",
+          "To make gates unnecessary",
+          "To eliminate the need for repeated measurements",
+          "To turn quantum data into classical copies"
+        ],
+        "answer": 0,
+        "explanation": "Error-correcting codes use redundant physical qubits and syndrome measurements to protect logical information.",
+        "tags": [
+          "error-correction"
+        ],
+        "xp": 2
+      }
+    ],
+    "u8": [
+      {
+        "id": "u8-reproducible",
+        "prompt": "What should you record to make a circuit experiment reproducible?",
+        "options": [
+          "Circuit, input state, measurement setup and run settings",
+          "Only the final histogram",
+          "The color of the editor",
+          "A screenshot with no circuit"
+        ],
+        "answer": 0,
+        "explanation": "A useful experiment record includes the circuit and conditions that produced the results.",
+        "tags": [
+          "experiments"
+        ],
+        "xp": 2
+      }
+    ],
+    "u9": [
+      {
+        "id": "u9-t1",
+        "prompt": "What does a cryostat do in a superconducting quantum computer?",
+        "options": [
+          "Cools the processor to cryogenic temperatures",
+          "Compiles quantum circuits",
+          "Performs error correction in software",
+          "Measures classical clock speed"
+        ],
+        "answer": 0,
+        "explanation": "Superconducting processors operate at very low temperatures to reduce thermal excitations.",
+        "tags": [
+          "hardware"
+        ],
+        "xp": 2
+      }
+    ]
+  },
+  "glossary": {
+    "superposition": "A quantum state represented by a weighted combination of basis states.",
+    "oracle": "A circuit component that encodes a function without revealing it directly.",
+    "fidelity": "A measure of how close a prepared state is to a target state.",
+    "T1": "Energy-relaxation time of a qubit.",
+    "attenuation": "Reduction of signal power, commonly used to thermalize cryogenic lines."
+  }
+}

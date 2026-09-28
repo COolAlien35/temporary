@@ -11,8 +11,16 @@ from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException
 
 from app.core.config import Settings, get_settings
+from app.core.errors import ApiHTTPException
 from app.db.session import build_engine, get_engine
+from app.modules.circuits.router import router as circuits_router
+from app.modules.cohorts.router import router as cohorts_router
+from app.modules.curriculum.router import router as curriculum_router
+from app.modules.experiments.router import router as experiments_router
 from app.modules.health.router import router as health_router
+from app.modules.identity.router import router as identity_router
+from app.modules.jobs.router import router as jobs_router
+from app.modules.predictions.router import router as predictions_router
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +52,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=configuration.cors_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Idempotency-Key"],
-        expose_headers=["X-Request-ID"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "Idempotency-Key",
+            "If-Match",
+        ],
+        expose_headers=["X-Request-ID", "ETag"],
     )
 
     @application.middleware("http")
@@ -63,7 +77,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @application.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
         response = error_response(
-            request, exc.status_code, f"http_{exc.status_code}", str(exc.detail)
+            request,
+            exc.status_code,
+            exc.code if isinstance(exc, ApiHTTPException) else f"http_{exc.status_code}",
+            str(exc.detail),
         )
         if exc.headers:
             response.headers.update(exc.headers)
@@ -79,6 +96,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return error_response(request, 500, "internal_error", "Internal server error")
 
     application.include_router(health_router, prefix="/api/v1")
+    application.include_router(identity_router, prefix="/api/v1")
+    application.include_router(cohorts_router, prefix="/api/v1")
+    application.include_router(circuits_router, prefix="/api/v1")
+    application.include_router(curriculum_router, prefix="/api/v1")
+    application.include_router(experiments_router, prefix="/api/v1")
+    application.include_router(jobs_router, prefix="/api/v1")
+    application.include_router(predictions_router, prefix="/api/v1")
     return application
 
 

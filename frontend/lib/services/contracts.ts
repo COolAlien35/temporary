@@ -1,10 +1,52 @@
 import type { StudioCircuit, SimResult } from "@/lib/studio/types"
-import type { Unit } from "@/lib/curriculum/types"
+import type { Checkpoint, Lesson, Unit } from "@/lib/curriculum/types"
 import type { TutorAction, TutorContext } from "@/lib/ai/tutor"
 import type { AssessmentTemplate, AssessmentTemplateInput } from "@/lib/assessments/templates"
 import type { CommunityReply, CommunityThread, ContestEntry, NewReply, NewThread } from "@/lib/community/types"
 
 export type UserRole = "learner" | "instructor"
+
+export type LearnerCheckpoint = Pick<Checkpoint, "id" | "prompt" | "options">
+export type LearnerLesson = Omit<Lesson, "checkpoints"> & { checkpoints: LearnerCheckpoint[] }
+export type LearnerUnit = Omit<Unit, "lessons"> & {
+  lessons: LearnerLesson[]
+  review_status: string
+  is_placeholder: boolean
+  content_version: number
+}
+
+export type ComparisonBasis = "ideal_probability" | "noisy_probability" | "sampled_frequency"
+
+/** All vector entries are probabilities in [0, 1], ordered by basis_labels. */
+export interface PredictionSubmission {
+  schema_version: 1
+  lesson_id: string
+  lesson_version: number
+  learning_session_id: string
+  prediction_vector: number[]
+  basis_labels: string[]
+  /** Left-to-right bitstring position to circuit qubit index. */
+  measurement_qubits: number[]
+  comparison_basis: ComparisonBasis
+  confidence?: number | null
+}
+
+export interface PredictionPair {
+  schema_version: 1
+  prediction_id: string
+  run_id: string
+  prediction_vector: number[]
+  simulated_vector: number[]
+  basis_labels: string[]
+  measurement_qubits: number[]
+  comparison_basis: ComparisonBasis
+  metric_version: "tvd-v1"
+  prediction_match: number
+  backend: string
+  shots?: number | null
+  seed?: number | null
+  circuit_revision: number
+}
 
 export interface LearningPreferences {
   focus: "foundations" | "algorithms" | "hardware"
@@ -120,8 +162,8 @@ export interface TutorRequest {
 export interface PlatformServices {
   auth: AuthService
   curriculum: {
-    listUnits(): Promise<Unit[]>
-    getUnit(id: string): Promise<Unit | null>
+    listUnits(): Promise<LearnerUnit[]>
+    getUnit(id: string): Promise<LearnerUnit | null>
   }
   experiments: { run(request: RunRequest): Promise<ExperimentRun> }
   tutor: { respond(request: TutorRequest): Promise<TutorMessage> }

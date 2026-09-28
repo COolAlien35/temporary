@@ -1,4 +1,7 @@
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +10,7 @@ from sqlalchemy.exc import OperationalError
 
 from app.core.config import Settings
 from app.main import create_app
+from app.modules.identity.public import get_current_profile
 
 
 def test_liveness_never_requires_dependencies():
@@ -112,3 +116,38 @@ def test_cors_allows_only_configured_origins():
     assert allowed.headers["access-control-allow-origin"] == "https://app.example.test"
     assert denied.status_code == 400
     assert "access-control-allow-origin" not in denied.headers
+
+
+def test_browser_can_read_profile_etag_and_send_if_match():
+    origin = "https://app.example.test"
+    app = create_app(Settings(cors_origins=[origin]))
+    now = datetime.now(UTC)
+    app.dependency_overrides[get_current_profile] = lambda: SimpleNamespace(
+        id=uuid4(),
+        email="learner@example.test",
+        name="Learner",
+        role="learner",
+        preferences={},
+        timezone="UTC",
+        revision=1,
+        created_at=now,
+        updated_at=now,
+    )
+
+    with TestClient(app) as client:
+        preflight = client.options(
+            "/api/v1/me",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "PATCH",
+                "Access-Control-Request-Headers": "authorization,content-type,if-match",
+            },
+        )
+        response = client.get("/api/v1/me", headers={"Origin": origin})
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == origin
+    allowed_headers = preflight.headers["access-control-allow-headers"].lower()
+    assert "if-match" in allowed_headers
+    assert "authorization" in allowed_headers
+    assert response.headers["etag"] == '"rev-1"'
+    assert "etag" in response.headers["access-control-expose-headers"].lower()

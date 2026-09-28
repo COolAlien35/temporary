@@ -2,7 +2,21 @@
 
 ## Current implementation boundary
 
-The backend currently provides infrastructure and health endpoints only. Authentication, simulations, grading, tutor, storage, and collaboration are tracked in `backend_plan.md`. The frontend remains in its labeled demo mode until B20 connects implemented APIs. Starting both containers does not make the demo frontend a connected backend application.
+The backend provides infrastructure, health endpoints, Supabase JWT verification, durable `GET/PATCH /api/v1/me` profiles, cohort membership/invitation APIs, a read-only learner-safe curriculum unit API, learner-owned lesson sessions and locked prediction reads/writes, owner-scoped circuit revisions, local Qiskit Aer simulations dispatched as durable jobs, and owner-scoped run/job reads. Signup/login/recovery, account workflows, prediction pairing, noise, grading, tutor, storage, and collaboration remain tracked in `backend_plan.md`. The frontend remains in its labeled demo mode until B20 connects these APIs. Starting both containers does not make the demo frontend a connected backend application.
+
+[API contract revision 1](api-contract.md) records shared wire conventions and labels implemented and planned endpoints separately. Profile edits require the ETag from `GET /api/v1/me` in `If-Match`; stale saves return `412`. Circuit creates and simulation submissions use UUID idempotency keys. Circuit/run routes are owner-scoped. Idempotency and cursor pagination have not yet been added to existing cohort routes.
+
+For authenticated API requests, set `QL_AUTH_ISSUER` to the Supabase project's HTTPS issuer ending in `/auth/v1` and use an asymmetric Supabase signing key so the API can verify access tokens through the issuer's JWKS endpoint. The audience defaults to `authenticated`; configure `QL_AUTH_AUDIENCE` if the project uses another value. The API reads learner/instructor roles only from PostgreSQL profiles, never from client input or a JWT role claim. Local Compose leaves auth unconfigured, so `/api/v1/me` returns 503 for bearer tokens until an issuer is configured.
+
+After an instructor signs in once, an operator with database access can grant the global instructor role:
+
+```sh
+docker compose run --rm api python -m app.modules.identity.provision_instructor \
+  --subject 00000000-0000-0000-0000-000000000000 \
+  --operator YOUR_OPERATOR_ID --reason 'approved instructor' --apply
+```
+
+The command requires `--apply`, logs the operator and reason, and cannot promote an unknown subject. No user-facing endpoint grants instructor status. A provisioned instructor can create a cohort with `POST /api/v1/cohorts`; its owner can assign another provisioned instructor with `PUT /api/v1/cohorts/{id}/instructors/{profile_id}`. An instructor member creates a learner invitation with `POST /api/v1/cohorts/{id}/invitations`; the response contains the token once for manual delivery. The API stores only its hash, accepts it through `POST /api/v1/cohort-invitations/accept` for the verified matching email, and permits revocation. Automatic invitation email delivery is not implemented.
 
 ## Prerequisites
 
@@ -37,7 +51,11 @@ For backend-only development, use `docker compose up --build --wait api worker`.
 
 Override host port collisions with `API_PORT`, `FRONTEND_PORT`, `POSTGRES_PORT`, `BROKER_PORT`, and `CACHE_PORT`. Browser tests use a separate port 3100, configurable with `PLAYWRIGHT_PORT`, so they do not attach to your development server or frontend container.
 
-The worker currently consumes all declared queues with concurrency 2 for local convenience. As simulation/grading integrations arrive, deploy separate workers with `--queues=simulation`, `--queues=optimization`, and `--queues=grading`, sized and tested for those workloads. Scale workers independently of API replicas. The Compose API publishes one host port and is not a multi-replica production load balancer.
+The worker uses a dedicated image containing Qiskit Aer; API and migration images omit quantum SDKs. The local worker consumes all declared queues at concurrency 2 for convenience. As grading and optimization arrive, deploy queue-specific workers with resource limits. Scale workers independently of API replicas. The Compose API publishes one host port and is not a multi-replica production load balancer.
+
+The jobs module has a PostgreSQL record, explicit state transitions, and an owner-scoped status read. Its internal `create_dispatchable_job` service commits the job and a single outbox intent together. Run one dispatcher process with `python -m app.modules.jobs.dispatcher`; Compose starts it as the `dispatcher` service. It claims due intents with PostgreSQL row locks, publishes with a stable job/task ID, and backs off after a broker error. Delivery is at least once: a crash after broker acceptance but before the outbox commit can publish twice. The internal diagnostic worker task claims a timed database lease, records its result, and ignores duplicate delivery; an expired worker cannot overwrite a newer attempt. On each dispatcher pass, expired running jobs and published jobs that no worker claimed are reconciled before publication. Only the diagnostic task is approved for replay, up to three worker attempts or three successful publications. The unclaimed-job grace period uses the configured broker visibility timeout. Work without that replay policy enters `unknown` for manual/provider reconciliation. Public submission, cancellation endpoints, result history, and domain task idempotency remain B07 work.
+
+API and worker database pools are configured independently with `QL_DB_POOL_SIZE`/`QL_DB_MAX_OVERFLOW` and `QL_WORKER_DB_POOL_SIZE`/`QL_WORKER_DB_MAX_OVERFLOW`. Celery creates its PostgreSQL engine in each prefork child and disposes it when that child exits. Worker tasks use `worker_session()`; domain services still own commits and rollbacks. The `quantumloop.db_ping` maintenance task is an internal integration diagnostic for this path.
 
 ## Native development
 
@@ -101,5 +119,5 @@ Select the digest of the built artifact for production promotion. The current pu
 - Broker Redis uses AOF and `noeviction`; cache Redis is disposable and evictable. This does not replace PostgreSQL outbox/reconciliation and job durability work in B07.
 - Celery result storage is short-lived diagnostic storage. Persist business results in PostgreSQL; only tasks whose idempotency/recovery is proven should opt into late acknowledgements.
 - API readiness checks database and both Redis services; worker health is proven by the integration round trip, not merely by process startup. Add queue-age/heartbeat alerting with B21.
-- Size PostgreSQL connections as `(API processes + DB-using worker processes) × (pool size + overflow)`, with headroom for migrations/operators. Configure managed database pooling before scaling.
+- Size PostgreSQL connections as `API processes × (API pool size + API overflow) + DB-using worker children × (worker pool size + worker overflow)`, with headroom for migrations/operators. The development defaults are 5+5 per API process and 2+0 per worker child; configure managed database pooling before scaling.
 - External credentials and real scientific/sandbox integrations remain explicit future acceptance gates. No empty or skipped tests represent those services as implemented.

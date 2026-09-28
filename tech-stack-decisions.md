@@ -31,7 +31,11 @@ deploy. FastAPI also gives us async request handling, native WebSocket support (
 for collaboration and tutor streaming), and auto-generated OpenAPI docs, which is useful
 both for the frontend team and for demoing API design to judges.
 
-## Auth — Clerk or Supabase Auth
+## Auth — Supabase Auth
+
+**Decision:** Supabase Auth with asymmetric JWT signing. FastAPI verifies the issuer,
+audience, signature, and expiry through Supabase's JWKS; the frontend uses the provider's
+supported session flow. See [provider configuration](docs/provider-decisions.md).
 
 **Why not build it ourselves:** password reset flows, token rotation, and session
 management are exactly the kind of "overly elaborate authentication" our research doc
@@ -45,14 +49,18 @@ a different device.
 **Why relational, not document-based:** almost everything we're persisting has real
 foreign-key relationships — a submission belongs to an assignment which belongs to a
 unit, a chat message belongs to a party which has members. That's a natural fit for
-Postgres and a bad fit for forcing joins in a document store. Managed hosting (Neon or
-Supabase) gets us there without running our own database server.
+Postgres and a bad fit for forcing joins in a document store. **Decision:** Supabase
+PostgreSQL, colocated by region with the API and workers as closely as available.
 
 **What lives here:** learner profiles, XP/streaks/badges, quiz and assignment attempts,
 instructor feedback, contest entries, discussion threads/votes, party and study-session
 records, chat logs, circuit snapshots.
 
 ## Cache & job queue — Redis + Celery
+
+**Decision:** two paid Render Key Value instances, one durable `noeviction` broker and
+one independent cache/realtime instance. Live TLS, pub/sub, connection-limit, and
+restart verification is still required before production use.
 
 **Implementation constraint:** run the durable broker on a separate Redis instance
 from evictable caches/rankings. Database numbers and key prefixes do not isolate memory
@@ -64,9 +72,9 @@ the initial scaffold.
 "pending" and "service-error" states for remote code grading, which only make sense if
 grading happens as a background job, not inline in a request. Pattern: API enqueues a
 Celery task, returns a job ID immediately, frontend polls or listens over WebSocket for
-completion. Redis also gives us the leaderboard for free (sorted sets are a natural fit
-for global/contest/module × weekly/all-time ranking) and doubles as the pub/sub backbone
-for realtime collaboration.
+completion. Redis sorted sets can serve leaderboard projections rebuilt from
+authoritative PostgreSQL scoring records. The cache instance also carries realtime
+pub/sub between API instances.
 
 ## Quantum simulation layer — custom adapter, not a single SDK
 
@@ -78,7 +86,10 @@ framework, including a `QBraidAdapter` that calls qBraid's hosted API rather tha
 local package. These run as Celery tasks so a slow simulation (noise modeling, QAOA/VQE
 parameter sweeps) doesn't block the request/response cycle or hit an HTTP timeout.
 
-## Code grading — Piston or Judge0 (self-hosted)
+## Code grading — Piston (self-hosted)
+
+**Decision:** deploy Piston on isolated infrastructure with authenticated private
+access. Its privileged Docker executor cannot share the API/ordinary worker host.
 
 **Why not build our own sandbox:** container isolation, resource limits, and timeout
 handling for arbitrary user code is a solved problem with real security implications if
@@ -88,8 +99,9 @@ simulation adapters.
 
 ## AI tutor — OpenAI-compatible interface
 
-**Decision: call the model through the OpenAI SDK's `chat.completions` interface, not a
-provider-specific SDK, so the provider behind it is a config change, not a code change.**
+**Decision:** start with OpenAI's `gpt-5.4-mini` via the OpenAI SDK's
+`chat.completions` interface. Keep model, endpoint, key, and budgets configurable;
+evaluate tutor quality before pinning a dated snapshot or changing providers.
 
 Why this matters for us specifically: the "circuit-aware AI tutor" is our headline
 differentiator, and we don't want the whole team's integration work thrown away if we
@@ -106,34 +118,26 @@ speak it, and Anthropic also publishes an OpenAI-compatibility layer for Claude.
 - Streaming responses go back to the frontend over the same WebSocket/SSE channel we
   already use for the tutor drawer.
 
-**On using Claude specifically through this interface:** Anthropic's OpenAI SDK
-compatibility layer works by pointing the OpenAI Python/TS SDK's `base_url` at
-`https://api.anthropic.com/v1/` and using a Claude model name — no other code changes.
-Anthropic is explicit that this layer is meant for **testing and evaluation**, not as a
-long-term production path, and it has real gaps we should design around if we go this
-route: no prompt caching (so repeated system-prompt context costs more per call than the
-native SDK would), no audio input, system messages get concatenated into one block
-instead of staying separate, temperature is capped at 1.0, `n` must be 1, there's no
-embeddings endpoint, and function-calling's `strict` schema guarantee isn't enforced. If
-the tutor ends up needing prompt caching (likely, since the circuit-context system prompt
-repeats a lot) or guaranteed structured output, that's the point to move that call site to
-Anthropic's native SDK — the rest of the app is unaffected either way, because the
-prompt-builder and call sites don't change, only the client configuration behind
-`ai_tutor` does.
+Alternative provider compatibility is a future evaluation, not a guarantee of a
+configuration-only switch. Prompt semantics, tool schemas, streaming, costs, and safety
+behavior must be tested before changing the provider.
 
-## Object storage — S3-compatible (Cloudflare R2 or Supabase Storage)
+## Object storage — Supabase Storage (S3 API)
 
-**Why:** Circuit Studio's PNG/QASM/JSON exports and any uploaded assets need somewhere
-to live that isn't the database. R2/Supabase avoid a full AWS account for a hackathon
-timeline while staying S3-API-compatible if we ever do move to AWS.
+**Decision:** server-held S3 credentials, with metadata and authorization in Postgres.
+Use short-lived signed download links for private artifacts.
+
+**Why:** Circuit Studio's PNG/QASM/JSON exports and uploaded assets need somewhere
+to live that isn't the database. Supabase Storage keeps these with the selected data
+provider while offering an S3-compatible API.
 
 ## Realtime collaboration — Socket.IO on FastAPI + Redis pub/sub
 
 **Why Socket.IO over raw WebSockets:** it gives us rooms (maps directly onto "party" and
 "study session"), reconnection handling, and a Redis-backed adapter for cross-instance
-broadcast, all of which we'd otherwise write by hand. Redis pub/sub is what lets a
-message from one student reach another even if they're connected to different backend
-instances, and it also gives us presence (who's currently in the room).
+broadcast, all of which we'd otherwise write by hand. Redis pub/sub lets a message
+reach students on different backend instances. Presence needs its own expiring records
+and disconnect/reconnect handling.
 
 **Sync strategy for the MVP:** broadcast-and-apply, not CRDTs. Each client applies its
 own circuit edit optimistically and broadcasts it; the server assigns a sequence number
@@ -148,13 +152,12 @@ where we should start.
 **Build and verification:** GitHub Actions runs backend static/unit checks, production
 frontend build/browser tests, and Docker integration tests on every push/PR. A manual
 workflow publishes commit-tagged GHCR images only after the complete checks pass.
-Cloud deployment remains a separate integration after hosting/auth/storage choices
-are finalized. Local Docker Compose is development infrastructure, not a production
-deployment template.
+Cloud deployment remains a separate B23 integration. Local Docker Compose is
+development infrastructure, not a production deployment template.
 
-- **Render or Railway** — FastAPI app + Celery workers
-- **Neon or Supabase** — managed PostgreSQL
-- **Upstash** — managed Redis
+- **Render** — FastAPI web service, Celery workers, and two Key Value instances
+- **Supabase** — managed Auth, PostgreSQL, and Storage
+- **Isolated host** — private Piston executor
 
 **Why:** all three are real managed cloud services (satisfying the PS's "cloud
 deployment readiness" deliverable) without burning hackathon time on infrastructure
@@ -168,12 +171,12 @@ Postgres choices both migrate cleanly to AWS (RDS, S3, ECS) later without a rewr
 | Layer | Choice | One-line reason |
 |---|---|---|
 | API | FastAPI | Same language as every simulation SDK |
-| Auth | Clerk / Supabase Auth | Don't hand-roll auth |
-| Database | PostgreSQL (Neon/Supabase) | Relational data, real foreign keys |
-| Cache & queue | Redis + Celery | Async jobs the frontend already expects |
+| Auth | Supabase Auth | Don't hand-roll auth |
+| Database | Supabase PostgreSQL | Relational data, real foreign keys |
+| Cache & queue | Two Render Key Value instances + Celery | Durable broker isolated from evictable cache |
 | Quantum sim | Custom adapter (Qiskit, PennyLane, Cirq, qBraid) | PS requires multi-framework support |
-| Code grading | Piston / Judge0 | Sandboxing is a solved problem |
-| AI tutor | OpenAI-compatible interface | Swap providers via config, not code |
-| Object storage | Cloudflare R2 / Supabase Storage | S3-compatible, no AWS setup needed |
+| Code grading | Isolated self-hosted Piston | Dedicated untrusted-code boundary |
+| AI tutor | OpenAI `gpt-5.4-mini` via compatible interface | Evaluate and swap model through config |
+| Object storage | Supabase Storage S3 API | S3-compatible, server-side credentials |
 | Realtime collab | Socket.IO + Redis pub/sub | Rooms + cross-instance broadcast built in |
-| Deployment | Render/Railway + Neon + Upstash | Real managed cloud, fast to stand up |
+| Deployment | Render + Supabase + isolated Piston | Managed API/data and separate grading boundary |
