@@ -20,6 +20,7 @@ class TutorReply:
     model: str
     source_record_ids: tuple[str, ...]
     provider_called: bool
+    recommendation: planner.Recommendation | None = None
 
 
 def select_role(action: TutorAction, context: TutorContext) -> TutorRole:
@@ -48,14 +49,15 @@ def answer(
         raise ValueError("Tutor prompt must contain 1 to 1000 characters")
     role = select_role(action, context)
     if role == "analytics_planner" and not context.history.items:
+        empty_history_recommendation = planner.fallback(context.candidates, has_history=False)
         return TutorReply(
-            text="There is no completed prediction and run pair for this lesson yet. "
-            "Try one prediction, run the saved circuit, then compare the results.",
+            text=f"{empty_history_recommendation.label}: {empty_history_recommendation.reason}",
             role=role,
             prompt_version=planner.PROMPT_VERSION,
             model="deterministic-fallback",
             source_record_ids=context.source_record_ids,
             provider_called=False,
+            recommendation=empty_history_recommendation,
         )
     prompt_version, instruction = {
         "pedagogical_guide": (guide.PROMPT_VERSION, guide.INSTRUCTION),
@@ -79,6 +81,11 @@ def answer(
         "backend_capabilities": context.backend_capabilities,
         "result_preview": context.result_preview,
         "agreement_history": context.history.model_dump(mode="json"),
+        "planner_candidates": (
+            [{"id": item.id, "label": item.label} for item in context.candidates]
+            if role == "analytics_planner"
+            else []
+        ),
         "learner_prompt": prompt.strip(),
     }
     # Bounded by the context loader and schema; the guard catches unexpected source growth.
@@ -94,6 +101,12 @@ def answer(
         max_completion_tokens=settings.tutor_max_completion_tokens,
         timeout_seconds=settings.tutor_timeout_seconds,
     )
+    recommendation: planner.Recommendation | None = None
+    if role == "analytics_planner":
+        recommendation = planner.validated_recommendation(text, context.candidates)
+        if recommendation is None:
+            recommendation = planner.fallback(context.candidates, has_history=True)
+        text = f"{recommendation.label}: {recommendation.reason}"
     return TutorReply(
         text=text,
         role=role,
@@ -101,4 +114,5 @@ def answer(
         model=settings.tutor_model,
         source_record_ids=context.source_record_ids,
         provider_called=True,
+        recommendation=recommendation,
     )

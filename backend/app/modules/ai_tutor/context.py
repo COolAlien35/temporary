@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from math import isfinite
 from typing import Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ApiHTTPException
 from app.modules.circuits.public import owned_revision
-from app.modules.curriculum.public import learner_lesson
+from app.modules.curriculum.public import find_lesson, learner_lesson
 from app.modules.experiments.public import read_owned_run
 from app.modules.identity.public import Actor
 from app.modules.predictions.public import (
@@ -30,6 +31,13 @@ LOCAL_AER_CAPABILITIES = (
 
 
 @dataclass(frozen=True)
+class TutorCandidate:
+    id: str
+    label: str
+    href: str
+
+
+@dataclass(frozen=True)
 class TutorContext:
     lesson_id: str
     lesson_title: str
@@ -43,6 +51,7 @@ class TutorContext:
     backend_capabilities: tuple[str, ...]
     result_preview: dict[str, object] | None
     history: AgreementHistory
+    candidates: tuple[TutorCandidate, ...]
     source_record_ids: tuple[str, ...]
 
 
@@ -58,8 +67,11 @@ def load_tutor_context(
 ) -> TutorContext:
     history = tutor_agreement_history(session, actor, learning_session_id)
     lesson = learner_lesson(history.lesson_id)
-    if lesson is None:
+    lesson_ref = find_lesson(history.lesson_id)
+    if lesson is None or lesson_ref is None:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    if history.lesson_version != lesson_ref.version:
+        raise ApiHTTPException(409, "content_version_conflict", "Lesson version has changed")
     excerpt = " ".join(section.text for section in lesson.sections[:4])[:1_200]
     circuit: dict[str, object] | None = None
     run_status = run_error_code = backend = None
@@ -119,6 +131,18 @@ def load_tutor_context(
         sources.append(f"{revision.circuit_id}:{circuit_revision}")
     for item in history.items:
         sources.extend((str(item.prediction_id), str(item.run_id)))
+    candidates = [
+        TutorCandidate(
+            id="revisit_lesson",
+            label=f"Revisit {lesson.title}",
+            href=f"/curriculum/{lesson_ref.unit_id}/{lesson.id}",
+        )
+    ]
+    for index, link in enumerate(lesson.links[:3]):
+        if _valid_tool_link(link.href):
+            candidates.append(
+                TutorCandidate(id=f"current_experiment_{index}", label=link.label, href=link.href)
+            )
     return TutorContext(
         lesson_id=history.lesson_id,
         lesson_title=lesson.title,
@@ -132,6 +156,7 @@ def load_tutor_context(
         backend_capabilities=backend_capabilities,
         result_preview=result_preview,
         history=history,
+        candidates=tuple(candidates),
         source_record_ids=tuple(dict.fromkeys(sources)),
     )
 
@@ -163,3 +188,15 @@ def _bounded_distribution(
         and (not integral or isinstance(count, int))
     ]
     return sorted(entries, key=lambda item: (-item[1], item[0]))[:8]
+
+
+def _valid_tool_link(href: str) -> bool:
+    parsed = urlsplit(href)
+    return (
+        not parsed.scheme
+        and not parsed.netloc
+        and not parsed.fragment
+        and parsed.path in {"/studio", "/curriculum/practice", "/hardware/studio"}
+        and len(parsed.query) <= 80
+        and not any(character.isspace() for character in href)
+    )

@@ -7,12 +7,15 @@ import pytest
 from app.core.config import Settings
 from app.integrations.ai.chat import OpenAICompatibleChatProvider, TutorProviderError
 from app.modules.ai_tutor.context import (
+    TutorCandidate,
     TutorContext,
     TutorStage,
     _bounded_circuit,
     _bounded_distribution,
+    _valid_tool_link,
 )
 from app.modules.ai_tutor.coordinator import answer, select_role
+from app.modules.ai_tutor.planner import validated_recommendation
 from app.modules.predictions.schemas import AgreementHistory, AgreementHistoryItem, OutcomeDelta
 
 
@@ -22,6 +25,10 @@ class FakeProvider:
 
     def complete(self, messages, *, model, max_completion_tokens, timeout_seconds):
         self.calls.append((messages, model, max_completion_tokens, timeout_seconds))
+        if "Analytics Planner" in messages[0]["content"]:
+            return json.dumps(
+                {"candidate_id": "current_experiment_0", "reason": "Compare another run."}
+            )
         return "First inspect the measurement mapping."
 
 
@@ -68,6 +75,12 @@ def context(
         backend_capabilities=("exact_probabilities", "shot_counts"),
         result_preview={"shots": 16, "top_counts": [["0", 8], ["1", 8]]},
         history=history,
+        candidates=(
+            TutorCandidate(
+                "revisit_lesson", "Revisit lesson", "/curriculum/u1/u1-quantum-foundations"
+            ),
+            TutorCandidate("current_experiment_0", "Open Studio", "/studio?template=superposition"),
+        ),
         source_record_ids=(str(session_id), str(run_id), str(prediction_id)),
     )
 
@@ -84,6 +97,9 @@ def test_one_specialist_call_routes_and_keeps_untrusted_text_in_user_data():
         assert reply.role == expected_role
         assert reply.provider_called
         assert reply.source_record_ids
+        if action == "plan":
+            assert reply.recommendation is not None
+            assert reply.recommendation.href == "/studio?template=superposition"
         messages, model, tokens, timeout = provider.calls[-1]
         assert len(messages) == 2
         assert messages[0]["role"] == "developer"
@@ -110,7 +126,9 @@ def test_planner_empty_history_uses_deterministic_fallback_and_prompt_is_bounded
     reply = answer(context(with_history=False), "What next?", "plan", Settings(), provider)
     assert not reply.provider_called
     assert reply.model == "deterministic-fallback"
-    assert "no completed prediction" in reply.text.lower()
+    assert "Make a prediction" in reply.text
+    assert reply.recommendation is not None
+    assert reply.recommendation.href == "/studio?template=superposition"
     assert not provider.calls
     with pytest.raises(ValueError):
         answer(context(), "x" * 1001, "explain", Settings(), provider)
@@ -122,6 +140,34 @@ def test_planner_empty_history_uses_deterministic_fallback_and_prompt_is_bounded
     assert _bounded_distribution({"0": 2, "1": -1, "bad": float("nan")}, integral=True) == [
         ("0", 2)
     ]
+    assert _valid_tool_link("/studio?template=bell")
+    assert not _valid_tool_link("//example.com/studio")
+    assert not _valid_tool_link("/studio-admin")
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "not JSON",
+        '{"candidate_id":"unknown","reason":"Try another unit."}',
+        '{"candidate_id":"current_experiment_0","reason":""}',
+        '{"candidate_id":"current_experiment_0","reason":"Try it.","href":"/admin"}',
+    ],
+)
+def test_planner_rejects_invalid_provider_recommendation(content):
+    class InvalidProvider(FakeProvider):
+        def complete(self, messages, *, model, max_completion_tokens, timeout_seconds):
+            self.calls.append((messages, model, max_completion_tokens, timeout_seconds))
+            return content
+
+    provider = InvalidProvider()
+    reply = answer(context(), "What next?", "plan", Settings(), provider)
+    assert len(provider.calls) == 1
+    assert reply.provider_called
+    assert reply.recommendation is not None
+    assert reply.recommendation.href == "/studio?template=superposition"
+    assert "Compare another saved-circuit run" in reply.text
+    assert validated_recommendation(content, context().candidates) is None
 
 
 def test_chat_adapter_uses_bounded_request_and_rejects_bad_provider_data(monkeypatch):

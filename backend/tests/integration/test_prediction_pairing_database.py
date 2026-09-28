@@ -202,6 +202,10 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
             assert "exact_probabilities" in tutor_context.backend_capabilities
             assert tutor_context.result_preview is not None
             assert tutor_context.result_preview["top_exact_probabilities"]
+            assert {item.id for item in tutor_context.candidates} == {
+                "revisit_lesson",
+                "current_experiment_0",
+            }
             second_session = client.post(
                 "/api/v1/learning-sessions",
                 headers={"Idempotency-Key": str(uuid4())},
