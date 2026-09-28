@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from app.modules.curriculum.schemas import LessonRead
 from app.modules.curriculum.source import list_units
 
 
@@ -17,4 +18,12 @@ def find_lesson(lesson_id: str) -> LessonRef | None:
         for lesson in unit.lessons:
             if lesson.id == lesson_id:
                 return LessonRef(lesson.id, unit.id, unit.content_version)
+    return None
+
+
+def learner_lesson(lesson_id: str) -> LessonRead | None:
+    for unit in list_units():
+        for lesson in unit.lessons:
+            if lesson.id == lesson_id:
+                return lesson
     return None

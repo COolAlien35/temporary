@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     task_soft_time_limit: int = Field(default=240, gt=0)
     task_time_limit: int = Field(default=300, gt=0)
     broker_visibility_timeout: int = Field(default=600, gt=0)
+    tutor_api_key: str = ""
+    tutor_base_url: str = "https://api.openai.com/v1"
+    tutor_model: str = "gpt-5.4-mini"
+    tutor_timeout_seconds: int = Field(default=15, ge=1, le=60)
+    tutor_max_completion_tokens: int = Field(default=256, ge=64, le=1024)
     embedding_model: str = Field(
         default="text-embedding-3-small", validation_alias="EMBEDDING_MODEL"
     )
@@ -51,6 +56,8 @@ class Settings(BaseSettings):
             not self.auth_issuer.startswith("https://") or not self.auth_issuer.endswith("/auth/v1")
         ):
             raise ValueError("QL_AUTH_ISSUER must be a Supabase HTTPS auth/v1 issuer")
+        if not self.tutor_base_url.startswith("https://"):
+            raise ValueError("QL_TUTOR_BASE_URL must use HTTPS")
         return self
 
 

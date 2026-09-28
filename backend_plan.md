@@ -285,8 +285,8 @@ The current backend implements operator-only instructor promotion, cohort creati
 
 ### B13 — Circuit-aware AI tutor
 
-- [ ] Implement the internal `ai_tutor` client and prompt builder using the chosen OpenAI-compatible interface and environment configuration.
-- [ ] Implement a coordinator and three role-scoped prompt modules within the same service: Pedagogical Guide, Circuit Debugger, and Analytics Planner. This is internal routing, not three new deployed services or an autonomous agent framework.
+- [x] Implement the internal `ai_tutor` client and prompt builder using the chosen OpenAI-compatible interface and environment configuration.
+- [x] Implement a coordinator and three role-scoped prompt modules within the same service: Pedagogical Guide, Circuit Debugger, and Analytics Planner. This is internal routing, not three new deployed services or an autonomous agent framework.
 - [ ] Route deterministically by lesson stage, validated execution error, and request type. Use one specialist call by default; define a strict call/token/time budget before allowing combined responses. Record selected role, prompt version, model, and source record IDs.
 - [ ] Give the Pedagogical Guide the active lesson and authorized experiment context for scaffolded explanations; give the Circuit Debugger circuit JSON, backend capabilities, and sanitized errors for incremental hints without complete assessed solutions.
 - [ ] Give the Analytics Planner the bounded B05.P history projection and approved curriculum/challenge candidates. Validate suggested IDs/prerequisites server-side; return a reason and valid next-experiment link, with a deterministic fallback for missing history or invalid output.

@@ -48,3 +48,12 @@ def tutor_agreement_history(
     from app.modules.predictions.service import recent_agreement_history
 
     return recent_agreement_history(session, actor, learning_session_id)
+
+
+def owned_prediction_session(session: Session, actor: Actor, prediction_id: UUID) -> UUID:
+    prediction = session.scalar(
+        select(Prediction).where(Prediction.id == prediction_id, Prediction.learner_id == actor.id)
+    )
+    if prediction is None:
+        raise HTTPException(status_code=404, detail="Prediction not found")
+    return prediction.learning_session_id

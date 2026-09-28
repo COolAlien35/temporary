@@ -6,13 +6,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from app.core.errors import ApiHTTPException
 from app.db.session import get_engine
 from app.jobs.celery_app import celery_app
 from app.main import create_app
+from app.modules.ai_tutor.context import load_tutor_context
 from app.modules.circuits.models import Circuit
 from app.modules.experiments.models import ExperimentRun
 from app.modules.identity.models import Profile
-from app.modules.identity.public import IdentityClaims, get_claims
+from app.modules.identity.public import Actor, IdentityClaims, get_claims
 from app.modules.jobs.dispatcher import dispatch_once
 from app.modules.jobs.models import Job, JobOutbox
 from app.modules.predictions.models import LearningSession, Prediction
@@ -25,11 +27,13 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
     current = IdentityClaims(first_subject, "pair-first@example.test")
     app = create_app()
     app.dependency_overrides[get_claims] = lambda: current
-    circuit_id = second_circuit_id = session_id = prediction_id = run_id = None
+    circuit_id = second_circuit_id = session_id = second_session_id = prediction_id = run_id = None
     sampled_prediction_id = sampled_run_id = None
     try:
         with TestClient(app) as client:
-            assert client.get("/api/v1/me").status_code == 200
+            profile = client.get("/api/v1/me")
+            assert profile.status_code == 200
+            actor = Actor(UUID(profile.json()["id"]), profile.json()["email"], "learner")
             circuit = client.post(
                 "/api/v1/circuits",
                 headers={"Idempotency-Key": str(uuid4())},
@@ -185,6 +189,28 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
                 assert any(
                     item["prediction_match"] == pytest.approx(expected) for expected in (0.25, 0.75)
                 )
+            with Session(get_engine()) as db:
+                tutor_context = load_tutor_context(
+                    db, actor, UUID(session_id), stage="observe", run_id=UUID(run_id)
+                )
+            assert tutor_context.lesson_id == "u1-quantum-foundations"
+            assert tutor_context.run_status == "succeeded"
+            assert tutor_context.circuit is not None
+            assert tutor_context.circuit["qubits"] == 1
+            assert len(tutor_context.history.items) == 2
+            assert str(run_id) in tutor_context.source_record_ids
+            second_session = client.post(
+                "/api/v1/learning-sessions",
+                headers={"Idempotency-Key": str(uuid4())},
+                json={"lesson_id": "u1-quantum-foundations", "lesson_version": 1},
+            )
+            assert second_session.status_code == 201
+            second_session_id = second_session.json()["id"]
+            with Session(get_engine()) as db, pytest.raises(ApiHTTPException) as mismatch:
+                load_tutor_context(
+                    db, actor, UUID(second_session_id), stage="observe", run_id=UUID(run_id)
+                )
+            assert mismatch.value.status_code == 409
             current = IdentityClaims(second_subject, "pair-second@example.test")
             assert client.get("/api/v1/me").status_code == 200
             assert client.get(history_url).status_code == 404
@@ -222,6 +248,10 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
                 db.execute(delete(Job).where(Job.id == UUID(sampled_run_id)))
             if session_id is not None:
                 db.execute(delete(LearningSession).where(LearningSession.id == UUID(session_id)))
+            if second_session_id is not None:
+                db.execute(
+                    delete(LearningSession).where(LearningSession.id == UUID(second_session_id))
+                )
             if circuit_id is not None:
                 db.execute(delete(Circuit).where(Circuit.id == UUID(circuit_id)))
             if second_circuit_id is not None:
