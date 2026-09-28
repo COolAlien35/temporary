@@ -6,7 +6,12 @@ import pytest
 
 from app.core.config import Settings
 from app.integrations.ai.chat import OpenAICompatibleChatProvider, TutorProviderError
-from app.modules.ai_tutor.context import TutorContext, _bounded_circuit
+from app.modules.ai_tutor.context import (
+    TutorContext,
+    TutorStage,
+    _bounded_circuit,
+    _bounded_distribution,
+)
 from app.modules.ai_tutor.coordinator import answer, select_role
 from app.modules.predictions.schemas import AgreementHistory, AgreementHistoryItem, OutcomeDelta
 
@@ -20,7 +25,9 @@ class FakeProvider:
         return "First inspect the measurement mapping."
 
 
-def context(*, with_history: bool = True, error_code: str | None = None) -> TutorContext:
+def context(
+    *, with_history: bool = True, error_code: str | None = None, stage: TutorStage = "observe"
+) -> TutorContext:
     session_id, run_id, prediction_id = uuid4(), uuid4(), uuid4()
     history = AgreementHistory(
         lesson_id="u1-quantum-foundations",
@@ -52,12 +59,13 @@ def context(*, with_history: bool = True, error_code: str | None = None) -> Tuto
         lesson_id=history.lesson_id,
         lesson_title="Quantum foundations",
         lesson_excerpt="Measurement gives classical outcomes.",
-        stage="observe",
+        stage=stage,
         circuit={"qubits": 1, "gates": [{"type": "H", "qubit": 0}]},
         run_id=run_id,
         run_status="failed" if error_code else "succeeded",
         run_error_code=error_code,
         backend="qiskit_aer",
+        backend_capabilities=("exact_probabilities", "shot_counts"),
         result_preview={"shots": 16, "top_counts": [["0", 8], ["1", 8]]},
         history=history,
         source_record_ids=(str(session_id), str(run_id), str(prediction_id)),
@@ -88,6 +96,13 @@ def test_one_specialist_call_routes_and_keeps_untrusted_text_in_user_data():
         assert timeout == 15
     assert len(provider.calls) == 3
     assert select_role("explain", context(error_code="simulation_failed")) == "circuit_debugger"
+    assert select_role("explain", context(stage="build")) == "circuit_debugger"
+    assert select_role("explain", context(stage="learn")) == "pedagogical_guide"
+    assert select_role("plan", context(error_code="simulation_failed")) == "analytics_planner"
+    assert json.loads(provider.calls[1][0][1]["content"])["backend_capabilities"] == [
+        "exact_probabilities",
+        "shot_counts",
+    ]
 
 
 def test_planner_empty_history_uses_deterministic_fallback_and_prompt_is_bounded():
@@ -104,6 +119,9 @@ def test_planner_empty_history_uses_deterministic_fallback_and_prompt_is_bounded
         len(_bounded_circuit({"schema_version": 1, "qubits": 2, "gates": [{}] * 100})["gates"])
         == 64
     )
+    assert _bounded_distribution({"0": 2, "1": -1, "bad": float("nan")}, integral=True) == [
+        ("0", 2)
+    ]
 
 
 def test_chat_adapter_uses_bounded_request_and_rejects_bad_provider_data(monkeypatch):

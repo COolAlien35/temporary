@@ -32,6 +32,8 @@ def select_role(action: TutorAction, context: TutorContext) -> TutorRole:
         "generate",
     }:
         return "circuit_debugger"
+    if context.stage == "build" and context.circuit is not None:
+        return "circuit_debugger"
     return "pedagogical_guide"
 
 
@@ -74,6 +76,7 @@ def answer(
         "run_status": context.run_status,
         "run_error_code": context.run_error_code,
         "backend": context.backend,
+        "backend_capabilities": context.backend_capabilities,
         "result_preview": context.result_preview,
         "agreement_history": context.history.model_dump(mode="json"),
         "learner_prompt": prompt.strip(),

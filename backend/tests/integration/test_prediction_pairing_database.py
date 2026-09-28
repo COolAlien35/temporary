@@ -199,6 +199,9 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
             assert tutor_context.circuit["qubits"] == 1
             assert len(tutor_context.history.items) == 2
             assert str(run_id) in tutor_context.source_record_ids
+            assert "exact_probabilities" in tutor_context.backend_capabilities
+            assert tutor_context.result_preview is not None
+            assert tutor_context.result_preview["top_exact_probabilities"]
             second_session = client.post(
                 "/api/v1/learning-sessions",
                 headers={"Idempotency-Key": str(uuid4())},
