@@ -1,5 +1,6 @@
 import json
 from hashlib import sha256
+from typing import cast
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
@@ -9,11 +10,15 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ApiHTTPException
 from app.modules.curriculum.public import find_lesson
+from app.modules.experiments.public import read_owned_run
 from app.modules.identity.public import Actor
+from app.modules.predictions.metric import prediction_agreement
 from app.modules.predictions.models import LearningSession, Prediction
 from app.modules.predictions.repository import get_owned_prediction, get_owned_session
 from app.modules.predictions.schemas import (
+    ComparisonBasis,
     LearningSessionCreate,
+    PredictionPair,
     PredictionRead,
     PredictionSubmission,
 )
@@ -160,7 +165,7 @@ def read_prediction(session: Session, actor: Actor, prediction_id: UUID) -> Pred
     return record
 
 
-def prediction_read(record: Prediction) -> PredictionRead:
+def prediction_read(record: Prediction, status: str = "unpaired") -> PredictionRead:
     return PredictionRead.model_validate(
         {
             "id": record.id,
@@ -174,5 +179,64 @@ def prediction_read(record: Prediction) -> PredictionRead:
             "comparison_basis": record.comparison_basis,
             "confidence": record.confidence,
             "locked_at": record.locked_at,
+            "run_id": record.run_id,
+            "pairing_status": status,
         }
+    )
+
+
+def read_prediction_view(session: Session, actor: Actor, prediction_id: UUID) -> PredictionRead:
+    record = read_prediction(session, actor, prediction_id)
+    if record.run_id is None:
+        return prediction_read(record)
+    run = read_owned_run(session, actor, record.run_id)
+    status = (
+        "paired"
+        if run.status == "succeeded"
+        else ("failed" if run.status in {"failed", "cancelled", "timed_out"} else "pending")
+    )
+    return prediction_read(record, status)
+
+
+def read_prediction_pair(session: Session, actor: Actor, prediction_id: UUID) -> PredictionPair:
+    record = read_prediction(session, actor, prediction_id)
+    if record.run_id is None:
+        raise ApiHTTPException(409, "prediction_unpaired", "Prediction has no run")
+    run = read_owned_run(session, actor, record.run_id)
+    if run.status != "succeeded" or run.result is None:
+        raise ApiHTTPException(409, "result_unavailable", "The paired run has no successful result")
+    result = run.result
+    labels = record.basis_labels
+    if result.get("measurement_qubits") != record.measurement_qubits:
+        raise ApiHTTPException(
+            500, "result_mismatch", "Saved result measurement differs from prediction"
+        )
+    if record.comparison_basis == "ideal_probability":
+        distribution = result.get("exact_probabilities")
+    elif record.comparison_basis == "sampled_frequency":
+        counts = result.get("counts")
+        distribution = (
+            {label: counts.get(label, 0) / run.shots for label in labels}
+            if isinstance(counts, dict) and set(counts).issubset(set(labels))
+            else None
+        )
+    else:
+        raise ApiHTTPException(500, "result_mismatch", "Unsupported saved comparison basis")
+    if not isinstance(distribution, dict) or set(distribution) != set(labels):
+        raise ApiHTTPException(500, "result_mismatch", "Saved result basis differs from prediction")
+    simulated = [float(distribution[label]) for label in labels]
+    return PredictionPair(
+        schema_version=1,
+        prediction_id=record.id,
+        run_id=run.id,
+        prediction_vector=record.prediction_vector,
+        simulated_vector=simulated,
+        basis_labels=labels,
+        measurement_qubits=record.measurement_qubits,
+        comparison_basis=cast(ComparisonBasis, record.comparison_basis),
+        prediction_match=prediction_agreement(record.prediction_vector, simulated),
+        backend=run.backend,
+        shots=run.shots,
+        seed=run.seed,
+        circuit_revision=run.circuit_revision,
     )

@@ -9,6 +9,7 @@ from app.modules.predictions import service
 from app.modules.predictions.schemas import (
     LearningSessionCreate,
     LearningSessionRead,
+    PredictionPair,
     PredictionRead,
     PredictionSubmission,
 )
@@ -51,9 +52,8 @@ def create_prediction(
     actor: Actor = Depends(get_actor),  # noqa: B008
     session: Session = Depends(get_session),  # noqa: B008
 ) -> PredictionRead:
-    return service.prediction_read(
-        service.create_prediction(session, actor, learning_session_id, body, idempotency_key)
-    )
+    record = service.create_prediction(session, actor, learning_session_id, body, idempotency_key)
+    return service.read_prediction_view(session, actor, record.id)
 
 
 @router.get("/predictions/{prediction_id}", response_model=PredictionRead)
@@ -62,4 +62,13 @@ def read_prediction(
     actor: Actor = Depends(get_actor),  # noqa: B008
     session: Session = Depends(get_session),  # noqa: B008
 ) -> PredictionRead:
-    return service.prediction_read(service.read_prediction(session, actor, prediction_id))
+    return service.read_prediction_view(session, actor, prediction_id)
+
+
+@router.get("/predictions/{prediction_id}/pair", response_model=PredictionPair)
+def read_prediction_pair(
+    prediction_id: UUID,
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> PredictionPair:
+    return service.read_prediction_pair(session, actor, prediction_id)

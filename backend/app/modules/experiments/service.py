@@ -15,6 +15,7 @@ from app.modules.experiments.repository import get_owned_run, get_run_by_key
 from app.modules.experiments.schemas import RunCreate, RunRead
 from app.modules.identity.public import Actor
 from app.modules.jobs.public import enqueue_job, owned_job_state
+from app.modules.predictions.public import bind_prediction
 
 
 def _request_hash(body: RunCreate) -> str:
@@ -61,11 +62,21 @@ def create_run(session: Session, actor: Actor, body: RunCreate, key: UUID) -> UU
                 backend=body.backend,
                 shots=body.shots,
                 seed=body.seed,
+                prediction_id=body.prediction_id,
                 idempotency_key=key,
                 request_hash=request_hash,
             )
         )
         session.flush()
+        if body.prediction_id is not None:
+            bind_prediction(
+                session,
+                actor,
+                body.prediction_id,
+                job.id,
+                revision.snapshot.qubits,
+                ideal_measurement_qubits(revision.snapshot),
+            )
         return job.id
 
 
@@ -85,6 +96,7 @@ def read_run(session: Session, actor: Actor, run_id: UUID) -> RunRead:
         backend=run.backend,
         shots=run.shots,
         seed=run.seed,
+        prediction_id=run.prediction_id,
         result=job.result_summary if job.status == "succeeded" else None,
         created_at=run.created_at,
     )

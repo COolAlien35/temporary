@@ -66,6 +66,7 @@ class Prediction(Base):
             "confidence IS NULL OR confidence BETWEEN 0 AND 1", name="valid_confidence"
         ),
         UniqueConstraint("learner_id", "idempotency_key", name="uq_prediction_idempotency"),
+        UniqueConstraint("run_id", name="uq_predictions_run_id"),
         Index("ix_predictions_learner_locked", "learner_id", "locked_at", "id"),
         Index("ix_predictions_session_locked", "learning_session_id", "locked_at", "id"),
     )
@@ -83,6 +84,7 @@ class Prediction(Base):
     confidence: Mapped[float | None] = mapped_column(Float)
     idempotency_key: Mapped[UUID] = mapped_column(nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    run_id: Mapped[UUID | None] = mapped_column(ForeignKey("experiment_runs.id"))
     locked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

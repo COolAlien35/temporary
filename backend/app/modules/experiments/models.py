@@ -42,6 +42,7 @@ class ExperimentRun(Base):
     backend: Mapped[str] = mapped_column(String(32), nullable=False)
     shots: Mapped[int] = mapped_column(Integer, nullable=False)
     seed: Mapped[int | None] = mapped_column(BigInteger)
+    prediction_id: Mapped[UUID | None] = mapped_column()
     idempotency_key: Mapped[UUID] = mapped_column(nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(

@@ -16,6 +16,7 @@ class RunCreate(BaseModel):
     backend: Literal["qiskit_aer"] = "qiskit_aer"
     shots: StrictInt = Field(ge=1, le=8_192)
     seed: StrictInt | None = Field(default=None, ge=0, le=2**32 - 1)
+    prediction_id: UUID | None = None
 
 
 class RunAccepted(BaseModel):
@@ -36,5 +37,6 @@ class RunRead(BaseModel):
     backend: str
     shots: int
     seed: int | None
+    prediction_id: UUID | None
     result: dict[str, object] | None
     created_at: datetime

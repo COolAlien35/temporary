@@ -65,8 +65,8 @@ class PredictionSubmission(BaseModel):
 class PredictionRead(PredictionSubmission):
     id: UUID
     locked_at: datetime
-    pairing_status: Literal["unpaired"] = "unpaired"
-    run_id: None = None
+    pairing_status: Literal["unpaired", "pending", "paired", "failed"] = "unpaired"
+    run_id: UUID | None = None
 
 
 class PredictionPair(BaseModel):
