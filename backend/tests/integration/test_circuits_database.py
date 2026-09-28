@@ -20,6 +20,8 @@ def test_circuit_revisions_are_durable_owner_scoped_and_stale_writes_fail():
     app = create_app()
     app.dependency_overrides[get_claims] = lambda: current
     circuit_id = None
+    other_id = None
+    second_owned_id = None
     try:
         with TestClient(app) as client:
             assert client.get("/api/v1/me").status_code == 200
@@ -95,8 +97,39 @@ def test_circuit_revisions_are_durable_owner_scoped_and_stale_writes_fail():
             )
             assert invalid.status_code == 422
 
+            other = client.post(
+                "/api/v1/circuits",
+                json={"name": "Second circuit", "qubits": 1, "gates": []},
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert other.status_code == 201
+            other_id = other.json()["id"]
+            first_page = client.get("/api/v1/circuits?limit=1")
+            assert first_page.status_code == 200
+            assert first_page.json()["items"][0]["id"] == other_id
+            assert first_page.json()["items"][0]["gate_count"] == 0
+            cursor = first_page.json()["next_cursor"]
+            assert cursor
+            second_page = client.get("/api/v1/circuits", params={"limit": 1, "cursor": cursor})
+            assert second_page.status_code == 200
+            assert second_page.json()["items"][0]["id"] == circuit_id
+            assert second_page.json()["next_cursor"] is None
+            assert client.get("/api/v1/circuits?limit=0").status_code == 422
+            assert client.get("/api/v1/circuits?cursor=invalid!").status_code == 422
+
             current = IdentityClaims(second_subject, "circuit-second@example.test")
             assert client.get("/api/v1/me").status_code == 200
+            assert client.get("/api/v1/circuits").json()["items"] == []
+            second_owned = client.post(
+                "/api/v1/circuits",
+                json={"name": "Own", "qubits": 1, "gates": []},
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert second_owned.status_code == 201
+            second_owned_id = second_owned.json()["id"]
+            assert [item["id"] for item in client.get("/api/v1/circuits").json()["items"]] == [
+                second_owned_id
+            ]
             assert client.get(f"/api/v1/circuits/{circuit_id}").status_code == 404
             assert client.get(f"/api/v1/circuits/{circuit_id}/revisions/1").status_code == 404
             assert (
@@ -112,6 +145,10 @@ def test_circuit_revisions_are_durable_owner_scoped_and_stale_writes_fail():
         with Session(get_engine()) as db, db.begin():
             if circuit_id is not None:
                 db.execute(delete(Circuit).where(Circuit.id == UUID(circuit_id)))
+            if other_id is not None:
+                db.execute(delete(Circuit).where(Circuit.id == UUID(other_id)))
+            if second_owned_id is not None:
+                db.execute(delete(Circuit).where(Circuit.id == UUID(second_owned_id)))
             db.execute(
                 delete(Profile).where(Profile.auth_subject.in_([first_subject, second_subject]))
             )

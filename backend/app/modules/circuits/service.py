@@ -1,4 +1,7 @@
 import json
+from base64 import b64decode, urlsafe_b64encode
+from binascii import Error as Base64Error
+from datetime import datetime
 from hashlib import sha256
 from uuid import UUID, uuid4
 
@@ -9,8 +12,14 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ApiHTTPException
 from app.modules.circuits.models import Circuit, CircuitRevision
-from app.modules.circuits.repository import get_owned_circuit, get_revision
-from app.modules.circuits.schemas import CircuitDraft, CircuitRead
+from app.modules.circuits.repository import get_owned_circuit, get_revision, list_owned_circuits
+from app.modules.circuits.schemas import (
+    CircuitDraft,
+    CircuitPage,
+    CircuitRead,
+    CircuitSnapshot,
+    CircuitSummary,
+)
 from app.modules.identity.public import Actor
 
 
@@ -91,6 +100,50 @@ def read_circuit(session: Session, actor: Actor, circuit_id: UUID) -> CircuitRea
     revision = get_revision(session, circuit.id, circuit.current_revision)
     assert revision is not None
     return circuit_read(circuit, revision)
+
+
+def _decode_cursor(cursor: str | None) -> tuple[datetime, UUID] | None:
+    if cursor is None:
+        return None
+    try:
+        if not 1 <= len(cursor) <= 256:
+            raise ValueError
+        raw = b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
+        value = json.loads(raw)
+        if not isinstance(value, dict) or set(value) != {"updated_at", "id"}:
+            raise ValueError
+        updated_at = datetime.fromisoformat(value["updated_at"])
+        if updated_at.tzinfo is None or updated_at.utcoffset() is None:
+            raise ValueError
+        return updated_at, UUID(value["id"])
+    except (ValueError, TypeError, KeyError, Base64Error, UnicodeDecodeError):
+        raise ApiHTTPException(422, "invalid_cursor", "Invalid circuit cursor") from None
+
+
+def list_circuits(session: Session, actor: Actor, limit: int, cursor: str | None) -> CircuitPage:
+    rows = list_owned_circuits(session, actor.id, limit + 1, _decode_cursor(cursor))
+    visible = rows[:limit]
+    items = []
+    for circuit, revision in visible:
+        snapshot = CircuitSnapshot.model_validate(revision.snapshot)
+        items.append(
+            CircuitSummary(
+                id=circuit.id,
+                name=circuit.name,
+                revision=circuit.current_revision,
+                qubits=snapshot.qubits,
+                gate_count=len(snapshot.gates),
+                checksum_sha256=revision.checksum_sha256,
+                created_at=circuit.created_at,
+                updated_at=circuit.updated_at,
+            )
+        )
+    next_cursor = None
+    if len(rows) > limit and visible:
+        last = visible[-1][0]
+        payload = json.dumps({"updated_at": last.updated_at.isoformat(), "id": str(last.id)})
+        next_cursor = urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    return CircuitPage(items=items, next_cursor=next_cursor)
 
 
 def read_circuit_revision(

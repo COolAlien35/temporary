@@ -147,3 +147,19 @@ class CircuitRead(BaseModel):
     checksum_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     created_at: datetime
     updated_at: datetime
+
+
+class CircuitSummary(BaseModel):
+    id: UUID
+    name: str
+    revision: int = Field(ge=1)
+    qubits: int = Field(ge=1, le=MAX_CIRCUIT_QUBITS)
+    gate_count: int = Field(ge=0, le=MAX_CIRCUIT_GATES)
+    checksum_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    created_at: datetime
+    updated_at: datetime
+
+
+class CircuitPage(BaseModel):
+    items: list[CircuitSummary]
+    next_cursor: str | None
