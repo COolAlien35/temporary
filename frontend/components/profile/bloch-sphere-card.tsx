@@ -71,9 +71,9 @@ export function BlochSphereCard() {
   return (
     <div onPointerMove={handleGlowPointerMove} className="home-glow-card relative rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
       <h3 className="text-lg font-semibold text-white" style={{ fontFamily: "var(--font-space-grotesk)" }}>
-        Your Quantum State Today
+        Explore a quantum state
       </h3>
-      <p className="mt-1 text-xs text-white/45">Drag the sphere to rotate. Click a gate to evolve the state.</p>
+      <p className="mt-1 text-xs text-white/45">Interactive preview: drag to rotate or click a gate. This state is separate from your saved experiments.</p>
 
       <div className="mt-5 grid gap-6 sm:grid-cols-[220px_1fr] sm:items-center">
         <svg
@@ -121,6 +121,8 @@ export function BlochSphereCard() {
             style={{ filter: "drop-shadow(0 0 5px rgba(255,184,0,0.7))" }}
           />
           <motion.circle
+            cx={tip.x}
+            cy={tip.y}
             r={5}
             fill="#FFB800"
             animate={{ cx: tip.x, cy: tip.y }}

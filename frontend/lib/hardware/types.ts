@@ -76,6 +76,8 @@ export interface ComponentPort {
   name: string
   direction: PortDirection
   connector: ConnectorTypeId
+  /** Multi-connector panels can fan out from one logical port in the diagram. */
+  allowMultipleConnections?: boolean
 }
 
 export type ComponentCategory = "Passive" | "Active" | "Interface" | "Device" | "Sensor"

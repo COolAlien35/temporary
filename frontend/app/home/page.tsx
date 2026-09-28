@@ -7,6 +7,8 @@ import { ConsistencyPanel } from "@/components/dashboard/consistency-panel"
 import { DailyChallenge } from "@/components/dashboard/daily-challenge"
 import { FacultyDispatch } from "@/components/dashboard/faculty-dispatch"
 import { SectionDivider } from "@/components/home/accents/SectionDivider"
+import { AssignedWorkCard } from "@/components/dashboard/assigned-work-card"
+import { RecentActivityCard } from "@/components/dashboard/recent-activity-card"
 
 export default function HomePage() {
   return (
@@ -21,6 +23,8 @@ export default function HomePage() {
           </div>
 
           <aside className="flex flex-col gap-4">
+            <AssignedWorkCard />
+            <RecentActivityCard />
             <TelemetryPanel />
             <ConsistencyPanel />
             <DailyChallenge />

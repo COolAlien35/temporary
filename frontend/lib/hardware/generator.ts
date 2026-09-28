@@ -8,10 +8,10 @@ function id(prefix: string): string {
   return `${prefix}-${counter}`
 }
 
-function polar(stage: Stage, angleDeg: number, radiusFraction: number): { x: number; y: number } {
-  const r = (stage.plateDiameterMm / 2) * radiusFraction
-  const rad = (angleDeg * Math.PI) / 180
-  return { x: Math.round(Math.cos(rad) * r), y: Math.round(Math.sin(rad) * r) }
+function polar(_stage: Stage, angleDeg: number, radiusFraction: number): { x: number; y: number } {
+  // The diagram and 3D view both read x as a normalized angular position and
+  // y as a small radial offset, rather than raw millimetres on the plate.
+  return { x: ((angleDeg % 360) + 360) % 360 / 360, y: (radiusFraction - 0.5) * 16 }
 }
 
 interface ChainStep {

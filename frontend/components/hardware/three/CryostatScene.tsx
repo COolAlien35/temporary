@@ -81,6 +81,7 @@ export function CryostatScene({ design, hiddenLines, selectedPlacedId, className
       className={className}
       cameraPosition={[maxRadius * 1.9, totalHeight * 0.55, maxRadius * 1.9]}
       fov={42}
+      fallbackLabel="3D preview unavailable. Open the diagram or list view to continue editing."
     >
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={maxRadius * 0.6} maxDistance={maxRadius * 6} target={[0, 0, 0]} />
 

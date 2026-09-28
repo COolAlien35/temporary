@@ -23,6 +23,8 @@ export function DiagnosticsPanel() {
     { id: "welcome", role: "assistant", text: "Ask me about any component, line type, or stage — or ask \"what's wrong\" for a design summary." },
   ])
   const [question, setQuestion] = useState("")
+  const [checkedDesign, setCheckedDesign] = useState<typeof design | null>(null)
+  const checksCurrent = checkedDesign === design
 
   function ask() {
     const q = question.trim()
@@ -44,13 +46,15 @@ export function DiagnosticsPanel() {
 
       <TabsContent value="issues" className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto">
         <button
-          onClick={runValidation}
+          onClick={() => { runValidation(); setCheckedDesign(design) }}
           className="w-full rounded-lg border border-[#00D4FF]/30 bg-[#00D4FF]/10 py-1.5 text-xs font-medium text-[#00D4FF] hover:bg-[#00D4FF]/15"
         >
           Run checks
         </button>
-        {issues.length === 0 ? (
-          <p className="py-6 text-center text-xs text-white/40">No checks run yet, or no issues found.</p>
+        {!checksCurrent ? (
+          <p className="py-6 text-center text-xs text-white/40">Run checks for the current design. Results clear when the design changes.</p>
+        ) : issues.length === 0 ? (
+          <p role="status" className="py-6 text-center text-xs text-emerald-300">No issues found in the current design.</p>
         ) : (
           issues.map((issue, i) => {
             const Icon = SEVERITY_ICON[issue.severity]

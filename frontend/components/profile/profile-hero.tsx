@@ -1,7 +1,9 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
-import { LEARNER } from "@/lib/quantum-passport-data"
+import { useEffect, useState } from "react"
+import { useLearnerProgress } from "@/store/use-learner-progress"
+import { useSession } from "@/store/use-session"
 import { AvatarOrbits } from "@/components/me/accents/AvatarOrbits"
 import { XpSheen } from "@/components/me/accents/XpSheen"
 import { handleGlowPointerMove } from "@/lib/home-glow"
@@ -19,9 +21,21 @@ const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS
 
 export function ProfileHero() {
   const reduceMotion = useReducedMotion()
-  const pct = Math.min(LEARNER.xp / LEARNER.xpToNextLevel, 1)
+  const [mounted, setMounted] = useState(false)
+  const user = useSession((state) => state.user)
+  const storedXp = useLearnerProgress((state) => state.xp)
+  useEffect(() => setMounted(true), [])
+  const xp = mounted ? storedXp : 0
+  const level = Math.floor(xp / 100) + 1
+  const levelXp = xp % 100
+  const xpToNextLevel = 100
+  const name = mounted && user ? user.name : "Guest explorer"
+  const initials = name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()
+  const pct = Math.min(levelXp / xpToNextLevel, 1)
   const dashOffset = GAUGE_CIRCUMFERENCE * (1 - pct)
-  const xpRemaining = LEARNER.xpToNextLevel - LEARNER.xp
+  const xpRemaining = xpToNextLevel - levelXp
+  const orbitLevel = Math.min(level, 6)
+  const nextLevelLabel = ["Quantum Explorer", "Circuit Builder", "Entanglement Guide", "Quantum Architect", "Research Fellow", "Quantum Mentor"][Math.min(level - 1, 5)]
 
   return (
     <motion.div
@@ -31,7 +45,7 @@ export function ProfileHero() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="home-glow-card relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 sm:p-8"
     >
-      <AvatarOrbits nextLevel={LEARNER.level + 1} reduced={!!reduceMotion} />
+      <AvatarOrbits nextLevel={level + 1} reduced={!!reduceMotion} />
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         {STARS.map((s, i) => (
           <span
@@ -65,7 +79,7 @@ export function ProfileHero() {
               aria-labelledby="passport-avatar-title"
             >
               <title id="passport-avatar-title">
-                {`${LEARNER.name} avatar with ${LEARNER.level} orbiting rings representing Level ${LEARNER.level}`}
+                {`${name} avatar with ${orbitLevel} orbiting rings representing Level ${level}`}
               </title>
               <defs>
                 <radialGradient id="avatar-grad" cx="35%" cy="28%" r="75%">
@@ -74,9 +88,9 @@ export function ProfileHero() {
                 </radialGradient>
               </defs>
 
-              {Array.from({ length: LEARNER.level }).map((_, i) => {
+              {Array.from({ length: orbitLevel }).map((_, i) => {
                 const ry = 24 + i * 6
-                const tilt = (i * 180) / LEARNER.level
+                const tilt = (i * 180) / orbitLevel
                 const duration = 9 + i * 3
                 const path = `M 8 80 A 72 ${ry} 0 1 1 152 80 A 72 ${ry} 0 1 1 8 80`
                 return (
@@ -102,30 +116,30 @@ export function ProfileHero() {
                 fill="#0A0E17"
                 style={{ fontFamily: "var(--font-space-grotesk)" }}
               >
-                {LEARNER.initials}
+                {initials}
               </text>
             </svg>
           </div>
 
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[#FFB800]/30 bg-[#FFB800]/10 px-2.5 py-1 text-[11px] font-medium text-[#FFB800]">
-              Level {LEARNER.level} Scholar &middot; {LEARNER.rank}
+              Level {level} Scholar
             </span>
             <h1
               className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl"
               style={{ fontFamily: "var(--font-space-grotesk)" }}
             >
-              {LEARNER.name}
+              {name}
             </h1>
             <dl className="mt-2 flex flex-col gap-1 font-mono text-xs text-white/50 sm:flex-row sm:gap-4">
               <div className="flex items-center gap-1.5 justify-center sm:justify-start">
                 <dt className="sr-only">Email</dt>
-                <dd>{LEARNER.email}</dd>
+                <dd>{mounted && user ? user.email : "Sign in to save a learner profile"}</dd>
               </div>
               <div className="flex items-center gap-1.5 justify-center sm:justify-start">
                 <dt className="sr-only">Cohort</dt>
                 <dd>
-                  {LEARNER.cohort} &middot; {LEARNER.batch}
+                  {mounted && user ? "Demo learner · browser-local progress" : "Independent learner"}
                 </dd>
               </div>
             </dl>
@@ -154,15 +168,15 @@ export function ProfileHero() {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-xl font-semibold text-white" style={{ fontFamily: "var(--font-space-grotesk)" }}>
-                {LEARNER.xp}
-                <span className="text-sm font-normal text-white/40">/{LEARNER.xpToNextLevel}</span>
+                {levelXp}
+                <span className="text-sm font-normal text-white/40">/{xpToNextLevel}</span>
               </span>
               <span className="text-[10px] font-medium uppercase tracking-wide text-white/40">XP</span>
             </div>
           </div>
           <p className="text-center text-xs text-white/55">
-            <span className="font-semibold text-[#00D4FF]">{xpRemaining} XP</span> to Level {LEARNER.level + 1}:{" "}
-            {LEARNER.nextLevelLabel}
+            <span className="font-semibold text-[#00D4FF]">{xpRemaining} XP</span> to Level {level + 1}:{" "}
+            {nextLevelLabel}
           </p>
         </div>
       </div>

@@ -37,7 +37,7 @@ export function StageLearn() {
         }
       />
 
-      {animation ? <div className="mb-5"><AlgoAnimationPlayer config={animation} onContinue={handleContinue} /></div> : <div className="mb-5 rounded-xl border border-border bg-card p-6 text-center"><h2 className="text-lg font-semibold">Animation coming soon</h2><p className="mt-2 text-sm text-muted-foreground">This walkthrough is being prepared for {algorithm.name}.</p></div>}
+      {animation ? <div className="mb-5"><AlgoAnimationPlayer config={animation} onContinue={handleContinue} /></div> : <section className="mb-5 rounded-xl border border-border bg-card/60 p-5"><h2 className="text-sm font-semibold text-foreground">Experiment sequence</h2><ol className="mt-3 grid gap-2 sm:grid-cols-2">{(algorithm.learn.steps ?? algorithm.learn.body).map((step, index) => <li key={step} className="flex items-center gap-3 rounded-lg border border-border/70 p-3 text-sm"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-xs text-primary">{index + 1}</span><span>{step}</span></li>)}</ol><p className="mt-3 text-xs text-muted-foreground">You will build and run this experiment in the next stages.</p></section>}
 
       <div className="rounded-xl border border-primary/25 bg-primary/5 p-5">
         <div className="flex items-center gap-2">

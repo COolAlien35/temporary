@@ -1,7 +1,8 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
-import { CALIBRATION_ROUNDS } from "@/lib/quantum-passport-data"
+import { useEffect, useState } from "react"
+import { useLearnerProgress } from "@/store/use-learner-progress"
 import { ThresholdMarchLine, LatestPointHighlight } from "@/components/me/accents/CalibrationReveal"
 import { handleGlowPointerMove } from "@/lib/home-glow"
 
@@ -11,8 +12,8 @@ const PAD_X = 24
 const PAD_Y = 20
 const THRESHOLD = 80
 
-function scaleX(i: number) {
-  return PAD_X + (i / (CALIBRATION_ROUNDS.length - 1)) * (WIDTH - PAD_X * 2)
+function scaleX(i: number, count: number) {
+  return PAD_X + (i / Math.max(count - 1, 1)) * (WIDTH - PAD_X * 2)
 }
 
 function scaleY(value: number) {
@@ -21,11 +22,16 @@ function scaleY(value: number) {
 
 export function CalibrationChart() {
   const reduceMotion = useReducedMotion()
-  const points = CALIBRATION_ROUNDS.map((r, i) => ({ x: scaleX(i), y: scaleY(r.accuracy), ...r }))
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const history = useLearnerProgress((state) => state.calibrationHistory)
+  const rounds = (mounted ? history : []).slice(-7).map((item, i) => ({ round: `R${i + 1}`, accuracy: item.score }))
+  if (rounds.length === 0) return <div className="home-glow-card relative flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6"><h3 className="text-lg font-semibold text-white" style={{ fontFamily: "var(--font-space-grotesk)" }}>Prediction Calibration</h3><p className="mt-1 text-xs text-white/45">Prediction scores from your completed lab runs will appear here.</p><div className="mt-5 flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/45">No prediction rounds recorded yet.</div></div>
+  const points = rounds.map((r, i) => ({ x: scaleX(i, rounds.length), y: scaleY(r.accuracy), ...r }))
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")
   const areaPath = `${linePath} L ${points[points.length - 1].x} ${HEIGHT - PAD_Y} L ${points[0].x} ${HEIGHT - PAD_Y} Z`
   const thresholdY = scaleY(THRESHOLD)
-  const improvement = CALIBRATION_ROUNDS[CALIBRATION_ROUNDS.length - 1].accuracy - CALIBRATION_ROUNDS[0].accuracy
+  const improvement = rounds[rounds.length - 1].accuracy - rounds[0].accuracy
 
   const latest = points[points.length - 1]
 
@@ -43,7 +49,7 @@ export function CalibrationChart() {
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="mt-4 w-full"
         role="img"
-        aria-label={`Prediction accuracy across 7 rounds: ${CALIBRATION_ROUNDS.map((r) => `${r.round} ${r.accuracy}%`).join(", ")}`}
+        aria-label={`Prediction accuracy across ${rounds.length} rounds: ${rounds.map((r) => `${r.round} ${r.accuracy}%`).join(", ")}`}
       >
         <defs>
           <linearGradient id="calibration-fill" x1="0" y1="0" x2="0" y2="1">
@@ -116,7 +122,7 @@ export function CalibrationChart() {
         </motion.svg>
         <p>
           <span className="font-semibold text-[#00D4FF]">Insight:</span> Your predictions improved {improvement}{" "}
-          points in {CALIBRATION_ROUNDS.length} runs.
+          points in {rounds.length} runs.
         </p>
       </div>
     </div>

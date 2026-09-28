@@ -1,7 +1,8 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
-import { MASTERY_CONCEPTS } from "@/lib/quantum-passport-data"
+import { useEffect, useState } from "react"
+import { useLearnerProgress } from "@/store/use-learner-progress"
 import { LatticeBackdrop } from "@/components/me/accents/LatticeBackdrop"
 import { handleGlowPointerMove } from "@/lib/home-glow"
 
@@ -9,6 +10,19 @@ const TARGET = 80
 
 export function MasteryLedger() {
   const reduceMotion = useReducedMotion()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const quizScores = useLearnerProgress((state) => state.quizScores)
+  const challengeAttempts = useLearnerProgress((state) => state.challengeAttempts)
+  const recordedScores = mounted ? quizScores : {}
+  const recordedChallenges = mounted ? challengeAttempts : []
+  const rows = [
+    { concept: "Quantum foundations", value: recordedScores.u1 },
+    { concept: "Gates and circuits", value: recordedScores.u2 },
+    { concept: "Entanglement", value: Math.max(recordedScores.u3 ?? 0, ...recordedChallenges.filter((attempt) => attempt.challengeId === "bell-pair").map((attempt) => attempt.score), 0) },
+    { concept: "Algorithms", value: Math.max(recordedScores.u4 ?? 0, recordedScores.u5 ?? 0, recordedScores.u6 ?? 0) },
+    { concept: "Noise and hardware", value: Math.max(recordedScores.u7 ?? 0, recordedScores.u9 ?? 0) },
+  ].map((row) => ({ ...row, value: row.value || undefined }))
 
   return (
     <div
@@ -19,11 +33,13 @@ export function MasteryLedger() {
       <h3 className="relative text-lg font-semibold text-white" style={{ fontFamily: "var(--font-space-grotesk)" }}>
         Concept Mastery Ledger
       </h3>
-      <p className="relative mt-1 text-xs text-white/45">Mastery target is {TARGET}% per concept.</p>
+      <p className="relative mt-1 text-xs text-white/45">Best recorded quiz or challenge score · target {TARGET}%.</p>
 
+      {rows.every((row) => row.value === undefined) && <p className="relative mt-4 rounded-xl border border-dashed border-white/15 p-4 text-xs leading-5 text-white/45">No assessment scores yet. Quiz results and challenge submissions will build your concept record.</p>}
       <ul className="relative mt-5 flex flex-1 flex-col gap-4">
-        {MASTERY_CONCEPTS.map((row, i) => {
-          const mastered = row.value >= TARGET
+        {rows.map((row, i) => {
+          const value = row.value ?? 0
+          const mastered = row.value !== undefined && value >= TARGET
           return (
             <li key={row.concept}>
               <div className="flex items-center justify-between gap-2">
@@ -52,7 +68,7 @@ export function MasteryLedger() {
                       : "rounded-full bg-[#FFB800]/10 px-2 py-0.5 text-[10px] font-medium text-[#FFB800]"
                   }
                 >
-                  {mastered ? "Mastered" : `${row.value}%`}
+                  {row.value === undefined ? "No score" : mastered ? "On target" : `${value}%`}
                 </span>
               </div>
               <div className="relative mt-2 h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
@@ -67,8 +83,8 @@ export function MasteryLedger() {
                       ? "relative h-full overflow-hidden rounded-full bg-[#4ADE80]"
                       : "relative h-full overflow-hidden rounded-full bg-[#FFB800]"
                   }
-                  initial={{ width: reduceMotion ? `${row.value}%` : "0%" }}
-                  whileInView={{ width: `${row.value}%` }}
+                  initial={{ width: reduceMotion ? `${value}%` : "0%" }}
+                  whileInView={{ width: `${value}%` }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.8, delay: reduceMotion ? 0 : i * 0.08, ease: "easeOut" }}
                 >
@@ -81,7 +97,7 @@ export function MasteryLedger() {
                       transition={{ duration: 0.9, delay: 0.6 + i * 0.08, ease: "easeInOut" }}
                     />
                   )}
-                  {!mastered && !reduceMotion && (
+                  {row.value !== undefined && !mastered && !reduceMotion && (
                     <motion.span
                       className="absolute right-0 top-1/2 h-2.5 w-2.5 -translate-y-1/2 translate-x-1/2 rounded-full bg-[#FFB800]"
                       animate={{ scale: [1, 1.8, 1], opacity: [0.7, 0, 0.7] }}

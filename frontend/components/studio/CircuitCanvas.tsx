@@ -19,6 +19,7 @@ function Slot({ step, qubit }: { step: number; qubit: number }) {
   return (
     <div
       ref={setNodeRef}
+      data-testid={`circuit-slot-${step}-${qubit}`}
       className={cn("absolute rounded-lg transition-colors", isOver && "bg-[#00D4FF]/15 ring-1 ring-[#00D4FF]/50")}
       style={{ left: step * CELL_W, top: qubit * CELL_H, width: CELL_W, height: CELL_H }}
     />

@@ -15,6 +15,7 @@ import { StageDebug } from "@/components/lab/stages/stage-debug"
 import { StageChallenge } from "@/components/lab/stages/stage-challenge"
 import { StageMaster } from "@/components/lab/stages/stage-master"
 import { CodeEditorPanel } from "@/components/lab/CodeEditorPanel"
+import { LabToolPanel } from "@/components/lab/LabToolPanel"
 
 const STAGE_COMPONENTS: Record<number, React.ComponentType> = {
   1: StageLearn,
@@ -31,6 +32,7 @@ const STAGE_COMPONENTS: Record<number, React.ComponentType> = {
 function LabStageRouter() {
   const { stage, activeTab } = useLab()
   if (activeTab === "code") return <CodeEditorPanel />
+  if (activeTab === "histogram" || activeTab === "statevector" || activeTab === "bloch") return <LabToolPanel tab={activeTab} />
   const StageComponent = STAGE_COMPONENTS[stage] ?? StageLearn
   return <StageComponent />
 }

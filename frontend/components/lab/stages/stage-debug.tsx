@@ -18,7 +18,8 @@ export function StageDebug() {
     setFeedback(solved ? "correct" : "incorrect")
   }
 
-  const steps = Math.max(...algorithm.correctGates.map((g) => g.step)) + 1
+  const debugCircuit = algorithm.debugCircuit ?? algorithm.correctGates
+  const steps = Math.max(...debugCircuit.map((g) => g.step)) + 1
 
   return (
     <div>
@@ -40,7 +41,7 @@ export function StageDebug() {
 
       <div className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">
         <Bug className="size-3.5" />
-        This circuit does not reproduce the expected balanced-oracle signature. Isolate the faulty gate.
+        {algorithm.seededFault.description} Disable the faulty gate, then verify the measured outcomes against the lesson target.
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
@@ -57,13 +58,14 @@ export function StageDebug() {
                 <div key={qubit} className="contents">
                   <div className="flex items-center font-mono text-xs text-muted-foreground">q[{qubit}]</div>
                   {Array.from({ length: steps }).map((_, step) => {
-                    const placed = algorithm.correctGates.find((g) => g.step === step && g.qubit === qubit)
+                    const placed = debugCircuit.find((g) => g.step === step && g.qubit === qubit)
                     if (!placed) return <div key={step} className="h-11" />
                     const disabled = debugDisabledGates.has(placed.id)
                     return (
                       <button
                         key={step}
                         type="button"
+                        aria-label={`${disabled ? "Enable" : "Disable"} ${placed.gate} on q${qubit} at step ${step}`}
                         onClick={() => toggleDebugGate(placed.id)}
                         className={cn(
                           "group relative flex h-11 items-center justify-center rounded-md border text-xs font-semibold transition-all",

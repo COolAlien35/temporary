@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Box, FolderOpen, Layers, List, Plus, Redo2, Save, Sparkles, Trash2, Workflow } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Box, FolderOpen, List, Redo2, Save, Sparkles, Trash2, Workflow } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -24,19 +24,17 @@ export function StudioToolbar() {
   const loadSaved = useHardware((s) => s.loadSaved)
   const deleteSaved = useHardware((s) => s.deleteSaved)
   const loadDesign = useHardware((s) => s.loadDesign)
-  const addStage = useHardware((s) => s.addStage)
-  const removeStage = useHardware((s) => s.removeStage)
   const setView = useHardware((s) => s.setView)
   const toggleLineVisibility = useHardware((s) => s.toggleLineVisibility)
 
   const [nameDraft, setNameDraft] = useState(design.meta.name)
+  useEffect(() => setNameDraft(design.meta.name), [design.meta.name])
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] p-2.5">
       <input
         value={nameDraft}
         onChange={(e) => setNameDraft(e.target.value)}
-        onBlur={() => saveDesign(nameDraft || "Untitled design")}
         className="w-40 shrink-0 rounded-md border border-white/10 bg-black/20 px-2.5 py-1.5 text-xs font-medium text-white focus:border-[#00D4FF]/40 focus:outline-none sm:w-52"
         aria-label="Design name"
       />
@@ -106,32 +104,13 @@ export function StudioToolbar() {
 
       <div className="mx-1 h-5 w-px bg-white/10" />
 
-      <button
-        onClick={addStage}
-        className="flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs font-medium text-white/70 hover:border-white/20 hover:text-white"
-      >
-        <Plus className="h-3.5 w-3.5" /> Stage
-      </button>
-      <button
-        onClick={() => {
-          const last = design.stages[design.stages.length - 1]
-          if (last) removeStage(last.id)
-        }}
-        disabled={design.stages.length <= 2}
-        className="flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs font-medium text-white/70 hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-      >
-        <Layers className="h-3.5 w-3.5" /> Remove stage
-      </button>
-
-      <div className="mx-1 h-5 w-px bg-white/10" />
-
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <button className="flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs font-medium text-white/70 hover:border-white/20 hover:text-white" />
           }
         >
-          <Workflow className="h-3.5 w-3.5" /> Lines
+          <Workflow className="h-3.5 w-3.5" /> Line visibility
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56 border-white/10 bg-[#10141F] text-white">
           {LINE_LIST.map((line) => (

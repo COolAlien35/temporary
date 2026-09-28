@@ -326,8 +326,8 @@ export const COMPONENTS: HardwareComponent[] = [
     compatibleStages: [{ stageId: "300K", preferred: true }],
     compatibleLines: ["xy", "flux", "readout-in", "readout-out", "dc-bias"],
     ports: [
-      { id: "grid", name: "Feedthrough grid", direction: "bidirectional", connector: "SMA" },
-      { id: "dcgrid", name: "DC grid", direction: "bidirectional", connector: "Nano-D" },
+      { id: "grid", name: "Feedthrough grid", direction: "bidirectional", connector: "SMA", allowMultipleConnections: true },
+      { id: "dcgrid", name: "DC grid", direction: "bidirectional", connector: "Nano-D", allowMultipleConnections: true },
     ],
     keySpecs: [
       { label: "Ports", value: "Configurable grid" },

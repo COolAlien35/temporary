@@ -1,11 +1,13 @@
 "use client"
 
 import { Award, RotateCcw } from "lucide-react"
+import { useEffect } from "react"
 import { useLab } from "@/lib/lab-context"
 import { StageHeader } from "@/components/lab/stage-header"
 
 export function StageMaster() {
-  const { algorithm, xp, attempts, debugAttempts, hints, challengeScore, runAccuracy, resetLab } = useLab()
+  const { algorithm, xp, attempts, debugAttempts, hints, challengeScore, runAccuracy, resetLab, completeStage } = useLab()
+  useEffect(() => { completeStage(9) }, [completeStage])
 
   const rows = [
     { label: "Prediction accuracy", value: `${runAccuracy}%` },

@@ -1,0 +1,65 @@
+import { expect, test } from '@playwright/test'
+
+test('a fresh learner sees an honest empty state and lesson activity updates home and passport', async ({ page }) => {
+  await page.goto('/home')
+  await expect(page.getByText('Your learning path starts here')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Start first lesson' })).toHaveAttribute('href', '/curriculum/u1/u1-quantum-foundations')
+  await expect(page.getByText('Nothing recorded yet.')).toBeVisible()
+  await page.getByRole('link', { name: 'Start first lesson' }).click()
+
+  await page.getByRole('radio', { name: 'Two complex amplitudes whose squared magnitudes sum to 1' }).check()
+  await page.getByRole('radio', { name: 'One sampled outcome, not every amplitude' }).check()
+  await page.getByRole('button', { name: /Complete lesson · \+15 XP/ }).click()
+
+  await page.goto('/home')
+  await expect(page.getByRole('heading', { name: 'Qubits and measurement' })).toBeVisible()
+  await expect(page.getByText(/1 of \d+ lessons complete/)).toBeVisible()
+  await expect(page.getByText('Lesson completed')).toBeVisible()
+  await expect(page.getByText('15 XP earned')).toBeVisible()
+
+  await page.goto('/me')
+  await expect(page.getByText('Guest explorer · 15 XP · 1 lessons completed')).toBeVisible()
+  await expect(page.getByText('First Steps')).toBeVisible()
+  await expect(page.getByText('No assessment scores yet.')).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('Guest explorer · 15 XP · 1 lessons completed')).toBeVisible()
+  await expect(page.getByText('Lesson completed')).toBeVisible()
+})
+
+test('daily practice is graded once and stays completed after refresh', async ({ page }) => {
+  await page.goto('/home')
+  await page.getByLabel('It becomes an equal superposition of |0⟩ and |1⟩').check()
+  await page.getByRole('button', { name: 'Check answer' }).click()
+  await expect(page.getByRole('status')).toContainText('Correct. H|0⟩')
+  await expect(page.getByText('+5 XP earned')).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('link', { name: 'More practice →' })).toBeVisible()
+  await expect(page.getByText('+5 XP earned')).toBeVisible()
+})
+
+test('a Studio simulation appears in recent activity and the Passport after refresh', async ({ page }) => {
+  await page.goto('/studio?template=bell')
+  await expect(page.getByRole('button', { name: 'Bell state', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Run', exact: true }).click()
+  await page.goto('/home')
+  await expect(page.getByRole('link', { name: 'Bell state simulation' })).toBeVisible()
+  await page.goto('/me')
+  await expect(page.getByText('Simulation Explorer')).toBeVisible()
+  await expect(page.getByText('Bell state simulation')).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('Bell state simulation')).toBeVisible()
+})
+
+test('a lab run updates the Passport prediction chart and activity history', async ({ page }) => {
+  await page.goto('/lab/superposition')
+  await page.getByRole('button', { name: 'Formulate Hypothesis →' }).click()
+  await page.getByRole('button', { name: 'Lock Prediction & Arm Simulation Gate' }).click()
+  await page.getByRole('button', { name: 'Place H on q0 at step 0' }).click()
+  await page.getByRole('button', { name: 'Proceed to Run →' }).click()
+  await page.getByRole('button', { name: 'Run Simulation' }).click()
+  await page.goto('/me')
+  await expect(page.getByRole('img', { name: /Prediction accuracy across 1 rounds/ })).toBeVisible()
+  await expect(page.getByText('Superposition lab run')).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('Superposition lab run')).toBeVisible()
+})

@@ -29,28 +29,28 @@ export function TelemetryPanel() {
         >
           <path d="M2 12h4l2 6 4-14 3 10 2-6h5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <h3 className="text-xs font-semibold text-white">System telemetry</h3>
+        <h3 className="text-xs font-semibold text-white">Simulation mode</h3>
       </div>
 
       <dl className="mt-3 space-y-2.5 text-xs">
         <div className="flex items-center justify-between">
           <dt className="text-white/45">Backend</dt>
-          <dd className="font-medium text-white/85">ibm_sim_27q</dd>
+          <dd className="font-medium text-white/85">Local statevector</dd>
         </div>
         <div className="flex items-center justify-between">
           <dt className="text-white/45">Status</dt>
           <dd className="flex items-center gap-1.5 font-medium text-[#4ADE80]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#4ADE80]" />
-            Operational
+            Ready in browser
           </dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-white/45">Fidelity avg.</dt>
-          <dd className="font-medium text-white/85">98.4%</dd>
+          <dt className="text-white/45">Circuit size</dt>
+          <dd className="font-medium text-white/85">Up to 5 qubits</dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-white/45">XP earned</dt>
-          <dd className="font-medium text-[#00D4FF]">2,340 XP</dd>
+          <dt className="text-white/45">Results</dt>
+          <dd className="font-medium text-[#00D4FF]">Stored in this browser</dd>
         </div>
       </dl>
     </motion.section>

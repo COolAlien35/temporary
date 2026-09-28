@@ -10,20 +10,13 @@ import { BlochSphereCard } from "@/components/profile/bloch-sphere-card"
 import { ActivityTimeline } from "@/components/profile/activity-timeline"
 import { SectionDivider } from "@/components/me/accents/SectionDivider"
 import { BackToTop } from "@/components/me/accents/BackToTop"
-
-const TRACE_SECTIONS = [
-  { label: "Identity" },
-  { label: "Streak" },
-  { label: "Heatmap" },
-  { label: "Badges" },
-  { label: "Mastery" },
-  { label: "Activity" },
-]
+import { CurrentLearnerBanner } from "@/components/profile/current-learner-banner"
 
 export default function QuantumPassportPage() {
   return (
-    <AppShell variant="passport" sections={TRACE_SECTIONS}>
+    <AppShell variant="passport">
       <div className="relative z-0 flex flex-col gap-6">
+        <CurrentLearnerBanner />
         <FadeInSection>
           <ProfileHero />
         </FadeInSection>

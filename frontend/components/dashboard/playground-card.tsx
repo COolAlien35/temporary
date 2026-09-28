@@ -28,11 +28,11 @@ export function PlaygroundCard() {
                 className="mt-1 text-base font-semibold text-white sm:text-lg"
                 style={{ fontFamily: "var(--font-space-grotesk)" }}
               >
-                Run circuits on live simulator state
+                Run circuits in the local simulator
               </h3>
             </div>
             <motion.a
-              href="#"
+              href="/studio"
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 25 }}
               className="whitespace-nowrap text-xs font-medium text-[#00D4FF] hover:underline hover:drop-shadow-[0_0_6px_rgba(0,212,255,0.6)]"
@@ -77,38 +77,20 @@ export function PlaygroundCard() {
             </div>
 
             <div className="rounded-xl border border-white/10 bg-black/25 p-4 sm:col-span-1">
-              <label className="flex items-center justify-between text-[11px] font-medium text-white/50">
-                Shots
-                <span className="text-white/80">4,096</span>
-              </label>
-              <input
-                type="range"
-                defaultValue={70}
-                className="mt-3 h-1 w-full appearance-none rounded-full bg-white/10 accent-[#00D4FF]"
-                aria-label="Shots"
-              />
-              <label className="mt-4 flex items-center justify-between text-[11px] font-medium text-white/50">
-                Noise model
-                <span className="text-white/80">Low</span>
-              </label>
-              <input
-                type="range"
-                defaultValue={20}
-                className="mt-3 h-1 w-full appearance-none rounded-full bg-white/10 accent-[#4FD1E8]"
-                aria-label="Noise model"
-              />
+              <p className="text-[11px] font-medium text-white/50">Experiment controls</p>
+              <p className="mt-3 text-xs leading-5 text-white/70">Set measurement shots and explore noise inside Circuit Studio.</p>
             </div>
 
             <div className="rounded-xl border border-white/10 bg-black/25 p-4 sm:col-span-1">
-              <p className="text-[11px] font-medium text-white/50">Hardware status</p>
+              <p className="text-[11px] font-medium text-white/50">Demo backend</p>
               <div className="mt-3 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-white/45">Backend</span>
-                  <span className="text-white/80">ibm_sim_27q</span>
+                  <span className="text-white/80">Local statevector</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/45">Queue</span>
-                  <span className="text-white/80">0 jobs</span>
+                  <span className="text-white/80">Runs in browser</span>
                 </div>
                 <div className="mt-2 flex items-center gap-1.5 rounded-full bg-[#4ADE80]/10 px-2.5 py-1 text-[#4ADE80]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#4ADE80]" />

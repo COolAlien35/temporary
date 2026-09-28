@@ -1,3 +1,4 @@
 import { AppShell } from "@/components/shared/AppShell"
-import { DiscussionList, SectionTitle } from "@/components/contests/ContestUI"
-export default function DiscussionsPage() { return <AppShell variant="curriculum"><main className="mx-auto max-w-4xl px-5 py-10 md:px-8"><p className="text-xs uppercase tracking-[.25em] text-[#00D4FF]">Community lab</p><h1 className="mt-3 text-4xl font-semibold">Discussions</h1><p className="mt-3 text-white/55">Share strategies, debug circuits together, and help the next explorer get unstuck.</p><div className="mt-10"><SectionTitle title="Latest threads" /><div className="mt-5"><DiscussionList /></div></div></main></AppShell> }
+import { SectionTitle } from "@/components/contests/ContestUI"
+import { DiscussionList } from "@/components/community/DiscussionList"
+export default function DiscussionsPage() { return <AppShell variant="curriculum"><div className="mx-auto max-w-4xl px-5 py-10 md:px-8"><p className="text-xs uppercase tracking-[.25em] text-[#00D4FF]">Community lab · browser-local demo</p><h1 className="mt-3 text-4xl font-semibold">Discussions</h1><p className="mt-3 text-white/55">Share strategies, debug circuits together, and help the next explorer get unstuck.</p><div className="mt-10"><SectionTitle title="Threads" /><div className="mt-5"><DiscussionList /></div></div></div></AppShell> }

@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Check, Star } from "lucide-react"
+import dynamic from "next/dynamic"
+import { Box, Check, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { AppShell } from "@/components/shared/AppShell"
 import { PageHeader } from "@/components/shared/ui/PageHeader"
@@ -11,12 +12,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { COMPONENTS } from "@/lib/hardware/components"
 import { STAGE_LIST } from "@/lib/hardware/stages"
 import { LINES } from "@/lib/hardware/lines"
-import { ComponentViewer } from "@/components/hardware/three/ComponentViewer"
+
+const ComponentViewer = dynamic(() => import("@/components/hardware/three/ComponentViewer").then((module) => module.ComponentViewer), {
+  ssr: false,
+  loading: () => <p className="flex h-full items-center justify-center text-xs text-white/50">Loading 3D preview…</p>,
+})
 
 const CATEGORY_LIST = Array.from(new Set(COMPONENTS.map((c) => c.category)))
 
 export default function HardwareCatalogPage() {
   const [category, setCategory] = useState<string>("All")
+  const [previewId, setPreviewId] = useState<string | null>(null)
 
   const filtered = useMemo(
     () => (category === "All" ? COMPONENTS : COMPONENTS.filter((c) => c.category === category)),
@@ -57,8 +63,19 @@ export default function HardwareCatalogPage() {
             {filtered.map((c, i) => (
               <Reveal key={c.id} delay={Math.min(i, 6) * 0.05}>
                 <GlassCard className="h-full">
-                  <div className="mb-3 h-40 overflow-hidden rounded-lg border border-white/10 bg-black/40">
-                    <ComponentViewer componentId={c.id} controls className="h-full w-full" />
+                  <div className="mb-3 h-40 overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(circle_at_50%_35%,rgba(0,212,255,0.13),transparent_65%)] bg-black/40">
+                    {previewId === c.id ? (
+                      <div className="relative h-full w-full">
+                        <ComponentViewer componentId={c.id} controls className="h-full w-full" />
+                        <button type="button" onClick={() => setPreviewId(null)} className="absolute right-2 top-2 rounded-md border border-white/15 bg-[#0A0E17]/90 px-2 py-1 text-[11px] text-white/75">Close 3D</button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setPreviewId(c.id)} aria-label={`Inspect ${c.name} in 3D`} className="flex h-full w-full flex-col items-center justify-center gap-2 text-white/60 hover:text-[#00D4FF]">
+                        <Box className="h-8 w-8" aria-hidden="true" />
+                        <span className="text-sm font-semibold">{c.abbreviation}</span>
+                        <span className="text-xs">Inspect in 3D →</span>
+                      </button>
+                    )}
                   </div>
                   <div className="mb-2 flex items-center justify-between">
                     <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/50">

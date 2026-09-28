@@ -55,7 +55,7 @@ export function ParallaxBackdrop({
   return (
     <>
       <div
-        className="fixed inset-0 z-[-1] overflow-hidden"
+        className="fixed inset-0 z-0 overflow-hidden"
         style={{ pointerEvents: "none" }}
         aria-hidden="true"
       >

@@ -1,0 +1,113 @@
+name: quantumloop
+
+x-backend-environment: &backend-environment
+  QL_ENVIRONMENT: test
+  QL_DATABASE_URL: postgresql+psycopg://quantumloop:quantumloop@db:5432/quantumloop
+  QL_BROKER_URL: redis://broker:6379/0
+  QL_CACHE_URL: redis://cache:6379/0
+  QL_RESULT_BACKEND: redis://cache:6379/1
+  QL_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
+
+x-backend: &backend
+  build:
+    context: ./backend
+    target: runtime
+  environment: *backend-environment
+  init: true
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: quantumloop
+      POSTGRES_PASSWORD: quantumloop
+      POSTGRES_DB: quantumloop
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantumloop -d quantumloop"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  broker:
+    image: redis:7.4-bookworm
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:${BROKER_PORT:-6379}:6379"]
+    volumes: ["broker-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  cache:
+    image: redis:7.4-bookworm
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["127.0.0.1:${CACHE_PORT:-6380}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      db: {condition: service_healthy}
+
+  api:
+    <<: *backend
+    ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      broker: {condition: service_healthy}
+      cache: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=15)"]
+      interval: 10s
+      timeout: 20s
+      retries: 10
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "app.jobs.celery_app:celery_app", "worker", "--loglevel=INFO", "--queues=maintenance,simulation,optimization,grading", "--concurrency=2"]
+    stop_grace_period: 330s
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      broker: {condition: service_healthy}
+      cache: {condition: service_healthy}
+
+  test:
+    build:
+      context: ./backend
+      target: test
+    environment: *backend-environment
+    profiles: ["test"]
+    depends_on:
+      api: {condition: service_healthy}
+      worker: {condition: service_started}
+    command: ["uv", "run", "--no-sync", "pytest", "--cov=app", "--cov-report=term-missing", "--junitxml=/reports/backend.xml"]
+    volumes: ["./reports:/reports"]
+
+  frontend:
+    build: ./frontend
+    image: quantumloop-frontend:local
+    profiles: ["web"]
+    ports: ["127.0.0.1:${FRONTEND_PORT:-3000}:3000"]
+    init: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+  broker-data:

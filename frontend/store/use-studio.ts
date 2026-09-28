@@ -3,6 +3,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { runCircuit } from "@/lib/sim/run-circuit"
 import type { SavedCircuit, SimResult, StudioCircuit, StudioGate } from "@/lib/studio/types"
+import { useLearnerProgress } from "@/store/use-learner-progress"
 
 const MAX_QUBITS = 5
 const MIN_QUBITS = 1
@@ -192,6 +193,7 @@ export const useStudio = create<StudioState>()(
         const s = get()
         const result = runCircuit(s.circuit.qubits, s.circuit.gates, { shots: s.shots, depolarizing: s.noise.depolarizing, readoutError: s.noise.readoutError })
         set({ previousResult: s.result, result, lastRunAt: Date.now(), stepIndex: null })
+        useLearnerProgress.getState().recordExperiment(`${s.circuit.name} simulation`, "/studio", `${s.circuit.qubits} qubits · ${s.circuit.gates.length} gates · ${s.shots.toLocaleString()} shots`)
       },
 
       setStepIndex: (i) => set({ stepIndex: i }),

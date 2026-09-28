@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, ChevronRight, Lightbulb, RotateCcw, Settings, Target } from "lucide-react"
 import { useLab } from "@/lib/lab-context"
+import Link from "next/link"
 import { STAGES } from "@/lib/lab-data"
 import { cn } from "@/lib/utils"
 
@@ -32,6 +33,8 @@ export function TopBar() {
   const displayXp = useCountUp(xp)
   const accuracyKnown = hasRun
 
+  const curriculumHref = algorithm.slug === "superposition" ? "/curriculum/u1" : algorithm.slug === "gates" ? "/curriculum/u2" : algorithm.slug === "entanglement" ? "/curriculum/u3" : "/curriculum"
+
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card/60 px-4 backdrop-blur-sm">
       <div className="flex min-w-0 items-center gap-3">
@@ -51,6 +54,7 @@ export function TopBar() {
         <h1 className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base">
           {algorithm.name}
         </h1>
+        <Link href={curriculumHref} className="hidden rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground sm:inline">Curriculum</Link>
       </div>
 
       <div className="hidden items-center gap-1.5 md:flex" role="list" aria-label="Stage progress">

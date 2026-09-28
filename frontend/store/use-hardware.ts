@@ -7,6 +7,7 @@ import { emptyDesign } from "@/lib/hardware/generator"
 import type { Design, LineTypeId, PlacedComponent, Route, SavedDesign, Stage, ThermalResult, Issue } from "@/lib/hardware/types"
 import { validateDesign } from "@/lib/hardware/validate"
 import { computeThermal } from "@/lib/hardware/thermal"
+import { LINES } from "@/lib/hardware/lines"
 
 interface PendingRoute {
   placedId: string
@@ -21,6 +22,7 @@ interface HardwareState {
   selectedPlacedId: string | null
   selectedRouteId: string | null
   pendingRoute: PendingRoute | null
+  routeError: string | null
   pendingLineType: LineTypeId
   hiddenLines: LineTypeId[]
   view: "diagram" | "3d" | "list"
@@ -73,6 +75,7 @@ export const useHardware = create<HardwareState>()(
       selectedPlacedId: null,
       selectedRouteId: null,
       pendingRoute: null,
+      routeError: null,
       pendingLineType: "xy",
       hiddenLines: [],
       view: "diagram",
@@ -83,10 +86,10 @@ export const useHardware = create<HardwareState>()(
       newDesign: (qubits, name) => {
         const d = emptyDesign(name ?? "Untitled design")
         d.meta.qubits = qubits
-        set({ design: d, selectedPlacedId: null, selectedRouteId: null, pendingRoute: null, issues: [], thermal: null })
+        set({ design: d, selectedPlacedId: null, selectedRouteId: null, pendingRoute: null, routeError: null, issues: [], thermal: null })
       },
 
-      loadDesign: (design) => set({ design: touch(design), selectedPlacedId: null, selectedRouteId: null, pendingRoute: null, issues: [], thermal: null }),
+      loadDesign: (design) => set({ design: touch(design), selectedPlacedId: null, selectedRouteId: null, pendingRoute: null, routeError: null, issues: [], thermal: null }),
 
       saveDesign: (nameOverride) =>
         set((s) => {
@@ -108,7 +111,7 @@ export const useHardware = create<HardwareState>()(
           const candidates = nextAllowedStages(s.design.stages)
           if (candidates.length === 0) return s
           const next: Stage = candidates[0].custom ? candidates[0] : candidates[0]
-          return { design: touch({ ...s.design, stages: [...s.design.stages, next] }) }
+          return { design: touch({ ...s.design, stages: [...s.design.stages, next] }), issues: [], thermal: null }
         }),
 
       removeStage: (stageId) =>
@@ -121,6 +124,12 @@ export const useHardware = create<HardwareState>()(
               placed: s.design.placed.filter((p) => p.stageId !== stageId),
               routes: s.design.routes.filter((r) => !placedOnStage.has(r.fromPlacedId) && !placedOnStage.has(r.toPlacedId)),
             }),
+            selectedPlacedId: placedOnStage.has(s.selectedPlacedId ?? "") ? null : s.selectedPlacedId,
+            selectedRouteId: null,
+            pendingRoute: null,
+            routeError: null,
+            issues: [],
+            thermal: null,
           }
         }),
 
@@ -128,13 +137,13 @@ export const useHardware = create<HardwareState>()(
         const placedId = nanoid(8)
         set((s) => {
           const entry: PlacedComponent = { id: placedId, componentId, stageId, position, rotationDeg: 0 }
-          return { design: touch({ ...s.design, placed: [...s.design.placed, entry] }), selectedPlacedId: placedId }
+          return { design: touch({ ...s.design, placed: [...s.design.placed, entry] }), selectedPlacedId: placedId, selectedRouteId: null, issues: [], thermal: null }
         })
         return placedId
       },
 
       moveComponent: (placedId, position) =>
-        set((s) => ({ design: touch({ ...s.design, placed: s.design.placed.map((p) => (p.id === placedId ? { ...p, position } : p)) }) })),
+        set((s) => ({ design: touch({ ...s.design, placed: s.design.placed.map((p) => (p.id === placedId ? { ...p, position } : p)) }), issues: [], thermal: null })),
 
       removeComponent: (placedId) =>
         set((s) => ({
@@ -144,19 +153,36 @@ export const useHardware = create<HardwareState>()(
             routes: s.design.routes.filter((r) => r.fromPlacedId !== placedId && r.toPlacedId !== placedId),
           }),
           selectedPlacedId: s.selectedPlacedId === placedId ? null : s.selectedPlacedId,
+          selectedRouteId: null,
+          pendingRoute: null,
+          routeError: null,
+          issues: [],
+          thermal: null,
         })),
 
-      beginRoute: (placedId, port, lineType) => set({ pendingRoute: { placedId, port }, pendingLineType: lineType }),
-      cancelRoute: () => set({ pendingRoute: null }),
+      beginRoute: (placedId, port, lineType) => set({ pendingRoute: { placedId, port }, pendingLineType: lineType, routeError: null }),
+      cancelRoute: () => set({ pendingRoute: null, routeError: null }),
 
       completeRoute: (placedId, port) =>
         set((s) => {
           if (!s.pendingRoute) return s
-          if (s.pendingRoute.placedId === placedId) return { pendingRoute: null }
+          if (s.pendingRoute.placedId === placedId) return { pendingRoute: null, routeError: "Connect to a port on another component." }
           const fromPlaced = s.design.placed.find((p) => p.id === s.pendingRoute!.placedId)
+          const toPlaced = s.design.placed.find((p) => p.id === placedId)
           const fromDef = fromPlaced ? getComponent(fromPlaced.componentId) : undefined
+          const toDef = toPlaced ? getComponent(toPlaced.componentId) : undefined
           const fromPort = fromDef?.ports.find((p) => p.id === s.pendingRoute!.port)
-          const cableFamilyId = fromDef ? "ss-coax" : "ss-coax"
+          const toPort = toDef?.ports.find((p) => p.id === port)
+          if (!fromPort || !toPort) return { pendingRoute: null, routeError: "One of those ports is no longer available." }
+          const portInUse = (placedId: string, portId: string) => s.design.routes.some((route) =>
+            (route.fromPlacedId === placedId && route.fromPort === portId) ||
+            (route.toPlacedId === placedId && route.toPort === portId),
+          )
+          if ((!fromPort.allowMultipleConnections && portInUse(s.pendingRoute.placedId, fromPort.id)) ||
+              (!toPort.allowMultipleConnections && portInUse(placedId, toPort.id))) {
+            return { pendingRoute: null, routeError: "That port already has a wire. Choose a free port or remove the existing wire first." }
+          }
+          if (s.design.routes.some((r) => r.fromPlacedId === fromPlaced?.id && r.fromPort === fromPort.id && r.toPlacedId === placedId && r.toPort === port && r.lineType === s.pendingLineType)) return { pendingRoute: null, routeError: "These ports are already connected by this signal." }
           const route: Route = {
             id: nanoid(8),
             lineType: s.pendingLineType,
@@ -165,17 +191,19 @@ export const useHardware = create<HardwareState>()(
             toPlacedId: placedId,
             toPort: port,
             waypoints: [],
-            cableFamilyId: (cableFamilyId as Route["cableFamilyId"]) ?? "ss-coax",
+            cableFamilyId: LINES[s.pendingLineType].cableFamilyId as Route["cableFamilyId"],
             attenuationDb: 0,
           }
-          void fromPort
-          return { design: touch({ ...s.design, routes: [...s.design.routes, route] }), pendingRoute: null, selectedRouteId: route.id }
+          return { design: touch({ ...s.design, routes: [...s.design.routes, route] }), pendingRoute: null, routeError: null, selectedPlacedId: null, selectedRouteId: route.id, issues: [], thermal: null }
         }),
 
       removeRoute: (routeId) =>
         set((s) => ({
           design: touch({ ...s.design, routes: s.design.routes.filter((r) => r.id !== routeId) }),
           selectedRouteId: s.selectedRouteId === routeId ? null : s.selectedRouteId,
+          routeError: null,
+          issues: [],
+          thermal: null,
         })),
 
       select: (placedId) => set({ selectedPlacedId: placedId, selectedRouteId: null }),

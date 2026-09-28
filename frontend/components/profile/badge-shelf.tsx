@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { LockIcon } from "lucide-react"
 import { BADGES, type Badge } from "@/lib/quantum-passport-data"
+import { useLearnerProgress } from "@/store/use-learner-progress"
 import { BadgeGlyph } from "@/components/svg/badge-glyphs"
 import { EarnedBadgeAura, LockedBadgeAura } from "@/components/me/accents/BadgeShimmer"
 import { ShelfLine } from "@/components/me/accents/ShelfLine"
@@ -24,10 +25,17 @@ const FILTERS = [
   { value: "locked", label: "Locked" },
 ] as const
 
-function filterBadges(filter: string) {
-  if (filter === "earned") return BADGES.filter((b) => b.earned)
-  if (filter === "locked") return BADGES.filter((b) => !b.earned)
-  return BADGES
+const ACHIEVEMENTS: Array<Pick<Badge, "id" | "title" | "description" | "criteria" | "glyph">> = [
+  { id: "first-lesson", title: "First Steps", description: "Completed your first curriculum lesson.", criteria: "Complete any lesson in the curriculum.", glyph: "hadamard" },
+  { id: "first-experiment", title: "Simulation Explorer", description: "Ran your first local circuit simulation.", criteria: "Run a circuit in Studio or an algorithm lab.", glyph: "decoherence" },
+  { id: "quiz-finisher", title: "Knowledge Check", description: "Passed a unit quiz.", criteria: "Earn a score of at least 70% on a unit quiz.", glyph: "socratic" },
+  { id: "challenge-solver", title: "Circuit Solver", description: "Passed a simulator-graded circuit challenge.", criteria: "Meet the target outcome and constraints in any circuit challenge.", glyph: "oracle" },
+]
+
+function filterBadges(filter: string, badges: Badge[]) {
+  if (filter === "earned") return badges.filter((b) => b.earned)
+  if (filter === "locked") return badges.filter((b) => !b.earned)
+  return badges
 }
 
 function BadgeCard({ badge, onViewCriteria }: { badge: Badge; onViewCriteria: (badge: Badge) => void }) {
@@ -97,6 +105,20 @@ function BadgeCard({ badge, onViewCriteria }: { badge: Badge; onViewCriteria: (b
 export function BadgeShelf() {
   const [filter, setFilter] = useState<string>("all")
   const [activeBadge, setActiveBadge] = useState<Badge | null>(null)
+  const [mounted, setMounted] = useState(false)
+  const earnedIds = useLearnerProgress((state) => state.badges)
+  const activities = useLearnerProgress((state) => state.activities)
+  useEffect(() => setMounted(true), [])
+  const availableIds = mounted ? earnedIds : []
+  const recentActivities = mounted ? activities : []
+  const badges: Badge[] = [
+    ...ACHIEVEMENTS.map((badge) => {
+      const earned = availableIds.includes(badge.id)
+      const activity = recentActivities.find((item) => badge.id === "first-lesson" ? item.kind === "lesson" : badge.id === "first-experiment" ? item.kind === "experiment" : badge.id === "quiz-finisher" ? item.kind === "quiz" && (item.score ?? 0) >= 70 : item.kind === "challenge" && item.xp > 0)
+      return { ...badge, earned, earnedDate: earned && activity ? new Date(activity.timestamp).toLocaleDateString() : undefined, progress: earned ? 100 : 0 }
+    }),
+    ...BADGES.filter((badge) => !["hadamard-pioneer", "bell-state-architect", "decoherence-defier", "socratic-solver"].includes(badge.id)).map((badge) => ({ ...badge, earned: false, earnedDate: undefined, progress: 0 })),
+  ]
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
@@ -116,10 +138,11 @@ export function BadgeShelf() {
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {filterBadges(filter).map((badge) => (
+        {filterBadges(filter, badges).map((badge) => (
           <BadgeCard key={badge.id} badge={badge} onViewCriteria={setActiveBadge} />
         ))}
       </div>
+      {!badges.some((badge) => badge.earned) && <p className="mt-4 text-xs text-white/45">No badges yet. Your first completed lesson, simulation, quiz, or challenge will earn one.</p>}
       <ShelfLine />
 
       <Dialog open={activeBadge !== null} onOpenChange={(open) => !open && setActiveBadge(null)}>

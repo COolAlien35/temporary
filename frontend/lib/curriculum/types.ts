@@ -5,4 +5,4 @@ export type Checkpoint = { id: string; prompt: string; options: string[]; answer
 export type Lesson = { id: string; title: string; type: LessonType; minutes: number; xp: number; sections: ContentBlock[]; checkpoints: Checkpoint[]; takeaways: string[]; links: Array<{ label: string; href: string }> }
 export type Unit = { id: string; title: string; tagline: string; level: UnitLevel; minutes: number; prerequisites: string[]; lessons: Lesson[]; xpTotal: number; badge: string; tools: string[] }
 export type Question = { id: string; prompt: string; options: string[]; answer: number; explanation: string; tags: string[]; xp: number }
-export type ProgressState = { lessonsCompleted: string[]; quizScores: Record<string, number>; xp: number; streak: number; flaggedQuestions: string[] }
+export type ProgressState = { lessonsCompleted: string[]; quizScores: Record<string, number>; quizzesCompleted: string[]; quizAttempts: Record<string, Array<{ score: number; attemptedAt: number; passed: boolean }>>; xp: number; streak: number; flaggedQuestions: string[] }

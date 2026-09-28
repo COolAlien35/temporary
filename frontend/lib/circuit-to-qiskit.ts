@@ -36,10 +36,11 @@ export function circuitToQiskit(gates: GatePlacement[], qubits: number): string 
         lastStep = g.step
       }
       const method = QISKIT_METHOD[g.gate]
-      const comment = g.gate === "CNOT" ? `# t${g.step}: CNOT q[${g.qubit}] → q[${g.target ?? (g.qubit === 0 ? 1 : 0)}]` : `# t${g.step}: ${g.gate} on q[${g.qubit}]`
+      const multiQubit = g.gate === "CNOT" || g.gate === "CZ" || g.gate === "SWAP"
+      const target = g.target ?? (g.qubit === 0 ? 1 : 0)
+      const comment = multiQubit ? `# t${g.step}: ${g.gate} q[${g.qubit}] ↔ q[${target}]` : `# t${g.step}: ${g.gate} on q[${g.qubit}]`
       lines.push(comment)
-      if (g.gate === "CNOT") {
-        const target = g.target ?? (g.qubit === 0 ? 1 : 0)
+      if (multiQubit) {
         lines.push(`qc.${method}(${g.qubit}, ${target})`)
       } else {
         lines.push(`qc.${method}(${g.qubit})`)

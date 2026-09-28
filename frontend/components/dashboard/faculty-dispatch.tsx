@@ -23,11 +23,11 @@ export function FacultyDispatch() {
       </svg>
       <div className="relative flex items-center gap-2.5">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#4FD1E8] to-[#00D4FF] text-[11px] font-semibold text-[#0A0E17]">
-          RK
+          EI
         </div>
         <div>
-          <p className="text-xs font-medium text-white">Dr. Rina Kapoor</p>
-          <p className="text-[11px] text-white/40">Lead Faculty, Quantum Algorithms</p>
+          <p className="text-xs font-medium text-white">Example instructor note</p>
+          <p className="text-[11px] text-white/40">Sample course guidance</p>
         </div>
       </div>
 
@@ -36,15 +36,7 @@ export function FacultyDispatch() {
         is what separates people who use quantum algorithms from people who understand them.&rdquo;
       </blockquote>
 
-      <p className="mt-2 text-[11px] text-white/35">Faculty dispatch &middot; Week 6</p>
-      <motion.a
-        href="#"
-        whileHover={{ scale: 1.05 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className="mt-1 inline-block text-[11px] font-medium text-[#00D4FF] hover:underline hover:drop-shadow-[0_0_6px_rgba(0,212,255,0.6)]"
-      >
-        Read dispatch &rarr;
-      </motion.a>
+      <p className="mt-2 text-[11px] text-white/35">Example faculty note · sample content</p>
     </motion.section>
   )
 }

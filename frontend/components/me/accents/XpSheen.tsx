@@ -21,8 +21,8 @@ export function XpSheen({
 }) {
   const circumference = 2 * Math.PI * radius
   const angle = pct * 360 - 90
-  const tipX = cx + radius * Math.cos((angle * Math.PI) / 180)
-  const tipY = cy + radius * Math.sin((angle * Math.PI) / 180)
+  const tipX = Number((cx + radius * Math.cos((angle * Math.PI) / 180)).toFixed(3))
+  const tipY = Number((cy + radius * Math.sin((angle * Math.PI) / 180)).toFixed(3))
 
   if (reduced) return null
 
@@ -45,8 +45,8 @@ export function XpSheen({
       {Array.from({ length: 5 }).map((_, i) => {
         const spread = (i - 2) * 12
         const a = ((angle + spread) * Math.PI) / 180
-        const x2 = cx + (radius + 6) * Math.cos(a)
-        const y2 = cy + (radius + 6) * Math.sin(a)
+        const x2 = Number((cx + (radius + 6) * Math.cos(a)).toFixed(3))
+        const y2 = Number((cy + (radius + 6) * Math.sin(a)).toFixed(3))
         return (
           <motion.line
             key={i}

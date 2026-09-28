@@ -11,6 +11,7 @@ const SHOT_OPTIONS = [128, 512, 1024, 4096]
 export function StageRun() {
   const { algorithm, shots, setShots, noiseEnabled, setNoiseEnabled, backend, setBackend, attempts, runSimulation } =
     useLab()
+  const { simulationError } = useLab()
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -44,7 +45,7 @@ export function StageRun() {
       <div className="mt-5 flex items-center justify-between rounded-xl border border-border bg-card/60 p-5">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Depolarizing Noise Model</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Simulates gate-level decoherence on every operation.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Uses a simplified mix-toward-uniform noise approximation; it is not a hardware-accurate noise channel.</p>
         </div>
         <Switch checked={noiseEnabled} onCheckedChange={setNoiseEnabled} />
       </div>
@@ -63,11 +64,11 @@ export function StageRun() {
             )}
           >
             <p className="text-sm font-medium text-foreground">Local State-Vector Simulator</p>
-            <p className="mt-1 text-xs text-muted-foreground">Exact amplitude tracking, up to 24 qubits.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Local statevector, up to 5 qubits. Shots are sampled in this browser.</p>
           </button>
-          <div className="cursor-not-allowed rounded-lg border border-border p-3 opacity-50">
-            <p className="text-sm font-medium text-foreground">QPU-7 Hardware Queue</p>
-            <p className="mt-1 text-xs text-muted-foreground">Coming soon</p>
+          <div className="cursor-not-allowed rounded-lg border border-border p-3 opacity-50" aria-disabled="true">
+            <p className="text-sm font-medium text-foreground">Qiskit Aer · PennyLane · Cirq · qBraid · QPU</p>
+            <p className="mt-1 text-xs text-muted-foreground">Unavailable in this frontend demo · no remote jobs are sent</p>
           </div>
         </div>
       </div>
@@ -80,12 +81,13 @@ export function StageRun() {
 
       <button
         type="button"
-        onClick={runSimulation}
+        onClick={() => runSimulation()}
         className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-black transition-colors hover:bg-primary"
       >
         <Play className="size-3.5 fill-current" />
         Run Simulation
       </button>
+      {simulationError && <p role="alert" className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{simulationError} <button type="button" onClick={() => runSimulation()} className="ml-2 underline">Retry</button></p>}
     </div>
   )
 }

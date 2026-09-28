@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSession } from "@/store/use-session"
 
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false)
+  const learnerPreference = useSession((state) => Boolean(state.user && state.preferences.reduceMotion))
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -13,5 +15,5 @@ export function useReducedMotion(): boolean {
     return () => query.removeEventListener("change", handler)
   }, [])
 
-  return reduced
+  return reduced || learnerPreference
 }

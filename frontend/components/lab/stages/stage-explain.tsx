@@ -6,9 +6,8 @@ import { StageHeader, AccuracyBadge } from "@/components/lab/stage-header"
 import { LabPartnerChat } from "@/components/lab/lab-partner-chat"
 
 export function StageExplain() {
-  const { algorithm, runAccuracy, hypothesis, shots, backend, advanceStage } = useLab()
-
-  const actual = algorithm.correctDistribution
+  const { algorithm, runAccuracy, hypothesis, shots, backend, advanceStage, simulationResult } = useLab()
+  const actual = simulationResult?.noisyProbabilities ?? {}
 
   const handleContinue = () => {
     advanceStage(6, 7)
@@ -59,28 +58,26 @@ export function StageExplain() {
               <div key={state} className="rounded-lg border border-border bg-card/60 p-2.5 text-center">
                 <p className="font-mono text-xs text-foreground">|{state}⟩</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">Pred {hypothesis[state] ?? 0}%</p>
-                <p className="text-[11px] text-primary">Actual {actual[state] ?? 0}%</p>
+                <p className="text-[11px] text-primary">Actual {((actual[state] ?? 0) * 100).toFixed(1)}%</p>
               </div>
             ))}
           </div>
 
           <div className="mt-5 rounded-xl border border-primary/25 bg-primary/5 p-4">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-primary">Empirical Invariant</p>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-primary">Run interpretation</p>
             <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-              Regardless of register size, a balanced oracle can never leave amplitude on |0⟩<sup>⊗n</sup> — any
-              measured probability there indicates either a constant oracle or a fabrication error upstream in the
-              circuit.
+              These outcomes come from your latest local circuit run ({simulationResult?.shots.toLocaleString() ?? 0} shots). Change a gate and rerun to see how the distribution changes.
             </p>
           </div>
         </div>
 
         <div className="min-h-[420px]">
           <LabPartnerChat
-            introMessage={`Your run landed at ${runAccuracy}% accuracy. Walk me through why the amplitude concentrated where it did \u2014 what role did the second Hadamard layer play?`}
+            introMessage={`Your ${algorithm.name} circuit run landed at ${runAccuracy}% prediction agreement. Which gate or operation most changed the measured distribution?`}
             hints={[
-              "What does interference do to amplitudes with opposite phase?",
-              "Where would a constant oracle send probability instead?",
-              "Why does |00\u27e9 disappearing prove balance?",
+              "Compare the largest predicted and observed outcomes.",
+              "Use the statevector view to inspect amplitudes before measurement.",
+              "Change one gate at a time, then rerun to test your explanation.",
             ]}
           />
         </div>

@@ -23,6 +23,13 @@ export const RULES: Rule[] = [
     howToFix: "Re-route so the source port is an output (or bidirectional) and the destination port is an input (or bidirectional), respecting circulator orientation.",
   },
   {
+    id: "port-capacity",
+    title: "A port can carry only one wire",
+    severity: "error",
+    explanation: "Ordinary component ports represent one physical connector. Feedthrough grids can carry several connections because they represent a bank of connectors.",
+    howToFix: "Remove the extra wire from the reused port and connect it to a free port or a separate component.",
+  },
+  {
     id: "line-compat",
     title: "Route line type must match both components",
     severity: "error",

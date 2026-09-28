@@ -6,6 +6,9 @@ export interface TutorContext {
   circuit: StudioCircuit
   result?: SimResult
   previousResult?: SimResult
+  lesson?: string
+  prediction?: Record<string, number>
+  recentActions?: string[]
 }
 
 export type TutorAction = "explain" | "changed" | "unexpected" | "optimize" | "generate"
@@ -27,7 +30,7 @@ function detectEntanglement(circuit: StudioCircuit) {
  * of this function later without touching call sites — callers pass the same `askTutor(context,
  * prompt, action)` signature either way.
  */
-export function askTutor(context: TutorContext, prompt: string, action: TutorAction = "explain"): string {
+function buildTutorResponse(context: TutorContext, prompt: string, action: TutorAction = "explain"): string {
   const { circuit, result, previousResult } = context
   const info = computeCircuitInfo(circuit.qubits, circuit.gates)
   const entangled = detectEntanglement(circuit)
@@ -77,4 +80,17 @@ export function askTutor(context: TutorContext, prompt: string, action: TutorAct
     default:
       return "Ask me to explain the circuit, summarize what changed, investigate an unexpected result, or suggest an optimization."
   }
+}
+
+export function askTutor(context: TutorContext, prompt: string, action: TutorAction = "explain"): string {
+  const response = buildTutorResponse(context, prompt, action)
+  const predicted = Object.entries(context.prediction ?? {}).sort((a, b) => b[1] - a[1])[0]
+  const contextLines = [
+    context.lesson ? `Lesson focus: ${context.lesson}` : "",
+    predicted ? `Your current prediction puts |${predicted[0]}⟩ highest at ${predicted[1]}%.` : "",
+    context.recentActions?.length ? `Recent action: ${context.recentActions.at(-1)}.` : "",
+    prompt && !["Explain my circuit", "What changed?", "Why is this result unexpected?", "How can I optimize this circuit?", "Suggest a circuit template"].includes(prompt) ? `About your question: ${prompt}` : "",
+  ].filter(Boolean)
+  if (action === "generate") return `${contextLines.join(" ")} I prepared a preview from this track's reference circuit. Review its gates before applying; you can undo the replacement.`
+  return contextLines.length ? `${contextLines.join(" ")} ${response}` : response
 }

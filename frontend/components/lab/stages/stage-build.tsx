@@ -5,13 +5,14 @@ import { Plus, X } from "lucide-react"
 import { useLab } from "@/lib/lab-context"
 import { StageHeader } from "@/components/lab/stage-header"
 import { GATE_COLORS, GATE_PALETTE, type GateType } from "@/lib/lab-data"
+import { getAlgorithmConfig } from "@/lib/algorithms"
 import { cn } from "@/lib/utils"
-
-const STEPS = 4
 
 export function StageBuild() {
   const { algorithm, gates, addGate, removeGate, predictionLocked, advanceStage } = useLab()
   const [selectedGate, setSelectedGate] = useState<GateType>("H")
+  const STEPS = algorithm.timesteps ?? 4
+  const availableGates = getAlgorithmConfig(algorithm.slug)?.build.gatePalette ?? GATE_PALETTE.map((item) => item.gate)
 
   const handleContinue = () => {
     advanceStage(3, 4)
@@ -42,11 +43,13 @@ export function StageBuild() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {GATE_PALETTE.map((item) => (
+        {GATE_PALETTE.filter((item) => availableGates.includes(item.gate)).map((item) => (
           <button
             key={item.gate}
             type="button"
             onClick={() => setSelectedGate(item.gate)}
+            aria-pressed={selectedGate === item.gate}
+            aria-label={`Select ${item.label} gate`}
             title={item.label}
             className={cn(
               "flex size-9 items-center justify-center rounded-md border text-xs font-semibold transition-all",
@@ -77,6 +80,7 @@ export function StageBuild() {
                   <button
                     key={step}
                     type="button"
+                    aria-label={(placed ? "Remove " + placed.gate : "Place " + selectedGate) + " on q" + qubit + " at step " + step}
                     onClick={() => {
                       if (placed) {
                         removeGate(placed.id)

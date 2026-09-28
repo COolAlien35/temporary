@@ -1,76 +1,86 @@
 "use client"
 
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { motion } from "motion/react"
 import { useEffect, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { AtomSvg } from "@/components/quantumloop/atom-svg"
 import { DashboardFooter } from "@/components/dashboard/dashboard-footer"
-import { ParallaxBackdrop, type TraceSection } from "@/components/shared/ParallaxBackdrop"
-import { CommandPalette } from "@/components/shared/CommandPalette"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { useHardware } from "@/store/use-hardware"
+import { useLearnerProgress } from "@/store/use-learner-progress"
+import { useSession } from "@/store/use-session"
 import { cn } from "@/lib/utils"
+import { activeNavigation, hardwareNavigation, primaryNavigation } from "@/lib/navigation"
 
-const NAV_LINKS = [
-  { label: "Roadmap", href: "/home", layoutId: "nav-roadmap" },
-  { label: "Curriculum", href: "/curriculum", layoutId: "nav-curriculum" },
-  { label: "Circuit Studio", href: "/studio", layoutId: "nav-studio" },
-  { label: "Contests", href: "/contests", layoutId: "nav-contests" },
-  { label: "Instructor", href: "/instructor", layoutId: "nav-instructor" },
-]
+const CommandPalette = dynamic(() => import("@/components/shared/CommandPalette").then((module) => module.CommandPalette), { ssr: false })
 
-const HARDWARE_LINKS = [
-  { label: "Overview", href: "/hardware", description: "What the Hardware Studio is for" },
-  { label: "Component Catalog", href: "/hardware/catalog", description: "Browse cryostat hardware & wiring rules" },
-  { label: "Builder Studio", href: "/hardware/studio", description: "Design a fridge wiring diagram" },
-  { label: "System Checks", href: "/hardware/checks", description: "Validation rules & thermal budgets" },
-]
-
+const BACKDROP_GRADIENT: Record<string, string> = {
+  roadmap: "radial-gradient(ellipse at 18% 22%, rgba(74,222,128,.06), transparent 55%), #0A0E17",
+  passport: "radial-gradient(ellipse at 20% 22%, rgba(0,212,255,.07), transparent 58%), #0A0E17",
+  studio: "radial-gradient(ellipse at 80% 15%, rgba(0,212,255,.11), transparent 55%), #0A0E17",
+  hardware: "radial-gradient(ellipse at 52% 5%, rgba(0,212,255,.12), transparent 56%), radial-gradient(ellipse at 95% 85%, rgba(125,211,252,.06), transparent 45%), #0A0E17",
+  curriculum: "radial-gradient(ellipse at 20% 25%, rgba(74,222,128,.07), transparent 55%), #0A0E17",
+  cohorts: "radial-gradient(ellipse at 20% 20%, rgba(245,185,66,.08), transparent 55%), #0A0E17",
+  instructor: "radial-gradient(ellipse at 20% 20%, rgba(245,185,66,.08), transparent 55%), #0A0E17",
+  docs: "radial-gradient(ellipse at 50% 0%, rgba(0,212,255,.08), transparent 60%), #0A0E17",
+}
 
 export function AppShell({
   children,
   variant = "roadmap",
-  sections,
-  userName = "Maya Chen",
+  userName = "Demo Explorer",
   disableBackdrop = false,
 }: {
   children: React.ReactNode
   variant?: "roadmap" | "passport" | "studio" | "curriculum" | "cohorts" | "docs" | "hardware" | "instructor"
-  sections?: TraceSection[]
   userName?: string
   disableBackdrop?: boolean
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const streakDays = 12
+  const [paletteReady, setPaletteReady] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const sessionUser = useSession((state) => state.user)
+  const endSession = useSession((state) => state.endSession)
+  const switchLearner = useLearnerProgress((state) => state.switchLearner)
+  const activeLearnerId = useLearnerProgress((state) => state.activeLearnerId)
+  const streakDays = useLearnerProgress((state) => state.streak)
+  const displayName = mounted && sessionUser ? sessionUser.name : userName
 
   // The hardware store persists to localStorage but is created with
   // `skipHydration: true` so the server-rendered markup always matches the
   // client's pre-hydration state. Rehydrate manually once mounted.
   useEffect(() => {
-    void useHardware.persist.rehydrate()
-  }, [])
+    setMounted(true)
+    if (pathname === "/hardware/studio" || pathname === "/hardware/checks") {
+      void import("@/store/use-hardware").then(({ useHardware }) => useHardware.persist.rehydrate())
+    }
+  }, [pathname])
 
-  const getActiveLink = () => {
-    if (pathname === "/home" || pathname === "/") return "Roadmap"
-    if (pathname.startsWith("/curriculum")) return "Curriculum"
-    if (pathname.startsWith("/studio")) return "Circuit Studio"
-    if (pathname.startsWith("/contests") || pathname.startsWith("/leaderboard") || pathname.startsWith("/discussions")) return "Contests"
-    if (pathname.startsWith("/instructor")) return "Instructor"
-    if (pathname.startsWith("/hardware")) return "Hardware Studio"
-    if (pathname.startsWith("/cohorts")) return "Cohorts"
-    if (pathname.startsWith("/docs")) return "Docs"
-    return null
-  }
+  useEffect(() => {
+    if (paletteReady) return
+    function activatePalette(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "k" || (!event.metaKey && !event.ctrlKey)) return
+      event.preventDefault()
+      setPaletteReady(true)
+    }
+    document.addEventListener("keydown", activatePalette)
+    return () => document.removeEventListener("keydown", activatePalette)
+  }, [paletteReady])
 
-  const activeLink = getActiveLink()
+  useEffect(() => {
+    if (mounted && activeLearnerId !== (sessionUser?.id ?? null)) switchLearner(sessionUser?.id ?? null)
+  }, [mounted, activeLearnerId, sessionUser?.id, switchLearner])
+
+  const activeLink = activeNavigation(pathname)
 
   return (
-    <div className="relative min-h-screen bg-[#0A0E17] text-white">
-      {!disableBackdrop && <ParallaxBackdrop variant={variant as any} sections={sections} />}
-      <CommandPalette />
+    <div data-hydrated={mounted} className="relative min-h-screen bg-[#0A0E17] text-white">
+      {!disableBackdrop && <div className="pointer-events-none fixed inset-0 z-0" aria-hidden="true" style={{ background: BACKDROP_GRADIENT[variant] }} />}
+      {paletteReady && <CommandPalette initialOpen />}
 
       {/* Top Navigation */}
       <motion.header
@@ -93,8 +103,8 @@ export function AppShell({
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden items-center gap-5 md:flex" aria-label="Primary">
-            {NAV_LINKS.map((link) => (
+          <nav className="hidden items-center gap-5 lg:flex" aria-label="Primary">
+            {primaryNavigation.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -136,7 +146,7 @@ export function AppShell({
                 )}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64 border-white/10 bg-[#10141F] text-white">
-                {HARDWARE_LINKS.map((link) => (
+                {hardwareNavigation.map((link) => (
                   <DropdownMenuItem
                     key={link.href}
                     render={<Link href={link.href} />}
@@ -154,17 +164,17 @@ export function AppShell({
           {/* Right Section */}
           <div className="flex items-center gap-3 sm:gap-4">
             {/* Streak Pill */}
-            <div className="hidden items-center gap-1.5 rounded-full border border-[#FFB800]/30 bg-[#FFB800]/10 px-2.5 py-1 text-[11px] font-medium text-[#FFB800] sm:flex">
+            {mounted && sessionUser && <div className="hidden items-center gap-1.5 rounded-full border border-[#FFB800]/30 bg-[#FFB800]/10 px-2.5 py-1 text-[11px] font-medium text-[#FFB800] sm:flex">
               <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor">
                 <path d="M12 2c1 3-1 4.5-2.5 6C8 9.5 7 11 7 13a5 5 0 0 0 10 0c0-1.6-.6-2.7-1.3-3.7.4 2-.3 3.2-1.4 3.7-.2-2.2-1.2-3.3-2.3-4.3C13.1 7.8 13.4 5 12 2Z" />
               </svg>
               {streakDays} days
-            </div>
+            </div>}
 
             {/* User Name */}
             <div className="hidden text-right sm:block">
               {pathname.startsWith("/instructor") && <p className="mb-0.5 text-[9px] uppercase tracking-[.16em] text-[#F5B942]">Instructor view</p>}
-              <p className="text-xs font-medium text-white">{userName}</p>
+              <p className="text-xs font-medium text-white">{displayName}</p>
             </div>
 
             {/* Avatar */}
@@ -173,15 +183,15 @@ export function AppShell({
               aria-label="View Quantum Passport profile"
               className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-[#00D4FF] to-[#4FD1E8] text-[11px] font-semibold text-[#0A0E17] transition-transform hover:scale-105"
             >
-              {userName
+              {displayName
                 .split(" ")
                 .map((n) => n[0])
                 .join("")}
             </Link>
 
             {/* Settings Button */}
-            <button
-              type="button"
+            <Link
+              href="/settings"
               aria-label="Settings"
               className="flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
             >
@@ -189,12 +199,12 @@ export function AppShell({
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0A1.65 1.65 0 0 0 21 10h.09a2 2 0 1 1 0 4H21a1.65 1.65 0 0 0-1.51 1Z" />
               </svg>
-            </button>
+            </Link>
 
-            {/* Logout Button */}
-            <button
+            {mounted && sessionUser ? <button
               type="button"
               aria-label="Log out"
+              onClick={() => { switchLearner(null); endSession(); router.push("/") }}
               className="flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -202,7 +212,7 @@ export function AppShell({
                 <path d="M16 17l5-5-5-5" />
                 <path d="M21 12H9" />
               </svg>
-            </button>
+            </button> : <Link href="/login" className="hidden text-xs font-medium text-[#00D4FF] sm:inline">Log in</Link>}
 
             {/* Mobile Menu Toggle */}
             <button
@@ -210,7 +220,7 @@ export function AppShell({
               aria-label="Toggle menu"
               aria-expanded={mobileNavOpen}
               onClick={() => setMobileNavOpen(!mobileNavOpen)}
-              className="flex md:hidden h-7 w-7 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
+              className="flex lg:hidden h-7 w-7 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <line x1="4" y1="6" x2="20" y2="6" />
@@ -227,10 +237,10 @@ export function AppShell({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="border-t border-white/10 bg-[#0A0E17]/95 backdrop-blur-sm md:hidden"
+            className="border-t border-white/10 bg-[#0A0E17]/95 backdrop-blur-sm lg:hidden"
           >
             <nav className="flex flex-col gap-1 px-4 py-3" aria-label="Mobile">
-              {NAV_LINKS.map((link) => (
+              {primaryNavigation.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -244,7 +254,7 @@ export function AppShell({
                 </Link>
               ))}
               <p className="px-3 pt-2 text-[10px] font-medium uppercase tracking-wider text-white/30">Hardware Studio</p>
-              {HARDWARE_LINKS.map((link) => (
+              {hardwareNavigation.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -263,10 +273,10 @@ export function AppShell({
       </motion.header>
 
       {/* Main Content */}
-      <main className="relative z-0 mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
+      <main className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6">{children}</main>
 
       {/* Footer */}
-      <DashboardFooter />
+      <div className="relative z-10"><DashboardFooter /></div>
     </div>
   )
 }

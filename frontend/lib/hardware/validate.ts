@@ -79,6 +79,32 @@ export function validateDesign(design: Design): Issue[] {
     }
   }
 
+  // Older saved designs may predate the single-wire port rule. Keep their routes
+  // intact and identify the overloaded connectors for the learner to repair.
+  const portConnections = new Map<string, number>()
+  for (const route of design.routes) {
+    for (const [placedId, portId] of [[route.fromPlacedId, route.fromPort], [route.toPlacedId, route.toPort]]) {
+      const key = `${placedId}:${portId}`
+      portConnections.set(key, (portConnections.get(key) ?? 0) + 1)
+    }
+  }
+  for (const placed of design.placed) {
+    const component = COMPONENT_MAP[placed.componentId]
+    for (const port of component?.ports ?? []) {
+      const count = portConnections.get(`${placed.id}:${port.id}`) ?? 0
+      if (count > 1 && !port.allowMultipleConnections) {
+        issues.push({
+          ruleId: "port-capacity",
+          severity: "error",
+          title: RULE_MAP["port-capacity"].title,
+          message: `${component.name}.${port.name} has ${count} wires. Keep one and move or remove the others.`,
+          targetType: "component",
+          targetId: placed.id,
+        })
+      }
+    }
+  }
+
   // 5. HEMT required for readout-out
   const readoutOutRoutes = design.routes.filter((r) => r.lineType === "readout-out")
   if (readoutOutRoutes.length > 0) {

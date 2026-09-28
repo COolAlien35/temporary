@@ -8,10 +8,12 @@ const METHOD_TO_GATE: Record<string, GateType> = {
   s: "S",
   t: "T",
   cx: "CNOT",
+  cz: "CZ",
+  swap: "SWAP",
 }
 
 const SINGLE_QUBIT_RE = /^qc\.(h|x|y|z|s|t)\(\s*(\d+)\s*\)\s*$/i
-const CNOT_RE = /^qc\.cx\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/i
+const MULTI_QUBIT_RE = /^qc\.(cx|cz|swap)\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/i
 const IGNORABLE_RE = /^(from\s|import\s|qc\s*=|qc\.measure|qc\.barrier|#)/i
 
 export interface QiskitParseResult {
@@ -22,7 +24,7 @@ export interface QiskitParseResult {
 
 /**
  * Parses a Qiskit-style snippet back into circuit-grid gate placements. This only recognizes
- * the small subset of calls `circuitToQiskit` emits (single-qubit gates and `cx`) — it is a
+ * the small subset of calls `circuitToQiskit` emits (single-qubit gates, `cx`, `cz` and `swap`) — it is a
  * teaching-tool round-trip, not a Python/Qiskit parser, so anything else is reported as an
  * unsupported line rather than silently dropped.
  */
@@ -56,10 +58,11 @@ export function qiskitToCircuit(code: string, qubits: number, maxSteps: number):
       return
     }
 
-    const cnotMatch = line.match(CNOT_RE)
-    if (cnotMatch) {
-      const control = Number(cnotMatch[1])
-      const target = Number(cnotMatch[2])
+    const multiMatch = line.match(MULTI_QUBIT_RE)
+    if (multiMatch) {
+      const gate = METHOD_TO_GATE[multiMatch[1].toLowerCase()]
+      const control = Number(multiMatch[2])
+      const target = Number(multiMatch[3])
       if (control >= qubits || target >= qubits || control === target) {
         unsupportedLines.push(idx + 1)
         return
@@ -69,7 +72,7 @@ export function qiskitToCircuit(code: string, qubits: number, maxSteps: number):
         unsupportedLines.push(idx + 1)
         return
       }
-      gates.push({ step, qubit: control, gate: "CNOT", target })
+      gates.push({ step, qubit: control, gate, target })
       nextStepForQubit[control] = step + 1
       nextStepForQubit[target] = step + 1
       return

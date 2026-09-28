@@ -16,6 +16,7 @@ function PaletteChip({ type }: { type: StudioGateType }) {
     <div className="relative">
       <button
         ref={setNodeRef}
+        data-testid={`palette-gate-${type}`}
         {...listeners}
         {...attributes}
         type="button"

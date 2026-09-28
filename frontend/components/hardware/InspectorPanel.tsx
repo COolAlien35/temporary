@@ -2,12 +2,14 @@
 
 import { Maximize2, Minimize2, Trash2 } from "lucide-react"
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import { getComponent } from "@/lib/hardware/components"
 import { LINES } from "@/lib/hardware/lines"
 import { CABLES } from "@/lib/hardware/cables"
 import { useHardware } from "@/store/use-hardware"
-import { ComponentViewer } from "@/components/hardware/three/ComponentViewer"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+const ComponentViewer = dynamic(() => import("@/components/hardware/three/ComponentViewer").then((module) => module.ComponentViewer), { ssr: false })
 
 export function InspectorPanel() {
   const [isViewerOpen, setIsViewerOpen] = useState(false)

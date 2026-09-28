@@ -1,13 +1,25 @@
 "use client"
 
 import { motion, useReducedMotion } from "motion/react"
-import { LEARNER, WEEK_NODES } from "@/lib/quantum-passport-data"
+import { useEffect, useState } from "react"
+import { useLearnerProgress } from "@/store/use-learner-progress"
 import { StreakEmbers } from "@/components/me/accents/StreakEmbers"
 import { WeekCircuit } from "@/components/me/accents/WeekCircuit"
 import { handleGlowPointerMove } from "@/lib/home-glow"
 
 export function StreakCard() {
   const reduceMotion = useReducedMotion()
+  const [mounted, setMounted] = useState(false)
+  const streak = useLearnerProgress((state) => state.streak)
+  const bestStreak = useLearnerProgress((state) => state.bestStreak)
+  const activityDays = useLearnerProgress((state) => state.activityDays)
+  useEffect(() => setMounted(true), [])
+  const WEEK_NODES = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (6 - index))
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+    return { day: date.toLocaleDateString("en", { weekday: "short" }), completed: mounted && activityDays.includes(key) }
+  })
   const currentDayIndex = WEEK_NODES.reduce((acc, n, i) => (n.completed ? i : acc), 0)
 
   return (
@@ -37,16 +49,16 @@ export function StreakCard() {
           </div>
           <div>
             <p className="text-3xl font-semibold text-white" style={{ fontFamily: "var(--font-space-grotesk)" }}>
-              {LEARNER.streak} <span className="text-base font-normal text-white/50">days</span>
+              {mounted ? streak : 0} <span className="text-base font-normal text-white/50">days</span>
             </p>
-            <p className="mt-0.5 text-xs text-white/45">Personal best: {LEARNER.bestStreak} days</p>
+            <p className="mt-0.5 text-xs text-white/45">{bestStreak ? `Personal best: ${bestStreak} days` : "Complete an activity to start your streak"}</p>
           </div>
         </div>
       </div>
 
       <div onPointerMove={handleGlowPointerMove} className="home-glow-card relative rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
         <p className="text-[11px] font-medium uppercase tracking-wide text-white/40">This week</p>
-        <svg viewBox="0 0 280 60" className="mt-3 h-14 w-full" role="img" aria-label="Weekly momentum: Monday through Friday completed, Saturday and Sunday pending">
+        <svg viewBox="0 0 280 60" className="mt-3 h-14 w-full" role="img" aria-label={`Weekly activity: ${WEEK_NODES.filter((node) => node.completed).length} active days out of 7`}>
           {WEEK_NODES.map((node, i) =>
             i < WEEK_NODES.length - 1 ? (
               <motion.line

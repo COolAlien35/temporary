@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.11.2'
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv lock --check
+      - run: uv sync --frozen
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      - run: uv run --frozen mypy
+      - run: uv run --frozen pytest -m 'not integration' --junitxml=reports/unit.xml
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backend-unit-report
+          path: backend/reports/
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - name: Upload browser reports and traces
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: frontend-test-report
+          path: reports/frontend/
+          retention-days: 14
+
+  containers:
+    name: Docker and integration checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Validate Compose
+        run: docker compose --profile web --profile test config --quiet
+      - name: Validate GitHub Actions workflows
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 -color
+      - name: Build and boot production images with dependencies
+        run: docker compose --profile web up --build --wait --wait-timeout 180
+      - name: Run complete backend suite against real services
+        run: docker compose --profile test run --build --rm test
+      - name: Check schema drift and repeatable migration
+        run: |
+          docker compose run --rm migrate alembic upgrade head
+          docker compose run --rm migrate alembic check
+      - name: Check HTTP entry points
+        run: |
+          curl --fail --retry 5 --retry-connrefused http://localhost:8000/api/v1/health/ready
+          curl --fail --output /dev/null http://localhost:3000
+      - name: Collect container logs
+        if: always()
+        run: |
+          mkdir -p reports
+          docker compose --profile web logs --no-color > reports/compose.log
+      - name: Upload integration results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: container-integration-report
+          path: reports/
+          retention-days: 14
+      - name: Clean up ephemeral CI services
+        if: always()
+        run: docker compose --profile web --profile test down --volumes --remove-orphans
+
+  required:
+    name: Required checks
+    if: always()
+    needs: [backend, frontend, containers]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Fail on any failed, cancelled, or skipped prerequisite
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          CONTAINERS: ${{ needs.containers.result }}
+        run: |
+          test "$BACKEND" = success
+          test "$FRONTEND" = success
+          test "$CONTAINERS" = success

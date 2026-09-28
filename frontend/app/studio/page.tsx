@@ -1,8 +1,9 @@
 "use client"
 
 import { Suspense, useEffect, useState } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { DndContext, type DragEndEvent } from "@dnd-kit/core"
+import { DndContext, DragOverlay, pointerWithin, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core"
 import { PanelLeftClose, PanelLeftOpen, PanelBottom, PanelRight } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/shared/AppShell"
@@ -58,6 +59,13 @@ function DeepLinkLoader() {
   return null
 }
 
+function StudioReturnLink() {
+  const searchParams = useSearchParams()
+  const returnTo = searchParams.get("returnTo")
+  if (!returnTo?.startsWith("/curriculum/") || returnTo.startsWith("//")) return null
+  return <Link href={returnTo} className="mb-4 inline-flex text-xs text-[#00D4FF] hover:text-white">← Return to your lesson</Link>
+}
+
 function SidebarTabs() {
   const [tab, setTab] = useState<"gates" | "templates" | "saved">("gates")
   return (
@@ -93,8 +101,15 @@ function StudioWorkbench() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [tutorOpen, setTutorOpen] = useState(false)
   const [dock, setDock] = useState<"right" | "bottom">("right")
+  const [draggedGate, setDraggedGate] = useState<StudioGateType | null>(null)
+
+  function handleDragStart(event: DragStartEvent) {
+    const data = event.active.data.current as { source?: string; gateType?: StudioGateType } | undefined
+    setDraggedGate(data?.source === "palette" ? data.gateType ?? null : null)
+  }
 
   function handleDragEnd(event: DragEndEvent) {
+    setDraggedGate(null)
     const { active, over } = event
     if (!over) return
     const overData = over.data.current as { step: number; qubit: number } | undefined
@@ -142,7 +157,7 @@ function StudioWorkbench() {
   }
 
   return (
-    <DndContext onDragEnd={handleDragEnd}>
+    <DndContext collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragCancel={() => setDraggedGate(null)} onDragEnd={handleDragEnd}>
       <div className="flex h-[78vh] min-h-[600px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
         <StudioToolbar onToggleTutor={() => setTutorOpen((v) => !v)} />
 
@@ -201,6 +216,10 @@ function StudioWorkbench() {
         <StatusBar />
       </div>
 
+      <DragOverlay dropAnimation={null}>
+        {draggedGate && <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-semibold shadow-lg", GATE_DEFS[draggedGate].color)}>{GATE_DEFS[draggedGate].symbol}</div>}
+      </DragOverlay>
+
       <div className="mt-3 lg:hidden">
         <details className="rounded-xl border border-white/10 bg-white/[0.02]">
           <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-white/70">Gate palette, templates &amp; saved circuits</summary>
@@ -223,6 +242,7 @@ export default function StudioPage() {
     <AppShell variant="studio">
       <Suspense fallback={null}>
         <DeepLinkLoader />
+        <StudioReturnLink />
       </Suspense>
       <div className="mb-4">
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: "var(--font-space-grotesk)" }}>

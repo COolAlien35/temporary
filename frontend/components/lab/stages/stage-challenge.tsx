@@ -5,9 +5,8 @@ import { ChevronRight, Target } from "lucide-react"
 import { useLab } from "@/lib/lab-context"
 import { StageHeader } from "@/components/lab/stage-header"
 import { GATE_COLORS, GATE_PALETTE, type GateType } from "@/lib/lab-data"
+import { getAlgorithmConfig } from "@/lib/algorithms"
 import { cn } from "@/lib/utils"
-
-const STEPS = 4
 
 const DIFFICULTY_COLORS: Record<string, string> = {
   EASY: "bg-emerald-500/15 text-emerald-400",
@@ -19,6 +18,8 @@ export function StageChallenge() {
   const { algorithm, gates, addGate, removeGate, submitChallenge, challengeSubmitted, challengeScore, goToStage } =
     useLab()
   const [selectedGate, setSelectedGate] = useState<GateType>("H")
+  const STEPS = algorithm.timesteps ?? 4
+  const availableGates = getAlgorithmConfig(algorithm.slug)?.build.gatePalette ?? GATE_PALETTE.map((item) => item.gate)
 
   const gateAt = (step: number, qubit: number) => gates.find((g) => g.step === step && g.qubit === qubit)
   const { challenge } = algorithm
@@ -34,7 +35,7 @@ export function StageChallenge() {
           </span>
         }
         action={
-          challengeSubmitted && (
+          challengeSubmitted && (challengeScore ?? 0) >= 70 && (
             <button
               type="button"
               onClick={() => goToStage(9)}
@@ -52,7 +53,7 @@ export function StageChallenge() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {GATE_PALETTE.map((item) => (
+        {GATE_PALETTE.filter((item) => availableGates.includes(item.gate)).map((item) => (
           <button
             key={item.gate}
             type="button"
@@ -86,6 +87,7 @@ export function StageChallenge() {
                   <button
                     key={step}
                     type="button"
+                    aria-label={(placed ? "Remove " : "Place ") + selectedGate + " on q" + qubit + " at step " + step}
                     onClick={() => (placed ? removeGate(placed.id) : addGate({ step, qubit, gate: selectedGate }))}
                     className={cn(
                       "flex h-11 items-center justify-center rounded-md border text-xs font-semibold transition-colors",
@@ -130,6 +132,7 @@ export function StageChallenge() {
         >
           <p className="text-2xl font-semibold text-foreground">{challengeScore}%</p>
           <p className="mt-1 text-xs text-muted-foreground">Optimization Efficiency Score</p>
+          <p className="mt-2 text-xs text-muted-foreground">{(challengeScore ?? 0) >= 70 ? "Target outcomes and gate budget satisfied." : "Target distribution or gate budget not satisfied. Edit the circuit to clear this attempt, then submit again."}</p>
         </div>
       )}
     </div>
