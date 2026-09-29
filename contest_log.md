@@ -35,3 +35,4 @@
 - 2026-09-29: Saved connected predictions at Predict lock time, reused them for exact Aer runs, and added owner-scoped unpaired prediction recovery; production build, connected service tests (9/9), and connected browser tests (5/5) passed.
 - 2026-09-29: Booted local PostgreSQL, Redis, API, and Aer worker; Docker suite passed 105 tests at 86.64% coverage, and CI log collection now handles container-owned reports. Remaining CI lint and schema drift are confined to excluded RAG files.
 - 2026-09-29: Extended the connected learner browser journey to recover a saved unpaired prediction after a completed round and verify its locked confidence can be reopened; focused Playwright test passed.
+- 2026-09-29: Built and booted the production frontend container alongside the healthy API and Aer worker; frontend returned HTTP 200 and API readiness returned ready on local ports 3300/8000.
