@@ -64,6 +64,7 @@ export interface LearnerIdentity {
 export interface AuthResult {
   user: LearnerIdentity
   mode: "demo" | "connected"
+  preferences?: LearningPreferences
 }
 
 export type ResetLinkState = "valid" | "expired" | "invalid" | "unavailable"

@@ -141,13 +141,14 @@ Implement migration infrastructure and the identity foundation first. The follow
 
 The current backend implements operator-only instructor promotion, cohort creation/listing, owner-controlled instructor assignment, member listing/removal, single-use email-bound learner invitations, and revision-protected self-profile/settings edits with an IANA timezone. Browser CORS now allows the required `If-Match` request header and exposes the `ETag` response header. Cohort APIs derive actors from verified tokens; password recovery, account workflows, connected assignments, and authorization for future resources are still open.
 
-The frontend now has an opt-in Supabase email/password signup and login path, canonical `/me` identity lookup, browser-session restore, token refresh through the provider SDK, and local-scope logout. Demo mode remains explicit. Live-provider verification, password recovery, profile/settings persistence, and connected feature screens are open; keep the full B04 acceptance item unchecked.
+The frontend now has an opt-in Supabase email/password signup and login path, canonical `/me` identity lookup, browser-session restore, token refresh through the provider SDK, local-scope logout, and revision-checked connected profile/settings saves. Demo mode remains explicit. Live-provider verification, password recovery, and other connected feature screens are open; keep the full B04 acceptance item unchecked.
 
 - [ ] Integrate provider signup, login, logout, session refresh, and password recovery through the provider's supported frontend flow.
 - [x] Wire config-gated Supabase email/password signup/login, email-confirmation pending state, backend-verified `/me` identity, SDK session restore/refresh, and local-scope logout. No connected identity is persisted in the demo session store. Password recovery and live multi-account verification remain open.
 - [ ] Verify JWT signature, issuer, audience, expiry, and key rotation in FastAPI and Socket.IO handshakes; define token expiry/revalidation for long connections.
 - [x] Create/update local profiles from verified identities. This implementation uses authenticated requests, not webhooks.
 - [x] Add self-profile and preferences APIs with timezone validation, `ETag`/`If-Match` revisions, and stale-write rejection.
+- [x] Load connected name and preferences from `/me` at sign-in and session restore; save settings with `If-Match`, reload after a 412 conflict, and keep demo settings browser-local.
 - [ ] Add account export/deletion workflows and session cleanup on sign-out.
 - [ ] Define learner/instructor permissions and an operator-controlled instructor provisioning path. Never accept instructor role selection from the demo UI.
 - [ ] Add cohort creation, instructor assignment, enrollment/invitation acceptance, and removal. Scope “all learners” assignments to an authorized cohort.
@@ -386,6 +387,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 - [x] Render the learner-safe versioned Superposition lesson in connected Learn before prediction, and show an accessible table of recent server-derived agreement, self-rated confidence, result basis, and shots in Observe.
 - [x] Pin a selected owned circuit revision in the connected Aer submission when its gates still match the editor; save a fresh immutable circuit snapshot after an edit. Verify both paths in service tests and the saved-revision path through the learner browser journey.
 - [x] Save the Superposition prediction and lesson session when the learner locks Predict, then reuse that immutable prediction for Aer submission. Recover a recent unpaired prediction through owner-scoped discovery after a local draft is lost.
+- [x] Connect Settings to the owned `/me` profile, including saved learning preferences, revision preconditions, conflict recovery, and account-scoped session hydration.
 - [ ] Add explicit demo/connected environment selection in `frontend/lib/services/index.ts`, authenticated requests, typed errors, and token-refresh behavior.
 - [ ] Set the API adapter base to `/api/v1`; replace provisional password APIs with managed-auth integration and update obsolete actor-ID/vote contracts.
 - [ ] Extend adapters and frontend stores for each backend feature. Replace direct local grading, mock tutor calls, coursework reads, and summary calculations in connected mode.

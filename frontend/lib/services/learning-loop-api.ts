@@ -1,8 +1,20 @@
 import type { StudioCircuit } from "@/lib/studio/types"
 import type { PredictionPair, PredictionSubmission } from "./contracts"
 import type { LearnerUnit } from "./contracts"
+import type { LearningPreferences } from "./contracts"
 
 export type Page<T> = { items: T[]; next_cursor: string | null }
+export type ConnectedProfile = {
+  id: string
+  email: string
+  name: string
+  role: "learner" | "instructor"
+  preferences: LearningPreferences
+  timezone: string
+  revision: number
+  created_at: string
+  updated_at: string
+}
 export type LearningSession = {
   id: string
   lesson_id: string
@@ -160,6 +172,13 @@ export function createLearningLoopApi(
   const sessionPath = (id: string) => `/learning-sessions/${encodeURIComponent(id)}`
 
   return {
+    getProfile: () => request<ConnectedProfile>("/me"),
+    updateProfile: (patch: { name?: string; preferences?: Partial<LearningPreferences> }, revision: number) =>
+      request<ConnectedProfile>("/me", {
+        method: "PATCH",
+        headers: { "If-Match": `"rev-${revision}"` },
+        body: JSON.stringify(patch),
+      }),
     getCurriculumUnit: (id: string) => request<LearnerUnit>(`/curriculum/units/${encodeURIComponent(id)}`),
     listSessions: (options?: { lessonId?: string; limit?: number; cursor?: string }) =>
       request<Page<LearningSession>>(pagePath("/learning-sessions", options)),

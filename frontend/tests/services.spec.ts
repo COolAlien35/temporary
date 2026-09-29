@@ -11,10 +11,10 @@ test('connected profile comes from the authenticated backend response', async ()
   const calls: Array<{ url: string; init?: RequestInit }> = []
   const backend = (async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), init })
-    return Response.json({ id: 'server-user', name: 'Verified Learner', email: 'learner@example.edu', role: 'learner' })
+    return Response.json({ id: 'server-user', name: 'Verified Learner', email: 'learner@example.edu', role: 'learner', preferences: { focus: 'algorithms', pace: 'self-paced', reduceMotion: true } })
   }) as typeof fetch
   const result = await profileForToken('current-token', backend, 'https://api.example.test/')
-  expect(result).toEqual({ mode: 'connected', user: { id: 'server-user', name: 'Verified Learner', email: 'learner@example.edu', role: 'learner' } })
+  expect(result).toEqual({ mode: 'connected', user: { id: 'server-user', name: 'Verified Learner', email: 'learner@example.edu', role: 'learner' }, preferences: { focus: 'algorithms', pace: 'self-paced', reduceMotion: true } })
   expect(calls[0].url).toBe('https://api.example.test/api/v1/me')
   expect(calls[0].init?.credentials).toBe('omit')
   expect(calls[0].init?.headers).toMatchObject({ Authorization: 'Bearer current-token' })
@@ -23,6 +23,22 @@ test('connected profile comes from the authenticated backend response', async ()
   await expect(profileForToken('token', invalid, 'https://api.example.test')).rejects.toThrow('Invalid account profile')
   const forbidden = (async () => Response.json({ error: { code: 'forbidden', message: 'Denied' } }, { status: 403 })) as typeof fetch
   await expect(profileForToken('token', forbidden, 'https://api.example.test')).rejects.toMatchObject({ status: 403, code: 'forbidden' })
+})
+
+test('connected settings read and patch the owned profile with a revision precondition', async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = []
+  const profile = { id: 'owner', email: 'owner@example.test', name: 'Owner', role: 'learner', revision: 4, timezone: 'UTC', preferences: { focus: 'foundations', pace: 'guided', reduceMotion: false } }
+  const fetcher = (async (url: string | URL | Request, init: RequestInit = {}) => {
+    calls.push({ url: String(url), init })
+    return Response.json(profile)
+  }) as typeof fetch
+  const api = createLearningLoopApi('https://api.example.test/api/v1', async () => 'current-token', fetcher)
+  expect((await api.getProfile()).revision).toBe(4)
+  await api.updateProfile({ name: 'New name', preferences: { pace: 'self-paced' } }, 4)
+  expect(calls.map((call) => call.url)).toEqual(['https://api.example.test/api/v1/me', 'https://api.example.test/api/v1/me'])
+  expect(calls[1].init.method).toBe('PATCH')
+  expect(calls[1].init.headers).toMatchObject({ Authorization: 'Bearer current-token', 'If-Match': '"rev-4"' })
+  expect(JSON.parse(String(calls[1].init.body))).toEqual({ name: 'New name', preferences: { pace: 'self-paced' } })
 })
 
 test('prediction percentages convert to ordered wire probabilities', () => {
