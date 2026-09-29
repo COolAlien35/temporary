@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException
 
+from app.core.body_limit import RequestBodyLimitMiddleware
 from app.core.config import Settings, get_settings
 from app.core.errors import ApiHTTPException
 from app.db.session import build_engine, get_engine
@@ -48,6 +49,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application = FastAPI(title="QuantumLoop API", version="0.1.0", lifespan=lifespan)
     application.dependency_overrides[get_settings] = lambda: configuration
     application.dependency_overrides[get_engine] = lambda: engine
+    application.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=configuration.max_request_body_bytes,
+        error_response=error_response,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=configuration.cors_origins,

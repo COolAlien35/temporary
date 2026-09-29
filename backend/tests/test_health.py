@@ -4,6 +4,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.exc import OperationalError
@@ -94,6 +95,26 @@ def test_validation_error_does_not_echo_input():
         response = client.get("/validated?count=secret-value")
     assert response.status_code == 422
     assert "secret-value" not in response.text
+
+
+def test_request_body_limit_replays_valid_body_and_rejects_oversized_streams():
+    app = create_app(Settings(max_request_body_bytes=1024))
+
+    @app.post("/echo")
+    async def echo(request: Request) -> dict[str, int]:
+        return {"size": len(await request.body())}
+
+    with TestClient(app) as client:
+        valid = client.post("/echo", content=b"x" * 1024)
+        oversized = client.post("/echo", content=b"secret" * 200)
+        streamed = client.post("/echo", content=iter([b"x" * 600, b"secret" * 100]))
+    assert valid.status_code == 200
+    assert valid.json() == {"size": 1024}
+    for response in (oversized, streamed):
+        assert response.status_code == 413
+        assert response.json()["error"]["code"] == "request_too_large"
+        assert response.json()["error"]["requestId"] == response.headers["X-Request-ID"]
+        assert "secret" not in response.text
 
 
 def test_cors_allows_only_configured_origins():

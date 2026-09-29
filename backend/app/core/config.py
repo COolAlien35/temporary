@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     auth_issuer: str | None = None
     auth_audience: str = "authenticated"
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    max_request_body_bytes: int = Field(default=262_144, ge=1024, le=10_485_760)
     db_pool_size: int = Field(default=5, ge=1, le=50)
     db_max_overflow: int = Field(default=5, ge=0, le=50)
     worker_db_pool_size: int = Field(default=2, ge=1, le=20)

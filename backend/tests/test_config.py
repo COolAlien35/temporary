@@ -14,6 +14,7 @@ from app.core.config import Settings
         {"db_pool_size": 0},
         {"worker_db_pool_size": 0},
         {"worker_db_max_overflow": -1},
+        {"max_request_body_bytes": 1023},
         {"environment": "production"},
         {"environment": "production", "database_url": "postgresql+psycopg://user:pass@db/prod"},
     ],
