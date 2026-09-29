@@ -107,6 +107,7 @@ jobs:
       - name: Collect container logs
         if: always()
         run: |
+          if [ -d reports ]; then sudo chown -R "$(id -u):$(id -g)" reports; fi
           mkdir -p reports
           docker compose --profile web logs --no-color > reports/compose.log
       - name: Upload integration results
