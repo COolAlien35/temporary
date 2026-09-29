@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useLab } from "@/lib/lab-context"
 import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
-import { latestConnectedSuperposition, newConnectedLabKeys, runConnectedSuperposition, type ConnectedLabInput, type ConnectedLabKeys } from "@/lib/services/connected-lab-run"
+import { RECENT_COMPARISON_EMPTY_MESSAGE, latestConnectedSuperposition, newConnectedLabKeys, runConnectedSuperposition, type ConnectedLabInput, type ConnectedLabKeys } from "@/lib/services/connected-lab-run"
 import { StageHeader } from "./stage-header"
 import { useSession } from "@/store/use-session"
 
@@ -77,7 +77,7 @@ export function ConnectedAerRun() {
       if (saved) {
         showConnectedResult(saved)
       } else {
-        setStatus("No completed superposition comparison was found in your ten most recent sessions.")
+        setStatus(RECENT_COMPARISON_EMPTY_MESSAGE)
       }
     } catch (cause) {
       if (mounted.current && sameOwner()) setError(cause instanceof Error ? cause.message : "Could not load saved comparisons.")

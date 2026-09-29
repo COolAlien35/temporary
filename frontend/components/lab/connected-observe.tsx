@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useLab } from "@/lib/lab-context"
 import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
-import { ConnectedRunUnavailableError, connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition } from "@/lib/services/connected-lab-run"
+import { ConnectedRunUnavailableError, RECENT_COMPARISON_EMPTY_MESSAGE, connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition } from "@/lib/services/connected-lab-run"
 import { useSession } from "@/store/use-session"
 import { StageHeader } from "./stage-header"
 import { ConnectedRoundHistory } from "./connected-round-history"
@@ -51,7 +51,7 @@ export function ConnectedObserve() {
   return <div className="mx-auto max-w-3xl">
     <StageHeader eyebrow="Stage 5 of 9 · Verified Observation" title="Prediction vs. Actual" />
     <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">
-      {loading ? "Loading your saved Aer comparison…" : pair ? `Saved Aer comparison ready. Prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? "No completed Superposition comparison was found in your ten most recent sessions." : runUnavailable?.message || error || "Run the circuit on Aer to compare your prediction."}
+      {loading ? "Loading your saved Aer comparison…" : pair ? `Saved Aer comparison ready. Prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? RECENT_COMPARISON_EMPTY_MESSAGE : runUnavailable?.message || error || "Run the circuit on Aer to compare your prediction."}
     </p>
     {(error || runUnavailable) && <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">{runUnavailable?.kind === "pending" ? "Check again" : "Retry"}</button>}
     {runUnavailable && runUnavailable.kind !== "pending" && <button type="button" onClick={() => goToStage(4)} className="mt-4 ml-3 rounded-full border border-border px-4 py-2 text-sm font-semibold">Find another saved run</button>}

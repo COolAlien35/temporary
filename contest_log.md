@@ -21,3 +21,4 @@
 - 2026-09-29: Named prediction/confidence sliders and verified keyboard-edited probabilities reach the saved Aer comparison table; TypeScript, build, and connected tests (3/3) passed, while the full browser suite had one Studio drag failure (100/101) that passed alone.
 - 2026-09-29: Made saved-run links report queued, failed, unavailable, and completed Aer comparison states with recheck and live status; TypeScript, build, connected browser tests (4/4), and full browser suite (101/101) passed.
 - 2026-09-29: Rejected mismatched saved-run and pair IDs before showing a comparison or tutor action, with saved-run discovery recovery; TypeScript, build, focused contract test, and connected browser tests (4/4) passed.
+- 2026-09-29: Extended recent saved-comparison recovery across bounded owner-scoped session and prediction pages, with accurate empty-state copy and cursor-contract coverage; TypeScript and connected service tests (5/5) passed.

@@ -33,21 +33,37 @@ export function newConnectedLabKeys(): ConnectedLabKeys {
   return { session: crypto.randomUUID(), prediction: crypto.randomUUID(), circuit: crypto.randomUUID(), run: crypto.randomUUID() }
 }
 
+const RECOVERY_PAGE_SIZE = 10
+const RECOVERY_MAX_PAGES = 5
+export const RECENT_COMPARISON_EMPTY_MESSAGE = "No completed Superposition comparison was found in the latest 50 sessions (up to 50 predictions each)."
+
 /** Find a recent completed superposition pair using owner-scoped backend discovery. */
 export async function latestConnectedSuperposition(api: Api): Promise<ConnectedLabResult | null> {
-  const sessions = await api.listSessions({ lessonId: "u1-quantum-foundations", limit: 10 })
-  for (const session of sessions.items) {
-    const predictions = await api.listPredictions(session.id, { limit: 10 })
-    for (const prediction of predictions.items) {
-      if (prediction.pairing_status !== "paired" || !prediction.run_id) continue
-      const run = await api.getRun(prediction.run_id)
-      if (run.status !== "succeeded") continue
-      const pair = await api.getPair(prediction.id)
-      if (pair.run_id !== run.id || pair.prediction_id !== prediction.id) {
-        throw new ConnectedRunUnavailableError("mismatch", "This saved comparison does not match its run. Try another saved run.")
+  let sessionCursor: string | undefined
+  for (let sessionPage = 0; sessionPage < RECOVERY_MAX_PAGES; sessionPage++) {
+    const sessions = await api.listSessions({ lessonId: "u1-quantum-foundations", limit: RECOVERY_PAGE_SIZE, cursor: sessionCursor })
+    for (const session of sessions.items) {
+      let predictionCursor: string | undefined
+      for (let predictionPage = 0; predictionPage < RECOVERY_MAX_PAGES; predictionPage++) {
+        const predictions = await api.listPredictions(session.id, { limit: RECOVERY_PAGE_SIZE, cursor: predictionCursor })
+        for (const prediction of predictions.items) {
+          if (prediction.pairing_status !== "paired" || !prediction.run_id) continue
+          const run = await api.getRun(prediction.run_id)
+          if (run.status !== "succeeded") continue
+          const pair = await api.getPair(prediction.id)
+          if (pair.run_id !== run.id || pair.prediction_id !== prediction.id) {
+            throw new ConnectedRunUnavailableError("mismatch", "This saved comparison does not match its run. Try another saved run.")
+          }
+          return { pair, run, learningSessionId: session.id }
+        }
+        if (!predictions.next_cursor) break
+        if (predictions.next_cursor === predictionCursor) throw new Error("Saved prediction list did not advance. Please retry.")
+        predictionCursor = predictions.next_cursor
       }
-      return { pair, run, learningSessionId: session.id }
     }
+    if (!sessions.next_cursor) break
+    if (sessions.next_cursor === sessionCursor) throw new Error("Saved session list did not advance. Please retry.")
+    sessionCursor = sessions.next_cursor
   }
   return null
 }

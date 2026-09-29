@@ -77,6 +77,43 @@ test("recent connected comparison is recovered through owner-scoped session and 
   ])
 })
 
+test("recent comparison search follows session and prediction cursors", async () => {
+  const calls: string[] = []
+  const fetcher = (async (url: string | URL | Request) => {
+    const request = new URL(String(url))
+    calls.push(`${request.pathname}${request.search}`)
+    if (request.pathname.endsWith("/learning-sessions")) {
+      return Response.json(request.searchParams.get("cursor")
+        ? { items: [{ id: "older-session" }], next_cursor: null }
+        : { items: [{ id: "newer-session" }], next_cursor: "newer-session" })
+    }
+    if (request.pathname.endsWith("/learning-sessions/newer-session/predictions")) {
+      return Response.json({ items: [{ id: "newer-unpaired", pairing_status: "unpaired", run_id: null }], next_cursor: null })
+    }
+    if (request.pathname.endsWith("/learning-sessions/older-session/predictions")) {
+      return Response.json(request.searchParams.get("cursor")
+        ? { items: [{ id: "older-paired", pairing_status: "paired", run_id: "older-run" }], next_cursor: null }
+        : { items: [{ id: "older-unpaired", pairing_status: "unpaired", run_id: null }], next_cursor: "older-unpaired" })
+    }
+    if (request.pathname.endsWith("/experiments/runs/older-run")) return Response.json({ id: "older-run", status: "succeeded" })
+    if (request.pathname.endsWith("/predictions/older-paired/pair")) return Response.json({ prediction_id: "older-paired", run_id: "older-run", prediction_match: 0.9 })
+    return new Response(null, { status: 404 })
+  }) as typeof fetch
+  const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
+  const saved = await latestConnectedSuperposition(api)
+  expect(saved?.learningSessionId).toBe("older-session")
+  expect(saved?.pair.prediction_match).toBe(0.9)
+  expect(calls).toEqual([
+    "/api/v1/learning-sessions?limit=10&lesson_id=u1-quantum-foundations",
+    "/api/v1/learning-sessions/newer-session/predictions?limit=10",
+    "/api/v1/learning-sessions?limit=10&cursor=newer-session&lesson_id=u1-quantum-foundations",
+    "/api/v1/learning-sessions/older-session/predictions?limit=10",
+    "/api/v1/learning-sessions/older-session/predictions?limit=10&cursor=older-unpaired",
+    "/api/v1/experiments/runs/older-run",
+    "/api/v1/predictions/older-paired/pair",
+  ])
+})
+
 test("exact run lookup rejects mismatched pairs and stale editor gates", async () => {
   const runId = "cc5c8e0f-b7c4-495f-83a8-52ed54e430bd"
   const predictionId = "c7b86b70-f6d3-4b84-a772-183015075eaa"
