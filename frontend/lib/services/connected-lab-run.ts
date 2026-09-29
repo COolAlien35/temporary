@@ -1,7 +1,7 @@
 import type { GatePlacement } from "@/lib/lab-data"
 import type { StudioCircuit } from "@/lib/studio/types"
 import type { PredictionPair } from "./contracts"
-import { createLearningLoopApi, LearningLoopApiError, type SavedRun } from "./learning-loop-api"
+import { createLearningLoopApi, LearningLoopApiError, type CircuitRecord, type SavedRun } from "./learning-loop-api"
 import { percentConfidenceToUnit, percentagesToPredictionVector } from "./prediction-vector"
 
 type Api = ReturnType<typeof createLearningLoopApi>
@@ -11,6 +11,7 @@ export type ConnectedLabInput = {
   confidence: number
   gates: GatePlacement[]
   shots: number
+  savedCircuit?: CircuitRecord | null
 }
 
 export type ConnectedLabKeys = {
@@ -130,6 +131,14 @@ function circuitFromGates(gates: GatePlacement[]): StudioCircuit {
   }
 }
 
+function matchesSavedCircuit(gates: GatePlacement[], saved: CircuitRecord): boolean {
+  if (saved.snapshot.qubits !== 2 || saved.snapshot.gates.some((gate) => gate.theta !== undefined || gate.control2 !== undefined)) return false
+  const signature = (items: StudioCircuit["gates"]) => items
+    .map((gate) => `${gate.id}:${gate.type}:${gate.step}:${gate.qubit}:${gate.target ?? ""}`)
+    .sort()
+  return JSON.stringify(signature(circuitFromGates(gates).gates)) === JSON.stringify(signature(saved.snapshot.gates))
+}
+
 async function pause(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) throw new DOMException("Operation cancelled", "AbortError")
   await new Promise<void>((resolve, reject) => {
@@ -180,8 +189,9 @@ export async function runConnectedSuperposition(
     confidence,
   }, keys.prediction)
   ensureActive(signal)
-  onStatus("Saving the exact circuit…")
-  const saved = await api.createCircuit(circuit, keys.circuit)
+  const reuseSaved = input.savedCircuit && matchesSavedCircuit(input.gates, input.savedCircuit)
+  onStatus(reuseSaved ? "Using the selected saved circuit revision…" : "Saving the exact circuit…")
+  const saved = reuseSaved && input.savedCircuit ? input.savedCircuit : await api.createCircuit(circuit, keys.circuit)
   ensureActive(signal)
   onStatus("Submitting the Aer run…")
   const accepted = await api.submitRun({

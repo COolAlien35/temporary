@@ -14,6 +14,7 @@ import { getAlgorithmConfig } from "@/lib/algorithms"
 import { runCircuit } from "@/lib/sim/run-circuit"
 import type { SimResult, StudioGate } from "@/lib/studio/types"
 import type { ConnectedLabResult } from "@/lib/services/connected-lab-run"
+import type { CircuitRecord } from "@/lib/services/learning-loop-api"
 import { useLearnerProgress } from "@/store/use-learner-progress"
 import { useSession } from "@/store/use-session"
 
@@ -50,6 +51,8 @@ interface LabState {
   resultsStale: boolean
   simulationError: string
   connectedResult: ConnectedLabResult | null
+  savedCircuit: CircuitRecord | null
+  rememberSavedCircuit: (circuit: CircuitRecord) => void
   connectedRunMode: boolean
   rememberConnectedResult: (result: ConnectedLabResult) => void
   showConnectedResult: (result: ConnectedLabResult) => void
@@ -147,6 +150,8 @@ export function LabProvider({
   const [lastRunGates, setLastRunGates] = useState<GatePlacement[]>([])
   const [simulationError, setSimulationError] = useState("")
   const [connectedResult, setConnectedResult] = useState<ConnectedLabResult | null>(null)
+  const [savedCircuit, setSavedCircuit] = useState<CircuitRecord | null>(null)
+  const [savedCircuitOwnerId, setSavedCircuitOwnerId] = useState<string | null>(null)
   const [connectedResultOwnerId, setConnectedResultOwnerId] = useState<string | null>(null)
   const [hydratedSessionKey, setHydratedSessionKey] = useState<string | null>(null)
   const learnerId = useSession((state) => state.user?.id ?? null)
@@ -160,7 +165,12 @@ export function LabProvider({
   const recordCalibration = useLearnerProgress((state) => state.addCalibration)
   const resultsStale = hasRun && JSON.stringify(gates) !== JSON.stringify(lastRunGates)
 
-  useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null) }, [learnerId, algorithm.slug])
+  useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null); setSavedCircuit(null); setSavedCircuitOwnerId(null) }, [learnerId, algorithm.slug])
+
+  const rememberSavedCircuit = useCallback((circuit: CircuitRecord) => {
+    setSavedCircuit(circuit)
+    setSavedCircuitOwnerId(learnerId)
+  }, [learnerId])
 
   const rememberConnectedResult = useCallback((result: ConnectedLabResult) => {
     setConnectedResult(result)
@@ -186,6 +196,7 @@ export function LabProvider({
     window.history.replaceState(window.history.state, "", url)
   }, [])
   const currentConnectedResult = connectedResultOwnerId === learnerId ? connectedResult : null
+  const currentSavedCircuit = savedCircuitOwnerId === learnerId ? savedCircuit : null
 
   useEffect(() => {
     setHydratedSessionKey(null)
@@ -458,6 +469,8 @@ export function LabProvider({
     setSimulationError("")
     setConnectedResult(null)
     setConnectedResultOwnerId(null)
+    setSavedCircuit(null)
+    setSavedCircuitOwnerId(null)
   }, [algorithm.basisStates])
 
   const value: LabContextValue = {
@@ -490,6 +503,8 @@ export function LabProvider({
     resultsStale,
     simulationError,
     connectedResult: currentConnectedResult,
+    savedCircuit: currentSavedCircuit,
+    rememberSavedCircuit,
     connectedRunMode,
     rememberConnectedResult,
     showConnectedResult,

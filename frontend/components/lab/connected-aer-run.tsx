@@ -11,7 +11,7 @@ import { useSession } from "@/store/use-session"
 const SHOTS = [128, 512, 1024, 4096]
 
 export function ConnectedAerRun() {
-  const { gates, hypothesis, confidence, shots, setShots, predictionLocked, connectedResult, showConnectedResult, openConnectedRun } = useLab()
+  const { gates, hypothesis, confidence, shots, setShots, predictionLocked, savedCircuit, connectedResult, showConnectedResult, openConnectedRun } = useLab()
   const learnerId = useSession((state) => state.user?.id ?? null)
   const api = useMemo(() => connectedLearningLoopApi(), [])
   const [pending, setPending] = useState(false)
@@ -22,7 +22,7 @@ export function ConnectedAerRun() {
   const operation = useRef<{ signature: string; input: ConnectedLabInput; keys: ConnectedLabKeys } | null>(null)
   const controller = useRef<AbortController | null>(null)
   const mounted = useRef(true)
-  const currentSignature = JSON.stringify({ gates, hypothesis, confidence, shots })
+  const currentSignature = JSON.stringify({ gates, hypothesis, confidence, shots, savedCircuit: savedCircuit ? [savedCircuit.id, savedCircuit.revision] : null })
 
   useEffect(() => {
     mounted.current = true
@@ -52,7 +52,7 @@ export function ConnectedAerRun() {
       if (!operation.current || operation.current.signature !== currentSignature) {
         operation.current = {
           signature: currentSignature,
-          input: { gates: gates.map((gate) => ({ ...gate })), hypothesis: { ...hypothesis }, confidence, shots },
+          input: { gates: gates.map((gate) => ({ ...gate })), hypothesis: { ...hypothesis }, confidence, shots, savedCircuit },
           keys: newConnectedLabKeys(),
         }
       }
@@ -107,6 +107,7 @@ export function ConnectedAerRun() {
   return <div className="mx-auto max-w-2xl">
     <StageHeader eyebrow="Stage 4 of 9 · Connected Execution" title="Run on Qiskit Aer" />
     <p className="mb-5 text-sm text-muted-foreground">Your locked prediction, circuit snapshot, and Aer result will be saved to your account. This path currently supports the Superposition lab.</p>
+    {savedCircuit && <p className="mb-4 text-xs text-muted-foreground">Selected library circuit: {savedCircuit.snapshot.name}, revision {savedCircuit.revision}. The run will use this revision if its gates still match the editor.</p>}
     <div className="rounded-xl border border-border bg-card/60 p-5">
       <h3 className="text-sm font-semibold">Measurement shots</h3>
       <div className="mt-3 flex flex-wrap gap-2">{SHOTS.map((count) => <button key={count} type="button" disabled={pending} onClick={() => setShots(count)} aria-pressed={shots === count} className={`rounded-md border px-3.5 py-1.5 text-sm ${shots === count ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground"}`}>{count.toLocaleString()}</button>)}</div>

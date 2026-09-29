@@ -130,7 +130,12 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
     if (request.method() === "POST") writes.push({ path, body: request.postDataJSON() as Record<string, unknown>, key: request.headers()["idempotency-key"] })
     if (path === "/api/v1/learning-sessions" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentSession, lesson_id: "u1-quantum-foundations", lesson_version: 1 } })
     if (path === `/api/v1/learning-sessions/${ids.currentSession}/predictions` && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentPrediction } })
-    if (path === "/api/v1/circuits" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: "99999999-9999-4999-8999-999999999999", revision: 1 } })
+    if (path === "/api/v1/circuits" && request.method() === "GET") return route.fulfill({ headers: cors, json: { items: [], next_cursor: null } })
+    if (path === "/api/v1/circuits" && request.method() === "POST") return route.fulfill({ headers: cors, json: {
+      id: "99999999-9999-4999-8999-999999999999", revision: 1,
+      snapshot: { schema_version: 1, ...request.postDataJSON() as Record<string, unknown> },
+      checksum_sha256: "a".repeat(64), created_at: "2026-09-29T12:00:00Z", updated_at: "2026-09-29T12:00:00Z",
+    } })
     if (path === "/api/v1/experiments/runs" && request.method() === "POST") return route.fulfill({ headers: cors, json: { resource_id: ids.currentRun, status: "queued" } })
     if (path === `/api/v1/experiments/runs/${ids.currentRun}`) return route.fulfill({ headers: cors, json: {
       id: ids.currentRun, status: ++polls === 1 ? "queued" : "succeeded", prediction_id: ids.currentPrediction,
@@ -173,19 +178,22 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await expect(page.getByRole("slider", { name: "Prediction confidence" })).toHaveAttribute("aria-valuetext", /percent/)
   await page.getByRole("button", { name: "Lock Prediction & Arm Simulation Gate" }).click()
   await page.getByRole("button", { name: "Place H on q0 at step 0" }).click()
+  await page.getByRole("region", { name: "Saved circuit library" }).getByRole("button", { name: "Save circuit" }).click()
+  await expect(page.getByText("Saved Superposition circuit, revision 1.")).toBeVisible()
   await page.getByRole("button", { name: "Proceed to Run →" }).click()
+  await expect(page.getByText("Selected library circuit: Superposition circuit, revision 1.")).toBeVisible()
   await page.getByRole("button", { name: "Save prediction and run on Aer" }).click()
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).toBeVisible()
   await expect(page.getByRole("table", { name: /Server-derived outcome comparison/ })).toBeVisible()
   await expect(page.getByRole("row", { name: "|00⟩ 26.0% 50.0% +24.0 pts" })).toBeVisible()
   expect(polls).toBeGreaterThanOrEqual(2)
   expect(writes.map((item) => item.path)).toEqual([
-    "/api/v1/learning-sessions", `/api/v1/learning-sessions/${ids.currentSession}/predictions`, "/api/v1/circuits", "/api/v1/experiments/runs",
+    "/api/v1/circuits", "/api/v1/learning-sessions", `/api/v1/learning-sessions/${ids.currentSession}/predictions`, "/api/v1/experiments/runs",
   ])
   expect(writes.every((item) => Boolean(item.key))).toBe(true)
-  expect(writes[1].body).toMatchObject({ learning_session_id: ids.currentSession, prediction_vector: [0.26, 0.24, 0.25, 0.25] })
-  expect(writes[2].body).toMatchObject({ qubits: 2, gates: [expect.objectContaining({ type: "H", step: 0, qubit: 0 })] })
-  expect(writes[3].body).toMatchObject({ prediction_id: ids.currentPrediction, circuit_revision: 1, backend: "qiskit_aer" })
+  expect(writes[0].body).toMatchObject({ qubits: 2, gates: [expect.objectContaining({ type: "H", step: 0, qubit: 0 })] })
+  expect(writes[2].body).toMatchObject({ learning_session_id: ids.currentSession, prediction_vector: [0.26, 0.24, 0.25, 0.25] })
+  expect(writes[3].body).toMatchObject({ prediction_id: ids.currentPrediction, circuit_id: "99999999-9999-4999-8999-999999999999", circuit_revision: 1, backend: "qiskit_aer" })
   await page.getByRole("button", { name: "Discuss this run with Lab Partner →" }).click()
   await page.getByRole("button", { name: "Explain", exact: true }).click()
   await expect(page.getByText("Your saved prediction gave equal weight to all four outcomes.")).toBeVisible()

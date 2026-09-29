@@ -30,3 +30,4 @@
 - 2026-09-29: Showed server agreement in connected lab, exposed accepted Aer run status during polling, and blocked local grading/preview screens from connected mode; production build, connected service tests (6/6), and connected browser tests (5/5) passed.
 - 2026-09-29: Added learner-safe versioned lesson content to connected Learn and an accessible server agreement history table in Observe, keeping self-rated confidence separate; TypeScript, production build, and connected browser tests (5/5) passed.
 - 2026-09-29: Added a synchronized readable gate sequence to guided Build with grid-focus/removal actions and live count; TypeScript, production build, and focused connected browser keyboard check passed.
+- 2026-09-29: Connected saved Build-stage circuit revisions directly to Aer submission when gates match, with fresh immutable snapshots after edits; TypeScript, production build, connected service tests (7/7), and browser tests (5/5) passed.

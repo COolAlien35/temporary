@@ -9,7 +9,7 @@ import type { CircuitRecord, CircuitSummary } from "@/lib/services/learning-loop
 import { useSession } from "@/store/use-session"
 
 export function ConnectedCircuitLibrary({ allowedGates, steps }: { allowedGates: GateType[]; steps: number }) {
-  const { gates, replaceGates } = useLab()
+  const { gates, replaceGates, rememberSavedCircuit } = useLab()
   const learnerId = useSession((state) => state.user?.id ?? null)
   const [name, setName] = useState("Superposition circuit")
   const [selected, setSelected] = useState<CircuitRecord | null>(null)
@@ -71,6 +71,7 @@ export function ConnectedCircuitLibrary({ allowedGates, steps }: { allowedGates:
         ...(gate.target === undefined ? {} : { target: gate.target }),
       }))
       replaceGates(loaded)
+      rememberSavedCircuit(circuit)
       setSelected(circuit)
       setName(snapshot.name)
       setStatus(`Opened ${snapshot.name}, revision ${circuit.revision}. The editor now uses this saved circuit.`)
@@ -102,6 +103,7 @@ export function ConnectedCircuitLibrary({ allowedGates, steps }: { allowedGates:
         : await api.createCircuit(body, crypto.randomUUID())
       if (!sameOwner()) return
       setSelected(saved)
+      rememberSavedCircuit(saved)
       setName(saved.snapshot.name)
       setStatus(`Saved ${saved.snapshot.name}, revision ${saved.revision}. This circuit is available from your account.`)
       setReload((value) => value + 1)
