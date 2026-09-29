@@ -11,7 +11,7 @@ const ids = {
   tutorMessage: "88888888-8888-4888-8888-888888888888",
 }
 
-test("connected learner reopens a prior Aer round and reloads its run-bound tutor reply", async ({ page }) => {
+test("connected learner opens another saved run in Explain and reloads its run-bound tutor reply", async ({ page }) => {
   const token = `${Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: ids.user, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.test-signature`
   const user = { id: ids.user, aud: "authenticated", role: "authenticated", email: "learner@example.test", app_metadata: {}, user_metadata: {}, created_at: "2026-09-29T00:00:00Z" }
   const savedMessages: Record<string, unknown>[] = []
@@ -79,12 +79,20 @@ test("connected learner reopens a prior Aer round and reloads its run-bound tuto
   await expect(page.getByRole("region", { name: "Recent saved Superposition rounds" }).getByRole("button", { name: /75\.0% agreement · Open/ })).toBeVisible()
   await page.getByRole("button", { name: /75\.0% agreement · Open/ }).click()
   await expect(page.getByText(`Run ID: ${ids.olderRun}`)).toBeVisible()
+  await expect(page).toHaveURL(new RegExp(`run=${ids.olderRun}`))
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 75.0 percent.")).toBeVisible()
   await page.getByRole("button", { name: "Discuss this run with Lab Partner →" }).click()
+  await expect(page).toHaveURL(new RegExp(`run=${ids.olderRun}`))
   await page.getByRole("button", { name: "What changed?" }).click()
   await expect(page.getByText("The 00 outcome increased in this saved run.")).toBeVisible()
   expect(tutorPosts).toHaveLength(1)
   expect(tutorPosts[0]).toEqual({ action: "changed", stage: "discuss", prompt: "Which outcomes changed most from my prediction?", run_id: ids.olderRun })
+  await page.goto(`/lab/superposition?stage=6&run=${ids.currentRun}`)
+  await expect(page.getByText("Server-derived prediction agreement 98.0 percent.")).toBeVisible()
+  await expect(page.getByText(`Saved run: ${ids.currentRun}`)).toBeVisible()
+  await expect(page.getByText("The 00 outcome increased in this saved run.")).not.toBeVisible()
+  await page.getByRole("button", { name: "Explain", exact: true }).click()
+  expect(tutorPosts[1]).toMatchObject({ action: "explain", run_id: ids.currentRun })
   await page.reload()
   await expect(page.getByText("The 00 outcome increased in this saved run.")).toBeVisible()
 })

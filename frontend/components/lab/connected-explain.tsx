@@ -12,15 +12,15 @@ import { StageHeader } from "./stage-header"
 export function ConnectedExplain() {
   const { connectedResult, gates, advanceStage } = useLab()
   const learnerId = useSession((state) => state.user?.id ?? null)
+  const runId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("run")
   const [recovered, setRecovered] = useState<ConnectedLabResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
-    if (!learnerId || connectedResult) return
+    if (!learnerId || (connectedResult && (!runId || connectedResult.run.id.toLowerCase() === runId.toLowerCase()))) return
     let active = true
-    const runId = new URLSearchParams(window.location.search).get("run")
     setLoading(true)
     setError("")
     void (runId ? connectedSuperpositionForRun(connectedLearningLoopApi(), runId) : latestConnectedSuperposition(connectedLearningLoopApi()))
@@ -28,9 +28,10 @@ export function ConnectedExplain() {
       .catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Could not load the saved run.") })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [connectedResult, learnerId, reload])
+  }, [connectedResult, learnerId, reload, runId])
 
-  const result = connectedResult ?? recovered
+  const matchesRun = (result: ConnectedLabResult | null) => result && (!runId || result.run.id.toLowerCase() === runId.toLowerCase()) ? result : null
+  const result = matchesRun(connectedResult) ?? matchesRun(recovered)
   const pair = result?.pair
   const run = result?.run
 
