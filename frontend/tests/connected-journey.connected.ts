@@ -127,6 +127,8 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
       id: "u1", title: "Quantum Foundations", content_version: 1, review_status: "faculty-reviewed", is_placeholder: false,
       lessons: [{ id: "u1-quantum-foundations", title: "Verified Superposition Lesson", sections: [{ type: "paragraph", text: "The server lesson explains a Hadamard on q0." }], takeaways: ["Compare the saved measurement with your prediction."] }],
     } })
+    if (path === "/api/v1/learning-sessions" && request.method() === "GET") return route.fulfill({ headers: cors, json: { items: [{ id: ids.olderSession, lesson_id: "u1-quantum-foundations", lesson_version: 1 }], next_cursor: null } })
+    if (path === `/api/v1/learning-sessions/${ids.olderSession}/predictions` && request.method() === "GET") return route.fulfill({ headers: cors, json: { items: [{ id: ids.olderPrediction, lesson_id: "u1-quantum-foundations", lesson_version: 1, learning_session_id: ids.olderSession, prediction_vector: [0.5, 0.5, 0, 0], basis_labels: ["00", "01", "10", "11"], confidence: 0.7, pairing_status: "unpaired", run_id: null }], next_cursor: null } })
     if (request.method() === "POST") writes.push({ path, body: request.postDataJSON() as Record<string, unknown>, key: request.headers()["idempotency-key"] })
     if (path === "/api/v1/learning-sessions" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentSession, lesson_id: "u1-quantum-foundations", lesson_version: 1 } })
     if (path === `/api/v1/learning-sessions/${ids.currentSession}/predictions` && request.method() === "POST") return route.fulfill({ headers: cors, json: { ...request.postDataJSON() as Record<string, unknown>, id: ids.currentPrediction, locked_at: "2026-09-29T12:00:00Z", pairing_status: "unpaired", run_id: null } })
@@ -200,6 +202,12 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   expect(writes[4].path).toBe(`/api/v1/learning-sessions/${ids.currentSession}/tutor/messages`)
   expect(writes[4].body).toMatchObject({ action: "explain", stage: "discuss", run_id: ids.currentRun })
   expect(writes[4].body).not.toHaveProperty("prediction_match")
+  await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /4 Run/ }).click()
+  await page.getByRole("button", { name: "Recover saved prediction" }).click()
+  await expect(page.getByText("Recovered your saved locked prediction. You can now run this circuit.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Run saved prediction on Aer" })).toBeEnabled()
+  await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /Predict/ }).click()
+  await expect(page.getByRole("slider", { name: "Prediction confidence" })).toHaveAttribute("aria-valuenow", "70")
 })
 
 test("switching connected accounts clears the open learner's lab draft and cannot show their run", async ({ context, page }) => {
