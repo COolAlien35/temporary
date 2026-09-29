@@ -4,10 +4,12 @@ import { useState, type FormEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { platformServices } from "@/lib/services"
+import { connectedAuthConfigured, signInConnected, signOutConnected, signUpConnected } from "@/lib/services/connected-auth"
 import { useSession } from "@/store/use-session"
 import { useLearnerProgress } from "@/store/use-learner-progress"
 
 type Mode = "login" | "signup"
+type AccountMode = "demo" | "connected"
 
 function destinationAfterSignIn() {
   const next = new URLSearchParams(window.location.search).get("next")
@@ -16,6 +18,7 @@ function destinationAfterSignIn() {
 
 export function LoginCard({ initialMode = "login" }: { initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode)
+  const [accountMode, setAccountMode] = useState<AccountMode>(connectedAuthConfigured ? "connected" : "demo")
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -23,21 +26,28 @@ export function LoginCard({ initialMode = "login" }: { initialMode?: Mode }) {
   const [showPassword, setShowPassword] = useState(false)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const startSession = useSession((state) => state.startSession)
   const router = useRouter()
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError("")
+    setNotice("")
     if (mode === "signup" && password !== confirmPassword) {
       setError("Passwords do not match.")
       return
     }
     setPending(true)
     try {
-      const result = mode === "signup"
-        ? await platformServices.auth.signUp(name, email, password)
-        : await platformServices.auth.signIn(email, password)
+      const result = accountMode === "connected"
+        ? mode === "signup" ? await signUpConnected(name, email, password) : await signInConnected(email, password)
+        : mode === "signup" ? await platformServices.auth.signUp(name, email, password) : await platformServices.auth.signIn(email, password)
+      if (!result) {
+        setNotice("Check your email to confirm your account, then log in.")
+        return
+      }
+      if (accountMode === "demo" && connectedAuthConfigured) await signOutConnected()
       startSession(result)
       useLearnerProgress.getState().switchLearner(result.user.id)
       router.push(destinationAfterSignIn())
@@ -51,6 +61,7 @@ export function LoginCard({ initialMode = "login" }: { initialMode?: Mode }) {
   function changeMode(next: Mode) {
     setMode(next)
     setError("")
+    setNotice("")
   }
 
   const inputClass = "w-full rounded-lg border border-white/15 bg-black/30 px-3.5 py-2.5 text-sm text-white placeholder:text-white/30 outline-none focus:border-[#4FD1E8]/60 focus:ring-2 focus:ring-[#4FD1E8]/30"
@@ -58,8 +69,11 @@ export function LoginCard({ initialMode = "login" }: { initialMode?: Mode }) {
   return (
     <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_60px_-15px_rgba(0,212,255,0.35)] backdrop-blur-xl sm:p-8">
       <p className="mb-5 rounded-lg border border-[#F5B942]/20 bg-[#F5B942]/5 px-3 py-2 text-xs leading-5 text-[#F5B942]">
-        Frontend demo: this creates a local session in your browser. No account or password is sent to a server.
+        {accountMode === "demo" ? "Frontend demo: this creates a local session in your browser. No account or password is sent to a server." : "Connected account: sign in with Supabase. Learning-loop pages are still being connected to saved backend data."}
       </p>
+      {connectedAuthConfigured && <div className="mb-5 flex rounded-full border border-white/10 bg-black/30 p-1 text-sm font-medium" aria-label="Connection mode">
+        {(["connected", "demo"] as const).map((item) => <button key={item} type="button" onClick={() => { setAccountMode(item); setError(""); setNotice("") }} aria-pressed={accountMode === item} className={`flex-1 rounded-full px-3 py-1.5 ${accountMode === item ? "bg-[#4FD1E8] text-[#0A0E17]" : "text-white/60 hover:text-white"}`}>{item === "connected" ? "Connected account" : "Local demo"}</button>)}
+      </div>}
       <div className="mb-6 flex rounded-full border border-white/10 bg-black/30 p-1 text-sm font-medium" aria-label="Account mode">
         {(["login", "signup"] as const).map((item) => (
           <button key={item} type="button" onClick={() => changeMode(item)} aria-pressed={mode === item} className={`flex-1 rounded-full px-3 py-1.5 transition-colors ${mode === item ? "bg-[#4FD1E8] text-[#0A0E17]" : "text-white/60 hover:text-white"}`}>
@@ -89,6 +103,7 @@ export function LoginCard({ initialMode = "login" }: { initialMode?: Mode }) {
           <input id="confirm-password" name="confirm-password" type={showPassword ? "text" : "password"} autoComplete="new-password" required minLength={8} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className={inputClass} />
         </div>}
         {error && <p role="alert" className="rounded-lg border border-red-400/30 bg-red-400/10 p-3 text-xs text-red-300">{error}</p>}
+        {notice && <p role="status" className="rounded-lg border border-[#4ADE80]/30 bg-[#4ADE80]/10 p-3 text-xs text-[#4ADE80]">{notice}</p>}
         <button type="submit" disabled={pending} className="w-full rounded-lg bg-gradient-to-r from-[#00D4FF] to-[#4FD1E8] px-4 py-2.5 text-sm font-semibold text-[#0A0E17] disabled:cursor-wait disabled:opacity-60">
           {pending ? "Continuing..." : mode === "login" ? "Log in" : "Create account"}
         </button>

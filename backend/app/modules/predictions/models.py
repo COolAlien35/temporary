@@ -28,6 +28,13 @@ class LearningSession(Base):
             "id", "learner_id", "lesson_id", "lesson_version", name="uq_learning_session_identity"
         ),
         Index("ix_learning_sessions_learner_created", "learner_id", "created_at", "id"),
+        Index(
+            "ix_learning_sessions_learner_lesson_created",
+            "learner_id",
+            "lesson_id",
+            "created_at",
+            "id",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -68,6 +75,14 @@ class Prediction(Base):
         UniqueConstraint("learner_id", "idempotency_key", name="uq_prediction_idempotency"),
         UniqueConstraint("run_id", name="uq_predictions_run_id"),
         Index("ix_predictions_learner_locked", "learner_id", "locked_at", "id"),
+        Index(
+            "ix_predictions_learner_lesson_locked",
+            "learner_id",
+            "lesson_id",
+            "lesson_version",
+            "locked_at",
+            "id",
+        ),
         Index("ix_predictions_session_locked", "learning_session_id", "locked_at", "id"),
     )
 

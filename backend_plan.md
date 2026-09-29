@@ -139,9 +139,12 @@ Implement migration infrastructure and the identity foundation first. The follow
 
 ### B04 — Managed authentication, authorization, and cohorts
 
-The current backend implements operator-only instructor promotion, cohort creation/listing, owner-controlled instructor assignment, member listing/removal, single-use email-bound learner invitations, and revision-protected self-profile/settings edits with an IANA timezone. Browser CORS now allows the required `If-Match` request header and exposes the `ETag` response header. Cohort APIs derive actors from verified tokens; frontend provider flows, account workflows, connected assignments, and authorization for future resources are still open.
+The current backend implements operator-only instructor promotion, cohort creation/listing, owner-controlled instructor assignment, member listing/removal, single-use email-bound learner invitations, and revision-protected self-profile/settings edits with an IANA timezone. Browser CORS now allows the required `If-Match` request header and exposes the `ETag` response header. Cohort APIs derive actors from verified tokens; password recovery, account workflows, connected assignments, and authorization for future resources are still open.
+
+The frontend now has an opt-in Supabase email/password signup and login path, canonical `/me` identity lookup, browser-session restore, token refresh through the provider SDK, and local-scope logout. Demo mode remains explicit. Live-provider verification, password recovery, profile/settings persistence, and connected feature screens are open; keep the full B04 acceptance item unchecked.
 
 - [ ] Integrate provider signup, login, logout, session refresh, and password recovery through the provider's supported frontend flow.
+- [x] Wire config-gated Supabase email/password signup/login, email-confirmation pending state, backend-verified `/me` identity, SDK session restore/refresh, and local-scope logout. No connected identity is persisted in the demo session store. Password recovery and live multi-account verification remain open.
 - [ ] Verify JWT signature, issuer, audience, expiry, and key rotation in FastAPI and Socket.IO handshakes; define token expiry/revalidation for long connections.
 - [x] Create/update local profiles from verified identities. This implementation uses authenticated requests, not webhooks.
 - [x] Add self-profile and preferences APIs with timezone validation, `ETag`/`If-Match` revisions, and stale-write rejection.
@@ -154,11 +157,12 @@ The current backend implements operator-only instructor promotion, cohort creati
 
 ### B05 — Curriculum and experiment learning sessions
 
-**Current checkpoint:** Read-only unit list/detail routes serve the exported curriculum with stable IDs, lesson content, separate format/content versions, review labels, and placeholder flags. Explicit learner schemas omit checkpoint answer keys and unreleased explanations. Matching prediction submission/pair shapes and a versioned TVD agreement function exist, with explicit 0–100% to 0–1 conversion utilities. Authenticated learners can create durable lesson sessions and immutable locked predictions. A prediction can bind to one owned Aer run for an exact circuit revision, and a successful run yields a server-derived owner-scoped pair. A bounded, owner-scoped agreement projection now exposes recent successful pairs for future tutor context, with unavailable sources identified explicitly. The frontend remains in demo mode. Current authored checkpoint answers heavily favor the first option and frontend demo bundles still contain keys; these checkpoints cannot be trusted for grading. Versioned database content, full stage progress, quiz/glossary/algorithm routes, full tutor history sources, and connected frontend pages remain open.
+**Current checkpoint:** Read-only unit list/detail routes serve the exported curriculum with stable IDs, lesson content, separate format/content versions, review labels, and placeholder flags. Explicit learner schemas omit checkpoint answer keys and unreleased explanations. Matching prediction submission/pair shapes and a versioned TVD agreement function exist, with explicit 0–100% to 0–1 conversion utilities. Authenticated learners can create durable lesson sessions and immutable locked predictions, then discover them through owner-scoped cursor-paginated lists for cross-device resume. A prediction can bind to one owned Aer run for an exact circuit revision, and a successful run yields a server-derived owner-scoped pair. A bounded, owner-scoped agreement projection exposes recent successful pairs across the learner's sessions for the same lesson version, with unavailable sources identified explicitly. Curriculum and lab pages remain in demo mode. Current authored checkpoint answers heavily favor the first option and frontend demo bundles still contain keys; these checkpoints cannot be trusted for grading. Versioned database content, full stage progress, quiz/glossary/algorithm routes, full tutor history sources, and connected frontend pages remain open.
 
 - [ ] Serve units, lessons, quizzes, glossary/concept references, and supported algorithm metadata using existing IDs and review labels.
 - [ ] Exclude correct answers and unreleased explanations from learner-facing assessment payloads.
 - [ ] Add lesson resume/checkpoint/completion APIs and persist Learn → Predict → Build → Run → Observe → Explain → Debug → Challenge → Master session state.
+- [x] Add owner-scoped, cursor-paginated session and prediction discovery so saved run/pair IDs can be recovered after refresh or on another device.
 - [ ] Persist predictions, reflections, hint usage, recent actions, circuit/run references, and lab stage progress with bounded payloads.
 - [ ] Define completion and prerequisite rules, duplicate event behavior, and migration behavior when lesson versions change.
 - [ ] Publish capability flags for unavailable tracks and services; retain explicit unavailable states for QFT, Shor, and QEC until separately implemented.
@@ -373,6 +377,9 @@ The current backend implements operator-only instructor promotion, cohort creati
 
 ### B20 — Connect the frontend and transition browser data
 
+- [x] Add a focused, typed learning-loop HTTP client for the implemented session, prediction, circuit, run, pair, and tutor routes. Fetch a current managed-auth bearer token per request; preserve idempotency keys, revision preconditions, and structured service errors.
+- [x] Bind the opt-in learning-loop client to the configured Supabase browser session, fetching its current access token for every request. Connected login resolves identity through the authenticated backend `/me` route; demo sign-in remains browser-local.
+- [x] Connect the Superposition lab's Run stage to a first Aer path: fetch the live lesson version, create a learner session, lock the ordered prediction, save the exact circuit, submit the paired durable run, poll its status, and show the server-derived sampled comparison. Add a recent-pair recovery action using owner-scoped discovery. Live-provider/browser verification and the full persistent Observe-stage integration remain open.
 - [ ] Add explicit demo/connected environment selection in `frontend/lib/services/index.ts`, authenticated requests, typed errors, and token-refresh behavior.
 - [ ] Set the API adapter base to `/api/v1`; replace provisional password APIs with managed-auth integration and update obsolete actor-ID/vote contracts.
 - [ ] Extend adapters and frontend stores for each backend feature. Replace direct local grading, mock tutor calls, coursework reads, and summary calculations in connected mode.
@@ -384,7 +391,9 @@ The current backend implements operator-only instructor promotion, cohort creati
 
 #### B20.P — Persistent Predict-vs-Execute view (consolidated item #2)
 
-- [ ] Extend the existing `StageObserve` dual view on `/lab/[algorithm]` into a clearly named prediction-versus-actual comparison. Reuse the current nine-stage route and observation stage; do not create an extra route or stage merely for renaming.
+- [x] Extend the existing `StageObserve` dual view on `/lab/[algorithm]` into a clearly named prediction-versus-actual comparison. The demo comparison includes a numeric table alongside its bars, labels sampled browser results and local prediction agreement, and announces completion/stale state. Server-backed persistence and connected states remain in the following items.
+- [x] Submit the first connected Superposition prediction/run pair from the Run stage. Recovery searches the ten most recent owned sessions; multi-page history and browser validation against a live provider remain open.
+- [x] Render the backend pair in the connected Superposition Observe stage, resolve a specific owner-scoped `?stage=5&run=<UUID>` URL after reload, validate its lesson and paired IDs, and show the server agreement, metadata, bars, numeric table, stale-editor notice, and low-shot warning. Suppress demo XP awards in this connected path. Live provider, multi-account, and accessibility acceptance remain open.
 - [ ] Load the immutable B05.P pair by run ID, including after refresh/on another device. Display prediction, actual distribution, per-outcome signed delta, agreement score, result basis, shots, backend, and circuit revision.
 - [ ] Provide side-by-side visual comparison and an equivalent always-available numeric table, readable labels, and concise live announcements. Distinguish missing/pending/failed results, stale current edits, and low-shot sampled uncertainty.
 - [ ] Link the paired mismatch/context to the B13 tutor without trusting a browser-recomputed score. Keep previous rounds reviewable and clearly separate from the current unsaved circuit.

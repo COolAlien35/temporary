@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_session
@@ -9,13 +9,26 @@ from app.modules.predictions import service
 from app.modules.predictions.schemas import (
     AgreementHistory,
     LearningSessionCreate,
+    LearningSessionPage,
     LearningSessionRead,
+    PredictionPage,
     PredictionPair,
     PredictionRead,
     PredictionSubmission,
 )
 
 router = APIRouter(tags=["learning"])
+
+
+@router.get("/learning-sessions", response_model=LearningSessionPage)
+def list_learning_sessions(
+    lesson_id: str | None = Query(default=None, min_length=1, max_length=120),
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: UUID | None = None,
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> LearningSessionPage:
+    return service.list_learning_sessions(session, actor, lesson_id, limit, cursor)
 
 
 @router.post("/learning-sessions", response_model=LearningSessionRead, status_code=201)
@@ -67,6 +80,17 @@ def create_prediction(
 ) -> PredictionRead:
     record = service.create_prediction(session, actor, learning_session_id, body, idempotency_key)
     return service.read_prediction_view(session, actor, record.id)
+
+
+@router.get("/learning-sessions/{learning_session_id}/predictions", response_model=PredictionPage)
+def list_predictions(
+    learning_session_id: UUID,
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: UUID | None = None,
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> PredictionPage:
+    return service.list_predictions(session, actor, learning_session_id, limit, cursor)
 
 
 @router.get("/predictions/{prediction_id}", response_model=PredictionRead)

@@ -13,6 +13,7 @@ import {
 import { getAlgorithmConfig } from "@/lib/algorithms"
 import { runCircuit } from "@/lib/sim/run-circuit"
 import type { SimResult, StudioGate } from "@/lib/studio/types"
+import type { ConnectedLabResult } from "@/lib/services/connected-lab-run"
 import { useLearnerProgress } from "@/store/use-learner-progress"
 import { useSession } from "@/store/use-session"
 
@@ -48,6 +49,8 @@ interface LabState {
   lastRunGates: GatePlacement[]
   resultsStale: boolean
   simulationError: string
+  connectedResult: ConnectedLabResult | null
+  showConnectedResult: (result: ConnectedLabResult) => void
 }
 
 interface LabContextValue extends LabState {
@@ -140,8 +143,11 @@ export function LabProvider({
   const [previousSimulationResult, setPreviousSimulationResult] = useState<SimResult | null>(null)
   const [lastRunGates, setLastRunGates] = useState<GatePlacement[]>([])
   const [simulationError, setSimulationError] = useState("")
+  const [connectedResult, setConnectedResult] = useState<ConnectedLabResult | null>(null)
+  const [connectedResultOwnerId, setConnectedResultOwnerId] = useState<string | null>(null)
   const [hydratedSessionKey, setHydratedSessionKey] = useState<string | null>(null)
   const learnerId = useSession((state) => state.user?.id ?? null)
+  const connectedRunMode = useSession((state) => state.mode === "connected") && algorithm.slug === "superposition"
   const sessionKey = `quantumloop-demo-lab:${learnerId ?? "guest"}:${algorithmSlug}`
   const updateLearnerStage = useLearnerProgress((state) => state.updateStage)
   const addLearnerXp = useLearnerProgress((state) => state.addXP)
@@ -151,6 +157,20 @@ export function LabProvider({
   const recordCalibration = useLearnerProgress((state) => state.addCalibration)
   const resultsStale = hasRun && JSON.stringify(gates) !== JSON.stringify(lastRunGates)
 
+  useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null) }, [learnerId, algorithm.slug])
+
+  const showConnectedResult = useCallback((result: ConnectedLabResult) => {
+    setConnectedResult(result)
+    setConnectedResultOwnerId(learnerId)
+    setStage(5)
+    setActiveTab("circuit")
+    const url = new URL(window.location.href)
+    url.searchParams.set("stage", "5")
+    url.searchParams.set("run", result.run.id)
+    window.history.replaceState(window.history.state, "", url)
+  }, [learnerId])
+  const currentConnectedResult = connectedResultOwnerId === learnerId ? connectedResult : null
+
   useEffect(() => {
     setHydratedSessionKey(null)
     try {
@@ -158,7 +178,7 @@ export function LabProvider({
       if (raw) {
         const saved = JSON.parse(raw) as PersistedLabSession
         if (saved.version === 1) {
-          if (saved.stage >= 1 && saved.stage <= STAGES.length) setStage(saved.stage)
+          if (initialStage === 1 && saved.stage >= 1 && saved.stage <= STAGES.length) setStage(saved.stage)
           setCompletedStages(new Set(saved.completedStages ?? []))
           setHypothesisState({ ...emptyHypothesis(algorithm.basisStates), ...saved.hypothesis })
           setConfidenceState(saved.confidence ?? 50)
@@ -188,7 +208,7 @@ export function LabProvider({
       try { localStorage.removeItem(sessionKey) } catch { /* Storage can be unavailable in private browsing. */ }
     }
     setHydratedSessionKey(sessionKey)
-  }, [algorithm.basisStates, sessionKey])
+  }, [algorithm.basisStates, initialStage, sessionKey])
 
   useEffect(() => {
     if (hydratedSessionKey !== sessionKey) return
@@ -207,11 +227,12 @@ export function LabProvider({
   const isStageUnlocked = useCallback(
     (n: number) => {
       if (n === 1) return true
+      if (connectedRunMode && n === 5) return true
       // Any stage already reached (current or earlier) is always revisitable.
       if (n <= stage) return true
       return completedStages.has(n - 1)
     },
-    [completedStages, stage],
+    [completedStages, connectedRunMode, stage],
   )
 
   const completeStage = useCallback((n: number) => {
@@ -221,11 +242,13 @@ export function LabProvider({
       next.add(n)
       return next
     })
-    const earned = XP_PER_STAGE[n] ?? 0
-    setXp((prev) => prev + earned)
-    addLearnerXp(earned)
-    updateLearnerStage(algorithm.slug, n)
-  }, [addLearnerXp, algorithm.slug, completedStages, updateLearnerStage])
+    if (!connectedRunMode) {
+      const earned = XP_PER_STAGE[n] ?? 0
+      setXp((prev) => prev + earned)
+      addLearnerXp(earned)
+      updateLearnerStage(algorithm.slug, n)
+    }
+  }, [addLearnerXp, algorithm.slug, completedStages, connectedRunMode, updateLearnerStage])
 
   const tabForStage: Partial<Record<number, ViewTab>> = {
     3: "circuit",
@@ -239,9 +262,15 @@ export function LabProvider({
       if (n < 1 || n > STAGES.length) return
       if (!isStageUnlocked(n)) return
       setStage(n)
+      if (connectedRunMode) {
+        const url = new URL(window.location.href)
+        url.searchParams.set("stage", String(n))
+        if (n !== 5) url.searchParams.delete("run")
+        window.history.replaceState(window.history.state, "", url)
+      }
       if (tabForStage[n]) setActiveTab(tabForStage[n] as ViewTab)
     },
-    [isStageUnlocked],
+    [connectedRunMode, isStageUnlocked],
   )
 
   // Completing a stage and immediately advancing to the next one happens in the same
@@ -252,10 +281,12 @@ export function LabProvider({
   // the caller is the app's own guided flow (not a user-initiated jump).
   const advanceStage = useCallback((completed: number, next: number) => {
     if (!completedStages.has(completed)) {
-      const earned = XP_PER_STAGE[completed] ?? 0
-      setXp((prev) => prev + earned)
-      addLearnerXp(earned)
-      updateLearnerStage(algorithm.slug, completed)
+      if (!connectedRunMode) {
+        const earned = XP_PER_STAGE[completed] ?? 0
+        setXp((prev) => prev + earned)
+        addLearnerXp(earned)
+        updateLearnerStage(algorithm.slug, completed)
+      }
     }
     setCompletedStages((prev) => {
       if (prev.has(completed)) return prev
@@ -266,7 +297,7 @@ export function LabProvider({
     if (next < 1 || next > STAGES.length) return
     setStage(next)
     if (tabForStage[next]) setActiveTab(tabForStage[next] as ViewTab)
-  }, [addLearnerXp, algorithm.slug, completedStages, updateLearnerStage])
+  }, [addLearnerXp, algorithm.slug, completedStages, connectedRunMode, updateLearnerStage])
 
   const setHypothesis = useCallback(
     (state: BasisState, value: number) => {
@@ -402,6 +433,8 @@ export function LabProvider({
     setPreviousSimulationResult(null)
     setLastRunGates([])
     setSimulationError("")
+    setConnectedResult(null)
+    setConnectedResultOwnerId(null)
   }, [algorithm.basisStates])
 
   const value: LabContextValue = {
@@ -415,11 +448,11 @@ export function LabProvider({
     shots,
     noiseEnabled,
     backend,
-    hasRun,
-    runAccuracy,
+    hasRun: connectedRunMode ? currentConnectedResult !== null : hasRun,
+    runAccuracy: connectedRunMode && currentConnectedResult ? Math.round(currentConnectedResult.pair.prediction_match * 100) : runAccuracy,
     attempts,
     hints,
-    xp,
+    xp: connectedRunMode ? 0 : xp,
     mode,
     sessionLog,
     activeTab,
@@ -433,6 +466,8 @@ export function LabProvider({
     lastRunGates,
     resultsStale,
     simulationError,
+    connectedResult: currentConnectedResult,
+    showConnectedResult,
     goToStage,
     isStageUnlocked,
     setHypothesis,

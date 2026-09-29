@@ -213,6 +213,17 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
             )
             assert second_session.status_code == 201
             second_session_id = second_session.json()["id"]
+            resumed_history = client.get(
+                f"/api/v1/learning-sessions/{second_session_id}/agreement-history"
+            )
+            assert resumed_history.status_code == 200
+            assert {item["prediction_id"] for item in resumed_history.json()["items"]} == {
+                prediction_id,
+                sampled_prediction_id,
+            }
+            assert {item["learning_session_id"] for item in resumed_history.json()["items"]} == {
+                session_id
+            }
             with Session(get_engine()) as db, pytest.raises(ApiHTTPException) as mismatch:
                 load_tutor_context(
                     db, actor, UUID(second_session_id), stage="observe", run_id=UUID(run_id)

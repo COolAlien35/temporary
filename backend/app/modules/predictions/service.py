@@ -18,14 +18,19 @@ from app.modules.predictions.models import LearningSession, Prediction
 from app.modules.predictions.repository import (
     get_owned_prediction,
     get_owned_session,
-    recent_session_predictions,
+    list_owned_sessions,
+    list_session_predictions,
+    recent_lesson_predictions,
 )
 from app.modules.predictions.schemas import (
     AgreementHistory,
     AgreementHistoryItem,
     ComparisonBasis,
     LearningSessionCreate,
+    LearningSessionPage,
+    LearningSessionRead,
     OutcomeDelta,
+    PredictionPage,
     PredictionPair,
     PredictionRead,
     PredictionSubmission,
@@ -97,6 +102,20 @@ def read_learning_session(
     if record is None:
         raise HTTPException(status_code=404, detail="Learning session not found")
     return record
+
+
+def list_learning_sessions(
+    session: Session, actor: Actor, lesson_id: str | None, limit: int, cursor: UUID | None
+) -> LearningSessionPage:
+    anchor = get_owned_session(session, actor.id, cursor) if cursor is not None else None
+    if cursor is not None and (anchor is None or (lesson_id and anchor.lesson_id != lesson_id)):
+        raise ApiHTTPException(422, "invalid_cursor", "Invalid learning session cursor")
+    rows = list_owned_sessions(session, actor.id, lesson_id, limit + 1, anchor)
+    visible = rows[:limit]
+    return LearningSessionPage(
+        items=[LearningSessionRead.model_validate(row) for row in visible],
+        next_cursor=visible[-1].id if len(rows) > limit else None,
+    )
 
 
 def create_prediction(
@@ -195,6 +214,12 @@ def prediction_read(record: Prediction, status: str = "unpaired") -> PredictionR
 
 def read_prediction_view(session: Session, actor: Actor, prediction_id: UUID) -> PredictionRead:
     record = read_prediction(session, actor, prediction_id)
+    return prediction_view_for_record(session, actor, record)
+
+
+def prediction_view_for_record(
+    session: Session, actor: Actor, record: Prediction
+) -> PredictionRead:
     if record.run_id is None:
         return prediction_read(record)
     run = read_owned_run(session, actor, record.run_id)
@@ -204,6 +229,25 @@ def read_prediction_view(session: Session, actor: Actor, prediction_id: UUID) ->
         else ("failed" if run.status in {"failed", "cancelled", "timed_out"} else "pending")
     )
     return prediction_read(record, status)
+
+
+def list_predictions(
+    session: Session,
+    actor: Actor,
+    learning_session_id: UUID,
+    limit: int,
+    cursor: UUID | None,
+) -> PredictionPage:
+    read_learning_session(session, actor, learning_session_id)
+    anchor = get_owned_prediction(session, actor.id, cursor) if cursor is not None else None
+    if cursor is not None and (anchor is None or anchor.learning_session_id != learning_session_id):
+        raise ApiHTTPException(422, "invalid_cursor", "Invalid prediction cursor")
+    rows = list_session_predictions(session, actor.id, learning_session_id, limit + 1, anchor)
+    visible = rows[:limit]
+    return PredictionPage(
+        items=[prediction_view_for_record(session, actor, row) for row in visible],
+        next_cursor=visible[-1].id if len(rows) > limit else None,
+    )
 
 
 def read_prediction_pair(session: Session, actor: Actor, prediction_id: UUID) -> PredictionPair:
@@ -259,7 +303,9 @@ def recent_agreement_history(
     session: Session, actor: Actor, learning_session_id: UUID
 ) -> AgreementHistory:
     learning = read_learning_session(session, actor, learning_session_id)
-    candidates = recent_session_predictions(session, actor.id, learning.id, 26)
+    candidates = recent_lesson_predictions(
+        session, actor.id, learning.lesson_id, learning.lesson_version, 26
+    )
     items: list[AgreementHistoryItem] = []
     scanned_count = 0
     for prediction in candidates[:25]:
@@ -284,6 +330,7 @@ def recent_agreement_history(
         deltas.sort(key=lambda value: (-abs(value.delta), value.basis_label))
         items.append(
             AgreementHistoryItem(
+                learning_session_id=prediction.learning_session_id,
                 prediction_id=prediction.id,
                 run_id=run.id,
                 locked_at=prediction.locked_at,

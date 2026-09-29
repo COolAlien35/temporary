@@ -6,9 +6,10 @@ test('learner follows the beginner path, resumes, and retries a unit quiz', asyn
   await expect(page.getByRole('link', { name: 'Start the learning path' })).toHaveAttribute('href', '/curriculum/u1/u1-quantum-foundations')
   await page.getByRole('link', { name: 'Start the learning path' }).click()
 
+  await expect(page).toHaveURL(/\/curriculum\/u1\/u1-quantum-foundations$/)
   await expect(page.getByRole('heading', { name: 'Quantum Foundations' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeVisible()
-  const complete = page.getByRole('button', { name: /Complete lesson · \+15 XP/ })
+  const complete = page.getByRole('button', { name: /Complete lesson · \+10 XP/ })
   await expect(complete).toBeDisabled()
   await page.getByRole('radio', { name: 'Two complex amplitudes whose squared magnitudes sum to 1' }).check()
   await page.getByRole('radio', { name: 'One sampled outcome, not every amplitude' }).check()

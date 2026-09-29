@@ -130,7 +130,7 @@ def load_tutor_context(
         circuit = _bounded_circuit(revision.snapshot.model_dump(mode="json"))
         sources.append(f"{revision.circuit_id}:{circuit_revision}")
     for item in history.items:
-        sources.extend((str(item.prediction_id), str(item.run_id)))
+        sources.extend((str(item.learning_session_id), str(item.prediction_id), str(item.run_id)))
     candidates = [
         TutorCandidate(
             id="revisit_lesson",

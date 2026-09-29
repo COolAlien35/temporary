@@ -9,20 +9,20 @@ test('a fresh learner sees an honest empty state and lesson activity updates hom
 
   await page.getByRole('radio', { name: 'Two complex amplitudes whose squared magnitudes sum to 1' }).check()
   await page.getByRole('radio', { name: 'One sampled outcome, not every amplitude' }).check()
-  await page.getByRole('button', { name: /Complete lesson · \+15 XP/ }).click()
+  await page.getByRole('button', { name: /Complete lesson · \+10 XP/ }).click()
 
   await page.goto('/home')
   await expect(page.getByRole('heading', { name: 'Qubits and measurement' })).toBeVisible()
   await expect(page.getByText(/1 of \d+ lessons complete/)).toBeVisible()
   await expect(page.getByText('Lesson completed')).toBeVisible()
-  await expect(page.getByText('15 XP earned')).toBeVisible()
+  await expect(page.getByText('10 XP earned')).toBeVisible()
 
   await page.goto('/me')
-  await expect(page.getByText('Guest explorer · 15 XP · 1 lessons completed')).toBeVisible()
+  await expect(page.getByText('Guest explorer · 10 XP · 1 lessons completed')).toBeVisible()
   await expect(page.getByText('First Steps')).toBeVisible()
   await expect(page.getByText('No assessment scores yet.')).toBeVisible()
   await page.reload()
-  await expect(page.getByText('Guest explorer · 15 XP · 1 lessons completed')).toBeVisible()
+  await expect(page.getByText('Guest explorer · 10 XP · 1 lessons completed')).toBeVisible()
   await expect(page.getByText('Lesson completed')).toBeVisible()
 })
 

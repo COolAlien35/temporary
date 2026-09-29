@@ -42,6 +42,7 @@ def context(
         learning_session_id=session_id,
         items=[
             AgreementHistoryItem(
+                learning_session_id=session_id,
                 prediction_id=prediction_id,
                 run_id=run_id,
                 locked_at="2026-09-28T12:00:00Z",

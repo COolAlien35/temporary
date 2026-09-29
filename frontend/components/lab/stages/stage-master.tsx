@@ -10,7 +10,7 @@ export function StageMaster() {
   useEffect(() => { completeStage(9) }, [completeStage])
 
   const rows = [
-    { label: "Prediction accuracy", value: `${runAccuracy}%` },
+    { label: "Prediction agreement", value: `${runAccuracy}%` },
     { label: "Simulation attempts", value: attempts },
     { label: "Debug attempts", value: debugAttempts },
     { label: "Hints requested", value: hints },

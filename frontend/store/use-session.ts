@@ -32,21 +32,21 @@ export const useSession = create<SessionState>()(
       profiles: {},
       preferences: defaultLearningPreferences,
       startSession: ({ user, mode }) => set((state) => {
-        const saved = state.profiles[user.id]
+        const saved = mode === "demo" ? state.profiles[user.id] : undefined
         const resolvedUser = saved ? { ...user, name: saved.name } : user
         const preferences = saved?.preferences ?? defaultLearningPreferences
         return {
           user: resolvedUser,
           mode,
           preferences,
-          profiles: { ...state.profiles, [user.id]: { name: resolvedUser.name, preferences } },
+          profiles: mode === "demo" ? { ...state.profiles, [user.id]: { name: resolvedUser.name, preferences } } : state.profiles,
         }
       }),
       updateName: (name) => set((state) => {
         if (!state.user) return state
         return {
           user: { ...state.user, name },
-          profiles: { ...state.profiles, [state.user.id]: { name, preferences: state.preferences } },
+          profiles: state.mode === "demo" ? { ...state.profiles, [state.user.id]: { name, preferences: state.preferences } } : state.profiles,
         }
       }),
       updatePreferences: (changes) => set((state) => {
@@ -54,11 +54,16 @@ export const useSession = create<SessionState>()(
         const preferences = { ...state.preferences, ...changes }
         return {
           preferences,
-          profiles: { ...state.profiles, [state.user.id]: { name: state.user.name, preferences } },
+          profiles: state.mode === "demo" ? { ...state.profiles, [state.user.id]: { name: state.user.name, preferences } } : state.profiles,
         }
       }),
       endSession: () => set({ user: null, mode: null, preferences: defaultLearningPreferences }),
     }),
-    { name: "quantumloop-demo-session", partialize: (state) => ({ user: state.user, mode: state.mode, profiles: state.profiles, preferences: state.preferences }) },
+    { name: "quantumloop-demo-session", partialize: (state) => ({
+      user: state.mode === "demo" ? state.user : null,
+      mode: state.mode === "demo" ? "demo" : null,
+      profiles: state.profiles,
+      preferences: state.mode === "demo" ? state.preferences : defaultLearningPreferences,
+    }) },
   ),
 )

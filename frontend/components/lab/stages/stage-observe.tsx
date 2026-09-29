@@ -6,10 +6,20 @@ import { useLab } from "@/lib/lab-context"
 import { StageHeader, AccuracyBadge } from "@/components/lab/stage-header"
 import { cn } from "@/lib/utils"
 import { classicalFidelity, previewNoisyProbabilities } from "@/lib/sim/run-circuit"
+import { useSession } from "@/store/use-session"
+import { ConnectedObserve } from "../connected-observe"
+import { connectedAuthConfigured } from "@/lib/services/connected-auth"
 
 type SubTab = "dual" | "histogram" | "statevector" | "noise" | "changed"
 
 export function StageObserve() {
+  const accountMode = useSession((state) => state.mode)
+  const { algorithm } = useLab()
+  if (connectedAuthConfigured && accountMode !== "demo" && algorithm.slug === "superposition") return <ConnectedObserve />
+  return <DemoStageObserve />
+}
+
+function DemoStageObserve() {
   const { algorithm, hypothesis, runAccuracy, advanceStage, simulationResult, previousSimulationResult, lastRunGates, resultsStale } = useLab()
   const [subTab, setSubTab] = useState<SubTab>("dual")
   const [noisePercent, setNoisePercent] = useState(0)
@@ -20,6 +30,11 @@ export function StageObserve() {
   const maxStep = Math.max(orderedGates.length - 1, 0)
 
   const actual = useMemo(() => Object.fromEntries(algorithm.basisStates.map((state) => [state, ((simulationResult?.counts[state] ?? 0) / (simulationResult?.shots || 1)) * 100])), [algorithm.basisStates, simulationResult])
+  const comparisonRows = useMemo(() => algorithm.basisStates.map((state) => {
+    const predicted = hypothesis[state] ?? 0
+    const observed = actual[state] ?? 0
+    return { state, predicted, observed, delta: observed - predicted }
+  }), [actual, algorithm.basisStates, hypothesis])
   const distinctSteps = useMemo(() => [...new Set(orderedGates.map((gate) => gate.step))], [orderedGates])
   const selectedGate = orderedGates[step]
   const stateIndex = selectedGate ? distinctSteps.indexOf(selectedGate.step) : distinctSteps.length - 1
@@ -54,10 +69,14 @@ export function StageObserve() {
     <div className="mx-auto max-w-3xl">
       <StageHeader
         eyebrow="Stage 5 of 9 · Empirical Observation"
-        title="Prediction Ghost vs Simulated Outcome"
-        accuracyBadge={<AccuracyBadge accuracy={runAccuracy} />}
+        title="Prediction vs. Actual"
+        accuracyBadge={simulationResult ? <AccuracyBadge accuracy={runAccuracy} /> : undefined}
       />
-      <p className="mb-4 text-xs text-muted-foreground">Latest results · {simulationResult?.shots.toLocaleString() ?? 0} shots · local statevector simulator</p>
+      <p className="mb-4 text-xs text-muted-foreground">{simulationResult ? `Latest browser demo result · ${simulationResult.shots.toLocaleString()} shots · sampled measurement frequencies` : "Browser demo · no run yet"}</p>
+
+      <p role="status" aria-live="polite" className="sr-only">
+        {simulationResult ? `Simulation complete. Prediction agreement ${runAccuracy} percent across ${simulationResult.shots} shots.${resultsStale ? " The circuit has changed since this run." : ""}` : "Run the circuit to compare your prediction with measured outcomes."}
+      </p>
 
       {resultsStale && <p role="status" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">The circuit changed after this run. These results show the previous circuit snapshot; run again to refresh them.</p>}
       {!simulationResult && <p role="status" className="mb-4 rounded-lg border border-border bg-card/60 px-3 py-2 text-xs text-muted-foreground">Run the circuit to see its measurement results.</p>}
@@ -102,8 +121,9 @@ export function StageObserve() {
         })}</div>}
       </section>}
 
-      {!(subTab === "statevector" || subTab === "noise" || subTab === "changed") && (
-        <div className="rounded-xl border border-border bg-card/60 p-5">
+      {simulationResult && !(subTab === "statevector" || subTab === "noise" || subTab === "changed") && (
+        <section className="rounded-xl border border-border bg-card/60 p-5" aria-label="Prediction versus actual comparison">
+          <h3 className="mb-4 text-sm font-semibold">Prediction vs. Actual · sampled results</h3>
           <div className="flex items-end justify-between gap-3" style={{ height: 160 }}>
             {algorithm.basisStates.map((state) => {
               const actualPct = actual[state] ?? 0
@@ -125,7 +145,7 @@ export function StageObserve() {
                       />
                     )}
                     {mismatch && subTab === "dual" && (
-                      <AlertTriangle className="absolute -top-5 size-3.5 text-primary" />
+                      <AlertTriangle aria-hidden="true" className="absolute -top-5 size-3.5 text-primary" />
                     )}
                   </div>
                   <span className="font-mono text-xs text-muted-foreground">|{state}⟩</span>
@@ -143,7 +163,29 @@ export function StageObserve() {
               </span>
             )}
           </div>
-        </div>
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <caption className="mb-2 text-left text-xs text-muted-foreground">Predicted and sampled outcome frequencies; difference is actual minus predicted, in percentage points.</caption>
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th scope="col" className="py-2 pr-3 font-medium">Outcome</th>
+                  <th scope="col" className="py-2 pr-3 font-medium">Predicted</th>
+                  <th scope="col" className="py-2 pr-3 font-medium">Actual</th>
+                  <th scope="col" className="py-2 font-medium">Difference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparisonRows.map(({ state, predicted, observed, delta }) => <tr key={state} className="border-b border-border/50">
+                  <th scope="row" className="py-2 pr-3 font-mono font-medium">|{state}⟩</th>
+                  <td className="py-2 pr-3 font-mono">{predicted.toFixed(1)}%</td>
+                  <td className="py-2 pr-3 font-mono">{observed.toFixed(1)}%</td>
+                  <td className="py-2 font-mono">{delta > 0 ? "+" : ""}{delta.toFixed(1)} pts</td>
+                </tr>)}
+              </tbody>
+            </table>
+            <p className="mt-3 text-xs text-muted-foreground">Sampled results can vary between runs, especially with fewer shots. This demo comparison is stored in this browser.</p>
+          </div>
+        </section>
       )}
 
       <div className="mt-5 rounded-xl border border-border bg-card/60 p-5">

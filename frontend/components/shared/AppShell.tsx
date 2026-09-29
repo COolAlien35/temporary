@@ -11,6 +11,8 @@ import { DashboardFooter } from "@/components/dashboard/dashboard-footer"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useLearnerProgress } from "@/store/use-learner-progress"
 import { useSession } from "@/store/use-session"
+import { signOutConnected } from "@/lib/services/connected-auth"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { activeNavigation, hardwareNavigation, primaryNavigation } from "@/lib/navigation"
 
@@ -44,6 +46,7 @@ export function AppShell({
   const [paletteReady, setPaletteReady] = useState(false)
   const [mounted, setMounted] = useState(false)
   const sessionUser = useSession((state) => state.user)
+  const sessionMode = useSession((state) => state.mode)
   const endSession = useSession((state) => state.endSession)
   const switchLearner = useLearnerProgress((state) => state.switchLearner)
   const activeLearnerId = useLearnerProgress((state) => state.activeLearnerId)
@@ -204,7 +207,16 @@ export function AppShell({
             {mounted && sessionUser ? <button
               type="button"
               aria-label="Log out"
-              onClick={() => { switchLearner(null); endSession(); router.push("/") }}
+              onClick={async () => {
+                try {
+                  if (sessionMode === "connected") await signOutConnected()
+                  switchLearner(null)
+                  endSession()
+                  router.push("/")
+                } catch {
+                  toast.error("Could not sign out. Please retry.")
+                }
+              }}
               className="flex h-7 w-7 items-center justify-center rounded-md text-white/50 transition-colors hover:bg-white/5 hover:text-white/80"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.5">

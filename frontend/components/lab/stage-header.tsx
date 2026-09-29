@@ -36,7 +36,7 @@ export function AccuracyBadge({ accuracy }: { accuracy: number }) {
             : "rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-400"
       }
     >
-      Accuracy: {accuracy}%
+      Prediction agreement: {accuracy}%
     </span>
   )
 }

@@ -82,7 +82,7 @@ export function TopBar() {
       <div className="flex shrink-0 items-center gap-4 text-xs">
         <div className="hidden items-center gap-4 md:flex">
           <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Accuracy</span>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Agreement</span>
             <span className={cn("font-mono font-semibold", accuracyKnown && runAccuracy === 0 ? "text-rose-400" : "text-foreground")}>
               {accuracyKnown ? `${runAccuracy}%` : "\u2014"}
             </span>

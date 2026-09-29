@@ -32,6 +32,11 @@ class LearningSessionRead(BaseModel):
     created_at: datetime
 
 
+class LearningSessionPage(BaseModel):
+    items: list[LearningSessionRead]
+    next_cursor: UUID | None
+
+
 class PredictionSubmission(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -67,6 +72,11 @@ class PredictionRead(PredictionSubmission):
     locked_at: datetime
     pairing_status: Literal["unpaired", "pending", "paired", "failed"] = "unpaired"
     run_id: UUID | None = None
+
+
+class PredictionPage(BaseModel):
+    items: list[PredictionRead]
+    next_cursor: UUID | None
 
 
 class PredictionPair(BaseModel):
@@ -118,6 +128,7 @@ class OutcomeDelta(BaseModel):
 
 
 class AgreementHistoryItem(BaseModel):
+    learning_session_id: UUID
     prediction_id: UUID
     run_id: UUID
     locked_at: datetime

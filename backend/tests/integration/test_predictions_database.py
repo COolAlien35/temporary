@@ -20,7 +20,7 @@ def test_prediction_is_locked_durable_owner_scoped_and_idempotent():
     current = IdentityClaims(first_subject, "predict-first@example.test")
     app = create_app()
     app.dependency_overrides[get_claims] = lambda: current
-    session_id = None
+    session_id = second_session_id = None
     try:
         with TestClient(app) as client:
             first = client.get("/api/v1/me")
@@ -122,6 +122,50 @@ def test_prediction_is_locked_durable_owner_scoped_and_idempotent():
             assert mismatch.status_code == 409
             assert mismatch.json()["error"]["code"] == "session_mismatch"
 
+            second_prediction = client.post(
+                prediction_url,
+                headers={"Idempotency-Key": str(uuid4())},
+                json={**prediction_body, "prediction_vector": [0.5, 0.5]},
+            )
+            assert second_prediction.status_code == 201
+            first_page = client.get(f"{prediction_url}?limit=1")
+            assert first_page.status_code == 200
+            assert first_page.json()["items"][0]["id"] == second_prediction.json()["id"]
+            assert first_page.json()["next_cursor"] == second_prediction.json()["id"]
+            next_page = client.get(
+                f"{prediction_url}?limit=1&cursor={first_page.json()['next_cursor']}"
+            )
+            assert [item["id"] for item in next_page.json()["items"]] == [prediction_id]
+            assert next_page.json()["next_cursor"] is None
+
+            second_session = client.post(
+                "/api/v1/learning-sessions",
+                headers={"Idempotency-Key": str(uuid4())},
+                json=session_body,
+            )
+            assert second_session.status_code == 201
+            second_session_id = second_session.json()["id"]
+            sessions_page = client.get(
+                "/api/v1/learning-sessions?lesson_id=u1-quantum-foundations&limit=1"
+            )
+            assert [item["id"] for item in sessions_page.json()["items"]] == [second_session_id]
+            assert sessions_page.json()["next_cursor"] == second_session_id
+            older_page = client.get(
+                f"/api/v1/learning-sessions?lesson_id=u1-quantum-foundations&limit=1&cursor={second_session_id}"
+            )
+            assert [item["id"] for item in older_page.json()["items"]] == [session_id]
+            assert older_page.json()["next_cursor"] is None
+            assert (
+                client.get(f"{prediction_url}?cursor={second_prediction.json()['id']}").status_code
+                == 200
+            )
+            assert (
+                client.get(
+                    f"/api/v1/learning-sessions/{second_session_id}/predictions?cursor={prediction_id}"
+                ).json()["error"]["code"]
+                == "invalid_cursor"
+            )
+
             with Session(get_engine()) as db:
                 stored = db.scalar(select(Prediction).where(Prediction.id == UUID(prediction_id)))
                 assert stored is not None
@@ -134,6 +178,12 @@ def test_prediction_is_locked_durable_owner_scoped_and_idempotent():
             assert second.status_code == 200
             assert client.get(f"/api/v1/learning-sessions/{session_id}").status_code == 404
             assert client.get(f"/api/v1/predictions/{prediction_id}").status_code == 404
+            assert client.get("/api/v1/learning-sessions").json()["items"] == []
+            assert client.get(prediction_url).status_code == 404
+            assert (
+                client.get(f"/api/v1/learning-sessions?cursor={session_id}").json()["error"]["code"]
+                == "invalid_cursor"
+            )
             assert (
                 client.post(
                     prediction_url,
@@ -170,6 +220,10 @@ def test_prediction_is_locked_durable_owner_scoped_and_idempotent():
                     delete(Prediction).where(Prediction.learning_session_id == UUID(session_id))
                 )
                 db.execute(delete(LearningSession).where(LearningSession.id == UUID(session_id)))
+            if second_session_id is not None:
+                db.execute(
+                    delete(LearningSession).where(LearningSession.id == UUID(second_session_id))
+                )
             db.execute(
                 delete(Profile).where(Profile.auth_subject.in_([first_subject, second_subject]))
             )

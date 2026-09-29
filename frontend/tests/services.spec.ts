@@ -1,9 +1,29 @@
 import { expect, test } from '@playwright/test'
 import { createDemoPlatform } from '../lib/services/demo-platform'
 import { createApiPlatform } from '../lib/services/api-platform'
+import { createLearningLoopApi, LearningLoopApiError } from '../lib/services/learning-loop-api'
+import { profileForToken } from '../lib/services/connected-auth'
 import { circuitToQiskit } from '../lib/circuit-to-qiskit'
 import { qiskitToCircuit } from '../lib/qiskit-to-circuit'
 import { percentConfidenceToUnit, percentagesToPredictionVector } from '../lib/services/prediction-vector'
+
+test('connected profile comes from the authenticated backend response', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = []
+  const backend = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init })
+    return Response.json({ id: 'server-user', name: 'Verified Learner', email: 'learner@example.edu', role: 'learner' })
+  }) as typeof fetch
+  const result = await profileForToken('current-token', backend, 'https://api.example.test/')
+  expect(result).toEqual({ mode: 'connected', user: { id: 'server-user', name: 'Verified Learner', email: 'learner@example.edu', role: 'learner' } })
+  expect(calls[0].url).toBe('https://api.example.test/api/v1/me')
+  expect(calls[0].init?.credentials).toBe('omit')
+  expect(calls[0].init?.headers).toMatchObject({ Authorization: 'Bearer current-token' })
+
+  const invalid = (async () => Response.json({ id: 'user', name: 'User', email: 'user@example.edu', role: 'admin' })) as typeof fetch
+  await expect(profileForToken('token', invalid, 'https://api.example.test')).rejects.toThrow('Invalid account profile')
+  const forbidden = (async () => Response.json({ error: { code: 'forbidden', message: 'Denied' } }, { status: 403 })) as typeof fetch
+  await expect(profileForToken('token', forbidden, 'https://api.example.test')).rejects.toMatchObject({ status: 403, code: 'forbidden' })
+})
 
 test('prediction percentages convert to ordered wire probabilities', () => {
   expect(percentagesToPredictionVector({ '0': 25, '1': 75 }, ['1', '0'])).toEqual([0.75, 0.25])
@@ -82,6 +102,65 @@ test('API adapter sends typed requests only to the configured origin', async () 
   expect(calls[3].init?.method).toBe('PUT')
   await services.community.listThreads('contest/one')
   expect(calls[4].url).toBe('https://api.example.test/community/threads?contestId=contest%2Fone')
+})
+
+test('learning loop client uses current bearer tokens and backend routes', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = []
+  let token = 'first-token'
+  const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init })
+    return new Response(JSON.stringify({ items: [], next_cursor: null }), { status: 200 })
+  }) as typeof fetch
+  const api = createLearningLoopApi('https://api.example.test/api/v1/', async () => token, fakeFetch)
+
+  await api.listSessions({ lessonId: 'u1-quantum-foundations', limit: 1, cursor: 'session-id' })
+  expect(calls[0].url).toBe('https://api.example.test/api/v1/learning-sessions?limit=1&cursor=session-id&lesson_id=u1-quantum-foundations')
+  expect(calls[0].init?.credentials).toBe('omit')
+  expect(calls[0].init?.headers).toMatchObject({ Authorization: 'Bearer first-token' })
+
+  token = 'refreshed-token'
+  await api.lockPrediction('session/id', {
+    schema_version: 1, lesson_id: 'u1-quantum-foundations', lesson_version: 1,
+    learning_session_id: 'session/id', prediction_vector: [0.5, 0.5],
+    basis_labels: ['0', '1'], measurement_qubits: [0], comparison_basis: 'sampled_frequency',
+  }, 'stable-key')
+  expect(calls[1].url).toBe('https://api.example.test/api/v1/learning-sessions/session%2Fid/predictions')
+  expect(calls[1].init?.method).toBe('POST')
+  expect(calls[1].init?.headers).toMatchObject({ Authorization: 'Bearer refreshed-token', 'Idempotency-Key': 'stable-key' })
+  expect(JSON.parse(String(calls[1].init?.body))).not.toHaveProperty('simulated_vector')
+
+  await api.listPredictions('session/id', { limit: 20, cursor: 'prediction-id' })
+  expect(calls[2].url).toBe('https://api.example.test/api/v1/learning-sessions/session%2Fid/predictions?limit=20&cursor=prediction-id')
+
+  await api.updateCircuit('circuit/id', { name: 'Bell', qubits: 2, gates: [] }, 2)
+  expect(calls[3].url).toBe('https://api.example.test/api/v1/circuits/circuit%2Fid')
+  expect(calls[3].init?.headers).toMatchObject({ 'If-Match': '"rev-2"' })
+
+  await api.submitRun({ circuit_id: 'circuit-id', circuit_revision: 2, backend: 'qiskit_aer', shots: 256, prediction_id: 'prediction-id' }, 'run-key')
+  expect(calls[4].url).toBe('https://api.example.test/api/v1/experiments/runs')
+  expect(calls[4].init?.headers).toMatchObject({ 'Idempotency-Key': 'run-key' })
+  await api.getPair('prediction/id')
+  expect(calls[5].url).toBe('https://api.example.test/api/v1/predictions/prediction%2Fid/pair')
+  await api.sendTutorMessage('session/id', { action: 'unexpected', stage: 'observe', prompt: 'Why?', run_id: 'run-id' }, 'tutor-key')
+  expect(calls[6].url).toBe('https://api.example.test/api/v1/learning-sessions/session%2Fid/tutor/messages')
+  expect(calls[6].init?.headers).toMatchObject({ 'Idempotency-Key': 'tutor-key' })
+})
+
+test('learning loop client preserves safe service errors and requires managed auth', async () => {
+  let calls = 0
+  const fakeFetch = (async () => {
+    calls++
+    return new Response(JSON.stringify({ error: { code: 'prediction_already_paired', message: 'Prediction already has a run' } }), { status: 409 })
+  }) as typeof fetch
+  const missingToken = createLearningLoopApi('/api/v1', async () => null, fakeFetch)
+  await expect(missingToken.listSessions()).rejects.toMatchObject({ status: 401, code: 'authentication_required' })
+  expect(calls).toBe(0)
+
+  const api = createLearningLoopApi('/api/v1', async () => 'managed-token', fakeFetch)
+  await expect(api.getPair('prediction-id')).rejects.toMatchObject({ status: 409, code: 'prediction_already_paired' })
+  expect(calls).toBe(1)
+  expect(() => createLearningLoopApi('/wrong-base', async () => 'token', fakeFetch)).toThrow('/api/v1')
+  expect(new LearningLoopApiError(409, 'conflict', 'Conflict')).toBeInstanceOf(Error)
 })
 
 test('Qiskit-style editor round-trips the controlled-Z gate used by Grover', () => {

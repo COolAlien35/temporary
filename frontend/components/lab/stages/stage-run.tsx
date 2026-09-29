@@ -5,10 +5,20 @@ import { useLab } from "@/lib/lab-context"
 import { StageHeader } from "@/components/lab/stage-header"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
+import { useSession } from "@/store/use-session"
+import { ConnectedAerRun } from "../connected-aer-run"
+import { connectedAuthConfigured } from "@/lib/services/connected-auth"
 
 const SHOT_OPTIONS = [128, 512, 1024, 4096]
 
 export function StageRun() {
+  const accountMode = useSession((state) => state.mode)
+  const { algorithm: currentAlgorithm } = useLab()
+  if (connectedAuthConfigured && accountMode !== "demo" && currentAlgorithm.slug === "superposition") return <ConnectedAerRun />
+  return <DemoStageRun />
+}
+
+function DemoStageRun() {
   const { algorithm, shots, setShots, noiseEnabled, setNoiseEnabled, backend, setBackend, attempts, runSimulation } =
     useLab()
   const { simulationError } = useLab()
