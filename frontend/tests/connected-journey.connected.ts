@@ -122,7 +122,7 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
     } })
     if (path === `/api/v1/predictions/${ids.currentPrediction}/pair`) return route.fulfill({ headers: cors, json: {
       schema_version: 1, prediction_id: ids.currentPrediction, run_id: ids.currentRun,
-      prediction_vector: [0.25, 0.25, 0.25, 0.25], simulated_vector: [0.5, 0.5, 0, 0],
+      prediction_vector: [0.26, 0.24, 0.25, 0.25], simulated_vector: [0.5, 0.5, 0, 0],
       basis_labels: ["00", "01", "10", "11"], measurement_qubits: [1, 0], comparison_basis: "sampled_frequency",
       metric_version: "tvd-v1", prediction_match: 0.5, backend: "qiskit_aer", shots: 1024, circuit_revision: 1,
     } })
@@ -143,17 +143,28 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await expect(page.getByText("Lock a prediction in Predict before starting a new Aer run.", { exact: false })).toBeVisible()
   await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /1 Learn/ }).click()
   await page.getByRole("button", { name: "Formulate Hypothesis →" }).click()
+  const firstOutcome = page.getByRole("slider", { name: "Predicted probability for |00⟩" })
+  const secondOutcome = page.getByRole("slider", { name: "Predicted probability for |01⟩" })
+  await firstOutcome.focus()
+  await firstOutcome.press("ArrowRight")
+  await secondOutcome.focus()
+  await secondOutcome.press("ArrowLeft")
+  await expect(firstOutcome).toHaveValue("26")
+  await expect(secondOutcome).toHaveValue("24")
+  await expect(page.getByRole("slider", { name: "Prediction confidence" })).toHaveAttribute("aria-valuetext", /percent/)
   await page.getByRole("button", { name: "Lock Prediction & Arm Simulation Gate" }).click()
   await page.getByRole("button", { name: "Place H on q0 at step 0" }).click()
   await page.getByRole("button", { name: "Proceed to Run →" }).click()
   await page.getByRole("button", { name: "Save prediction and run on Aer" }).click()
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).toBeVisible()
+  await expect(page.getByRole("table", { name: /Server-derived outcome comparison/ })).toBeVisible()
+  await expect(page.getByRole("row", { name: "|00⟩ 26.0% 50.0% +24.0 pts" })).toBeVisible()
   expect(polls).toBeGreaterThanOrEqual(2)
   expect(writes.map((item) => item.path)).toEqual([
     "/api/v1/learning-sessions", `/api/v1/learning-sessions/${ids.currentSession}/predictions`, "/api/v1/circuits", "/api/v1/experiments/runs",
   ])
   expect(writes.every((item) => Boolean(item.key))).toBe(true)
-  expect(writes[1].body).toMatchObject({ learning_session_id: ids.currentSession, prediction_vector: [0.25, 0.25, 0.25, 0.25] })
+  expect(writes[1].body).toMatchObject({ learning_session_id: ids.currentSession, prediction_vector: [0.26, 0.24, 0.25, 0.25] })
   expect(writes[2].body).toMatchObject({ qubits: 2, gates: [expect.objectContaining({ type: "H", step: 0, qubit: 0 })] })
   expect(writes[3].body).toMatchObject({ prediction_id: ids.currentPrediction, circuit_revision: 1, backend: "qiskit_aer" })
   await page.getByRole("button", { name: "Discuss this run with Lab Partner →" }).click()

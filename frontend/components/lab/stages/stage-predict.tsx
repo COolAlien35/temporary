@@ -30,6 +30,8 @@ export function StagePredict() {
                 |{state}⟩
               </span>
               <Slider
+                thumbLabel={`Predicted probability for |${state}⟩`}
+                thumbValueText={(value) => `${value} percent`}
                 value={[hypothesis[state] ?? 0]}
                 onValueChange={(value) => setHypothesis(state, Array.isArray(value) ? (value[0] ?? 0) : value)}
                 max={100}
@@ -59,6 +61,8 @@ export function StagePredict() {
         <h3 className="text-sm font-semibold text-foreground">Confidence Calibration</h3>
         <div className="mt-4 flex items-center gap-4">
           <Slider
+            thumbLabel="Prediction confidence"
+            thumbValueText={(value) => `${value} percent`}
             value={[confidence]}
             onValueChange={(value) => setConfidence(Array.isArray(value) ? (value[0] ?? 0) : value)}
             max={100}
