@@ -13,7 +13,7 @@ import {
 import { getAlgorithmConfig } from "@/lib/algorithms"
 import { runCircuit } from "@/lib/sim/run-circuit"
 import type { SimResult, StudioGate } from "@/lib/studio/types"
-import type { ConnectedLabResult } from "@/lib/services/connected-lab-run"
+import type { ConnectedLabResult, ConnectedPredictionLock } from "@/lib/services/connected-lab-run"
 import type { CircuitRecord } from "@/lib/services/learning-loop-api"
 import { useLearnerProgress } from "@/store/use-learner-progress"
 import { useSession } from "@/store/use-session"
@@ -53,6 +53,10 @@ interface LabState {
   connectedResult: ConnectedLabResult | null
   savedCircuit: CircuitRecord | null
   rememberSavedCircuit: (circuit: CircuitRecord) => void
+  connectedPrediction: ConnectedPredictionLock | null
+  rememberConnectedPrediction: (lock: ConnectedPredictionLock) => void
+  restoreConnectedPrediction: (lock: ConnectedPredictionLock) => void
+  consumeConnectedPrediction: () => void
   connectedRunMode: boolean
   rememberConnectedResult: (result: ConnectedLabResult) => void
   showConnectedResult: (result: ConnectedLabResult) => void
@@ -152,6 +156,8 @@ export function LabProvider({
   const [connectedResult, setConnectedResult] = useState<ConnectedLabResult | null>(null)
   const [savedCircuit, setSavedCircuit] = useState<CircuitRecord | null>(null)
   const [savedCircuitOwnerId, setSavedCircuitOwnerId] = useState<string | null>(null)
+  const [connectedPrediction, setConnectedPrediction] = useState<ConnectedPredictionLock | null>(null)
+  const [connectedPredictionOwnerId, setConnectedPredictionOwnerId] = useState<string | null>(null)
   const [connectedResultOwnerId, setConnectedResultOwnerId] = useState<string | null>(null)
   const [hydratedSessionKey, setHydratedSessionKey] = useState<string | null>(null)
   const learnerId = useSession((state) => state.user?.id ?? null)
@@ -165,7 +171,24 @@ export function LabProvider({
   const recordCalibration = useLearnerProgress((state) => state.addCalibration)
   const resultsStale = hasRun && JSON.stringify(gates) !== JSON.stringify(lastRunGates)
 
-  useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null); setSavedCircuit(null); setSavedCircuitOwnerId(null) }, [learnerId, algorithm.slug])
+  useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null); setSavedCircuit(null); setSavedCircuitOwnerId(null); setConnectedPrediction(null); setConnectedPredictionOwnerId(null) }, [learnerId, algorithm.slug])
+
+  const rememberConnectedPrediction = useCallback((lock: ConnectedPredictionLock) => {
+    setConnectedPrediction(lock)
+    setConnectedPredictionOwnerId(learnerId)
+  }, [learnerId])
+  const restoreConnectedPrediction = useCallback((lock: ConnectedPredictionLock) => {
+    rememberConnectedPrediction(lock)
+    setHypothesisState(Object.fromEntries(lock.prediction.basis_labels.map((label, index) =>
+      [label, lock.prediction.prediction_vector[index] * 100])) as Record<BasisState, number>)
+    setConfidenceState((lock.prediction.confidence ?? 0) * 100)
+    setPredictionLocked(true)
+  }, [rememberConnectedPrediction])
+  const consumeConnectedPrediction = useCallback(() => {
+    setConnectedPrediction(null)
+    setConnectedPredictionOwnerId(null)
+    setPredictionLocked(false)
+  }, [])
 
   const rememberSavedCircuit = useCallback((circuit: CircuitRecord) => {
     setSavedCircuit(circuit)
@@ -197,6 +220,7 @@ export function LabProvider({
   }, [])
   const currentConnectedResult = connectedResultOwnerId === learnerId ? connectedResult : null
   const currentSavedCircuit = savedCircuitOwnerId === learnerId ? savedCircuit : null
+  const currentConnectedPrediction = connectedPredictionOwnerId === learnerId ? connectedPrediction : null
 
   useEffect(() => {
     setHydratedSessionKey(null)
@@ -471,6 +495,8 @@ export function LabProvider({
     setConnectedResultOwnerId(null)
     setSavedCircuit(null)
     setSavedCircuitOwnerId(null)
+    setConnectedPrediction(null)
+    setConnectedPredictionOwnerId(null)
   }, [algorithm.basisStates])
 
   const value: LabContextValue = {
@@ -505,6 +531,10 @@ export function LabProvider({
     connectedResult: currentConnectedResult,
     savedCircuit: currentSavedCircuit,
     rememberSavedCircuit,
+    connectedPrediction: currentConnectedPrediction,
+    rememberConnectedPrediction,
+    restoreConnectedPrediction,
+    consumeConnectedPrediction,
     connectedRunMode,
     rememberConnectedResult,
     showConnectedResult,

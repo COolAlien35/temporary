@@ -1,14 +1,45 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { Check, Lock } from "lucide-react"
 import { useLab } from "@/lib/lab-context"
 import { StageHeader } from "@/components/lab/stage-header"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
+import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
+import { lockConnectedSuperpositionPrediction, newConnectedLabKeys, type ConnectedLabKeys } from "@/lib/services/connected-lab-run"
+import { useSession } from "@/store/use-session"
 
 export function StagePredict() {
-  const { algorithm, hypothesis, setHypothesis, confidence, setConfidence, predictionLocked, lockPrediction } =
+  const { algorithm, hypothesis, setHypothesis, confidence, setConfidence, predictionLocked, connectedRunMode, connectedPrediction, rememberConnectedPrediction, lockPrediction } =
     useLab()
+  const learnerId = useSession((state) => state.user?.id ?? null)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState("")
+  const keys = useRef<{ signature: string; value: ConnectedLabKeys } | null>(null)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const lockedHere = predictionLocked && (!connectedRunMode || Boolean(connectedPrediction))
+
+  async function handleLock() {
+    if (!connectedRunMode) { lockPrediction(); return }
+    if (!learnerId || pending) return
+    const ownerId = learnerId
+    const signature = JSON.stringify({ hypothesis, confidence })
+    if (!keys.current || keys.current.signature !== signature) keys.current = { signature, value: newConnectedLabKeys() }
+    setPending(true)
+    setError("")
+    try {
+      const saved = await lockConnectedSuperpositionPrediction(connectedLearningLoopApi(), hypothesis, confidence, keys.current.value)
+      if (!mounted.current || useSession.getState().user?.id !== ownerId || useSession.getState().mode !== "connected") return
+      rememberConnectedPrediction(saved)
+      lockPrediction()
+    } catch (cause) {
+      if (mounted.current && useSession.getState().user?.id === ownerId) setError(cause instanceof Error ? cause.message : "Could not save the prediction.")
+    } finally {
+      if (mounted.current && useSession.getState().user?.id === ownerId) setPending(false)
+    }
+  }
 
   const sum = algorithm.basisStates.reduce((acc, s) => acc + (hypothesis[s] ?? 0), 0)
   const isValid = sum === 100
@@ -36,7 +67,7 @@ export function StagePredict() {
                 onValueChange={(value) => setHypothesis(state, Array.isArray(value) ? (value[0] ?? 0) : value)}
                 max={100}
                 step={1}
-                disabled={predictionLocked}
+                disabled={lockedHere || pending}
                 className="flex-1"
               />
               <span className="w-12 shrink-0 text-right font-mono text-sm text-muted-foreground">
@@ -67,20 +98,21 @@ export function StagePredict() {
             onValueChange={(value) => setConfidence(Array.isArray(value) ? (value[0] ?? 0) : value)}
             max={100}
             step={1}
-            disabled={predictionLocked}
+            disabled={lockedHere || pending}
             className="flex-1"
           />
           <span className="w-12 shrink-0 text-right font-mono text-sm text-muted-foreground">{confidence}%</span>
         </div>
       </div>
 
+      {error && <p role="alert" className="mt-4 text-sm text-rose-200">{error}</p>}
       <button
         type="button"
-        disabled={!isValid || predictionLocked}
-        onClick={lockPrediction}
+        disabled={!isValid || lockedHere || pending}
+        onClick={() => void handleLock()}
         className={cn(
           "mt-6 flex w-full items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition-colors",
-          predictionLocked
+          lockedHere || pending
             ? "cursor-not-allowed bg-secondary text-muted-foreground"
             : isValid
               ? "bg-primary text-black hover:bg-primary"
@@ -88,7 +120,7 @@ export function StagePredict() {
         )}
       >
         <Lock className="size-3.5" />
-        {predictionLocked ? "Prediction Locked" : "Lock Prediction & Arm Simulation Gate"}
+        {pending ? "Saving prediction…" : lockedHere ? connectedRunMode ? "Prediction Saved and Locked" : "Prediction Locked" : connectedRunMode ? "Save and Lock Prediction" : "Lock Prediction & Arm Simulation Gate"}
       </button>
     </div>
   )
