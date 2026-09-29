@@ -62,7 +62,7 @@ interface LabContextValue extends LabState {
   lockPrediction: () => void
   addGate: (gate: Omit<GatePlacement, "id">) => void
   removeGate: (id: string) => void
-  replaceGates: (gates: Omit<GatePlacement, "id">[]) => void
+  replaceGates: (gates: (Omit<GatePlacement, "id"> & { id?: string })[]) => void
   setShots: (n: number) => void
   setNoiseEnabled: (v: boolean) => void
   setBackend: (name: string) => void
@@ -343,8 +343,8 @@ export function LabProvider({
     setChallengeScore(null)
   }, [])
 
-  const replaceGates = useCallback((next: Omit<GatePlacement, "id">[]) => {
-    setGates(next.map((g, i) => ({ ...g, id: `gate-${i}-${Date.now()}` })))
+  const replaceGates = useCallback((next: (Omit<GatePlacement, "id"> & { id?: string })[]) => {
+    setGates(next.map((g, i) => ({ ...g, id: g.id ?? `gate-${i}-${Date.now()}` })))
     setChallengeSubmitted(false)
     setChallengeScore(null)
   }, [])

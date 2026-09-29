@@ -7,9 +7,13 @@ import { StageHeader } from "@/components/lab/stage-header"
 import { GATE_COLORS, GATE_PALETTE, type GateType } from "@/lib/lab-data"
 import { getAlgorithmConfig } from "@/lib/algorithms"
 import { cn } from "@/lib/utils"
+import { connectedAuthConfigured } from "@/lib/services/connected-auth"
+import { useSession } from "@/store/use-session"
+import { ConnectedCircuitLibrary } from "../connected-circuit-library"
 
 export function StageBuild() {
   const { algorithm, gates, addGate, removeGate, predictionLocked, advanceStage } = useLab()
+  const accountMode = useSession((state) => state.mode)
   const [selectedGate, setSelectedGate] = useState<GateType>("H")
   const STEPS = algorithm.timesteps ?? 4
   const availableGates = getAlgorithmConfig(algorithm.slug)?.build.gatePalette ?? GATE_PALETTE.map((item) => item.gate)
@@ -116,6 +120,7 @@ export function StageBuild() {
           ? "Click a gate above, then click any dashed cell to place it. Click a placed gate to remove it."
           : `${gates.length} gate${gates.length === 1 ? "" : "s"} placed. Click a placed gate to remove it.`}
       </p>
+      {connectedAuthConfigured && accountMode !== "demo" && algorithm.slug === "superposition" && <ConnectedCircuitLibrary allowedGates={availableGates} steps={STEPS} />}
     </div>
   )
 }

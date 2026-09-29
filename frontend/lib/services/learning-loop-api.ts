@@ -23,6 +23,16 @@ export type CircuitRecord = {
   created_at: string
   updated_at: string
 }
+export type CircuitSummary = {
+  id: string
+  name: string
+  revision: number
+  qubits: number
+  gate_count: number
+  checksum_sha256: string
+  created_at: string
+  updated_at: string
+}
 export type RunAccepted = {
   job_id: string
   status: "queued"
@@ -164,6 +174,8 @@ export function createLearningLoopApi(
     getPrediction: (id: string) => request<LockedPrediction>(`/predictions/${encodeURIComponent(id)}`),
     getPair: (predictionId: string) => request<PredictionPair>(`/predictions/${encodeURIComponent(predictionId)}/pair`),
     createCircuit: (body: StudioCircuit, key: string) => post<CircuitRecord>("/circuits", body, key),
+    listCircuits: (options?: { limit?: number; cursor?: string }) =>
+      request<Page<CircuitSummary>>(pagePath("/circuits", options)),
     getCircuit: (id: string) => request<CircuitRecord>(`/circuits/${encodeURIComponent(id)}`),
     updateCircuit: (id: string, body: StudioCircuit, revision: number) =>
       request<CircuitRecord>(`/circuits/${encodeURIComponent(id)}`, {
