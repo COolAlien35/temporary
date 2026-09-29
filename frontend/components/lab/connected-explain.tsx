@@ -4,18 +4,20 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useLab } from "@/lib/lab-context"
 import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
-import { connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition, type ConnectedLabResult } from "@/lib/services/connected-lab-run"
+import { ConnectedRunUnavailableError, RECENT_COMPARISON_EMPTY_MESSAGE, connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition, type ConnectedLabResult } from "@/lib/services/connected-lab-run"
 import { useSession } from "@/store/use-session"
 import { ConnectedLabPartnerChat } from "./connected-lab-partner-chat"
 import { StageHeader } from "./stage-header"
 
 export function ConnectedExplain() {
-  const { connectedResult, gates, advanceStage } = useLab()
+  const { connectedResult, gates, advanceStage, goToStage } = useLab()
   const learnerId = useSession((state) => state.user?.id ?? null)
   const runId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("run")
   const [recovered, setRecovered] = useState<ConnectedLabResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [runUnavailable, setRunUnavailable] = useState<ConnectedRunUnavailableError | null>(null)
+  const [empty, setEmpty] = useState(false)
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
@@ -23,9 +25,15 @@ export function ConnectedExplain() {
     let active = true
     setLoading(true)
     setError("")
+    setRunUnavailable(null)
+    setEmpty(false)
     void (runId ? connectedSuperpositionForRun(connectedLearningLoopApi(), runId) : latestConnectedSuperposition(connectedLearningLoopApi()))
-      .then((saved) => { if (active) setRecovered(saved) })
-      .catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "Could not load the saved run.") })
+      .then((saved) => { if (active) { setRecovered(saved); setEmpty(!saved) } })
+      .catch((cause) => {
+        if (!active) return
+        if (cause instanceof ConnectedRunUnavailableError) setRunUnavailable(cause)
+        else setError(cause instanceof Error ? cause.message : "Could not load the saved run.")
+      })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [connectedResult, learnerId, reload, runId])
@@ -39,8 +47,9 @@ export function ConnectedExplain() {
 
   return <div>
     <StageHeader eyebrow="Stage 6 of 9 · Saved Run Discussion" title="Discuss Your Aer Result" action={pair && <button type="button" onClick={() => advanceStage(6, 7)} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Proceed to Debug Challenge →</button>} />
-    <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{loading ? "Loading the saved Aer result…" : pair ? `Server-derived prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : error || "No completed Superposition comparison was found in your recent sessions."}</p>
-    {error && <p role="alert" className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error} <button type="button" onClick={() => setReload((n) => n + 1)} className="underline">Retry</button></p>}
+    <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{loading ? "Loading the saved Aer result…" : pair ? `Server-derived prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? RECENT_COMPARISON_EMPTY_MESSAGE : runUnavailable?.message || error || "Open a completed Aer run to discuss its comparison."}</p>
+    {(error || runUnavailable) && <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">{runUnavailable?.kind === "pending" ? "Check again" : "Retry"}</button>}
+    {((runUnavailable && runUnavailable.kind !== "pending") || empty) && <button type="button" onClick={() => goToStage(4)} className="mt-4 ml-3 rounded-full border border-border px-4 py-2 text-sm font-semibold">Find another saved run</button>}
     {pair && run && result && <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_1fr]">
       <div>
         <h3 className="text-sm font-semibold text-foreground">Saved run summary</h3>

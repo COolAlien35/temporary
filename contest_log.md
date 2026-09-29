@@ -25,3 +25,4 @@
 - 2026-09-29: Added Run-stage recovery of owned queued/running Aer jobs after reload, linking to exact run status and retrying discovery errors correctly; TypeScript and connected service tests (6/6) passed.
 - 2026-09-29: Prevented an older in-memory comparison from appearing for a newly recovered run link; isolated production build and connected browser tests (4/4) passed, including pending-run stale-result rejection.
 - 2026-09-29: Bound connected Explain's comparison and tutor context to the saved run URL and verified older/current round navigation plus reload; TypeScript and connected browser tests (4/4) passed.
+- 2026-09-29: Added queued/failed/unavailable recovery to saved-run Explain links, including recheck and discovery actions; TypeScript, production build, and focused connected browser regression passed.

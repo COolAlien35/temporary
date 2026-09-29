@@ -35,6 +35,7 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
     if (path === `/api/v1/predictions/${predictionId}`) return route.fulfill({ headers: cors, json: { id: predictionId, lesson_id: "u1-quantum-foundations", learning_session_id: sessionId } })
     if (path === `/api/v1/predictions/${predictionId}/pair`) return route.fulfill({ headers: cors, json: { schema_version: 1, prediction_id: predictionId, run_id: pairRunId, prediction_vector: [0.5, 0.5, 0, 0], simulated_vector: [0.48, 0.52, 0, 0], basis_labels: ["00", "01", "10", "11"], measurement_qubits: [1, 0], comparison_basis: "sampled_frequency", metric_version: "tvd-v1", prediction_match: 0.98, backend: "qiskit_aer", shots: 1024, circuit_revision: 1 } })
     if (path === `/api/v1/learning-sessions/${sessionId}/agreement-history`) return route.fulfill({ headers: cors, json: { lesson_id: "u1-quantum-foundations", lesson_version: 1, learning_session_id: sessionId, items: [], scanned_count: 0, older_records_not_scanned: false, unavailable_sources: [] } })
+    if (path === `/api/v1/learning-sessions/${sessionId}/tutor/messages`) return route.fulfill({ headers: cors, json: [] })
     return route.fulfill({ status: 404, headers: cors, json: { error: { code: "missing_fixture", message: `Unexpected API route: ${path}` } } })
   })
 
@@ -74,4 +75,20 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
   await expect(comparisonStatus).toContainText("This saved Aer run is queued. Check again for its comparison.")
   await expect(page.getByRole("table")).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Discuss this run with Lab Partner →" })).toHaveCount(0)
+
+  runState = "queued"
+  await page.goto(`/lab/superposition?stage=6&run=${runId}`)
+  await expect(comparisonStatus).toContainText("This saved Aer run is queued. Check again for its comparison.")
+  await expect(page.getByRole("region", { name: "Saved run Lab Partner" })).toHaveCount(0)
+  runState = "failed"
+  await page.getByRole("button", { name: "Check again" }).click()
+  await expect(comparisonStatus).toContainText("This saved Aer run failed. No prediction comparison was recorded.")
+  await expect(page.getByRole("button", { name: "Find another saved run" })).toBeVisible()
+  await page.getByRole("button", { name: "Find another saved run" }).click()
+  await expect(page).toHaveURL(/stage=4/)
+  await expect(page).not.toHaveURL(/run=/)
+  runState = "succeeded"
+  await page.goto(`/lab/superposition?stage=6&run=${runId}`)
+  await expect(comparisonStatus).toContainText("Server-derived prediction agreement 98.0 percent.")
+  await expect(page.getByRole("region", { name: "Saved run Lab Partner" })).toBeVisible()
 })
