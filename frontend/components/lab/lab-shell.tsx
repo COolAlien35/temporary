@@ -16,6 +16,7 @@ import { StageChallenge } from "@/components/lab/stages/stage-challenge"
 import { StageMaster } from "@/components/lab/stages/stage-master"
 import { CodeEditorPanel } from "@/components/lab/CodeEditorPanel"
 import { LabToolPanel } from "@/components/lab/LabToolPanel"
+import { useSession } from "@/store/use-session"
 
 const STAGE_COMPONENTS: Record<number, React.ComponentType> = {
   1: StageLearn,
@@ -38,8 +39,10 @@ function LabStageRouter() {
 }
 
 export function LabShell({ algorithmSlug, initialStage = 1 }: { algorithmSlug: string; initialStage?: number }) {
+  const accountMode = useSession((state) => state.mode)
+  const learnerId = useSession((state) => state.user?.id ?? null)
   return (
-    <LabProvider algorithmSlug={algorithmSlug} initialStage={initialStage}>
+    <LabProvider key={`${accountMode ?? "guest"}:${learnerId ?? "guest"}:${algorithmSlug}`} algorithmSlug={algorithmSlug} initialStage={initialStage}>
       <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
         <TopBar />
         <div className="flex flex-1 flex-col overflow-hidden md:flex-row">

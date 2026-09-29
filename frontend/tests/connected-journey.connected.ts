@@ -163,3 +163,70 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   expect(writes[4].body).toMatchObject({ action: "explain", stage: "discuss", run_id: ids.currentRun })
   expect(writes[4].body).not.toHaveProperty("prediction_match")
 })
+
+test("switching connected accounts clears the open learner's lab draft and cannot show their run", async ({ context, page }) => {
+  const secondUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  const tokenFor = (id: string) => `${Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: id, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.test-signature`
+  const firstToken = tokenFor(ids.user)
+  const secondToken = tokenFor(secondUserId)
+  const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, idempotency-key", "Content-Type": "application/json" }
+  const providerUser = (id: string, email: string) => ({ id, aud: "authenticated", role: "authenticated", email, app_metadata: {}, user_metadata: {}, created_at: "2026-09-29T00:00:00Z" })
+  let secondAccountReadDenied = false
+
+  await context.route("https://provider.example.test/**", async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
+    if (path === "/auth/v1/token") {
+      const email = (request.postDataJSON() as { email: string }).email
+      const second = email === "second@example.test"
+      const id = second ? secondUserId : ids.user
+      return route.fulfill({ headers: cors, json: { access_token: second ? secondToken : firstToken, refresh_token: `refresh-${id}`, expires_in: 3600, token_type: "bearer", user: providerUser(id, email) } })
+    }
+    if (path === "/auth/v1/user") {
+      const second = request.headers().authorization === `Bearer ${secondToken}`
+      return route.fulfill({ headers: cors, json: providerUser(second ? secondUserId : ids.user, second ? "second@example.test" : "first@example.test") })
+    }
+    return route.fulfill({ status: 404, headers: cors, json: { message: `Unexpected provider route: ${path}` } })
+  })
+  await context.route("https://api.example.test/**", async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
+    const second = request.headers().authorization === `Bearer ${secondToken}`
+    const first = request.headers().authorization === `Bearer ${firstToken}`
+    if (path === "/api/v1/me") return route.fulfill({ headers: cors, json: { id: second ? secondUserId : ids.user, name: second ? "Second Learner" : "First Learner", email: second ? "second@example.test" : "first@example.test", role: "learner" } })
+    if (path === `/api/v1/experiments/runs/${ids.currentRun}` && second) {
+      secondAccountReadDenied = true
+      return route.fulfill({ status: 404, headers: cors, json: { error: { code: "not_found", message: "Run not found" } } })
+    }
+    if (!first) return route.fulfill({ status: 404, headers: cors, json: { error: { code: "not_found", message: "Record not found" } } })
+    if (path === `/api/v1/experiments/runs/${ids.currentRun}`) return route.fulfill({ headers: cors, json: { id: ids.currentRun, status: "succeeded", prediction_id: ids.currentPrediction, backend: "qiskit_aer", shots: 1024, circuit_revision: 1, circuit_snapshot: { schema_version: 1, name: "Superposition lab", qubits: 2, gates: [] } } })
+    if (path === `/api/v1/predictions/${ids.currentPrediction}`) return route.fulfill({ headers: cors, json: { id: ids.currentPrediction, lesson_id: "u1-quantum-foundations", learning_session_id: ids.currentSession } })
+    if (path === `/api/v1/predictions/${ids.currentPrediction}/pair`) return route.fulfill({ headers: cors, json: { schema_version: 1, prediction_id: ids.currentPrediction, run_id: ids.currentRun, prediction_vector: [0.25, 0.25, 0.25, 0.25], simulated_vector: [0.5, 0.5, 0, 0], basis_labels: ["00", "01", "10", "11"], measurement_qubits: [1, 0], comparison_basis: "sampled_frequency", metric_version: "tvd-v1", prediction_match: 0.5, backend: "qiskit_aer", shots: 1024, circuit_revision: 1 } })
+    if (path === `/api/v1/learning-sessions/${ids.currentSession}/agreement-history`) return route.fulfill({ headers: cors, json: { lesson_id: "u1-quantum-foundations", lesson_version: 1, learning_session_id: ids.currentSession, items: [], scanned_count: 0, older_records_not_scanned: false, unavailable_sources: [] } })
+    return route.fulfill({ status: 404, headers: cors, json: { error: { code: "missing_fixture", message: `Unexpected API route: ${path}` } } })
+  })
+
+  await page.goto(`/login?next=${encodeURIComponent(`/lab/superposition?stage=5&run=${ids.currentRun}`)}`)
+  await page.getByLabel("Email").fill("first@example.test")
+  await page.locator("#password").fill("test-password")
+  await page.locator("form").getByRole("button", { name: "Log in" }).click()
+  await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).toBeVisible()
+  await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /3 Build/ }).click()
+  await page.getByRole("button", { name: "Place H on q0 at step 0" }).click()
+  await expect(page.getByRole("button", { name: "Remove H on q0 at step 0" })).toBeVisible()
+
+  const secondTab = await context.newPage()
+  await secondTab.goto("/login")
+  await secondTab.getByLabel("Email").fill("second@example.test")
+  await secondTab.locator("#password").fill("test-password")
+  await secondTab.locator("form").getByRole("button", { name: "Log in" }).click()
+  await expect(secondTab).toHaveURL(/\/home/)
+  await expect(page.getByRole("heading", { name: "Prediction vs. Actual" })).toBeVisible()
+  await expect(page.getByText("No gates placed")).toBeVisible()
+  await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).not.toBeVisible()
+  await page.goto(`/lab/superposition?stage=5&run=${ids.currentRun}`)
+  await expect(page.getByRole("alert").getByText("Run not found")).toBeVisible()
+  expect(secondAccountReadDenied).toBe(true)
+})
