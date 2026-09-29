@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronDown, Download, Link2, Minus, Play, Plus, Redo2, Save, Trash2, Undo2 } from "lucide-react"
+import { ChevronDown, Download, Minus, Play, Plus, Redo2, Save, Trash2, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 import { useStudio, MAX_QUBITS, MIN_QUBITS } from "@/store/use-studio"
 import { exportQiskit } from "@/lib/studio/export-qiskit"
@@ -9,6 +9,7 @@ import { exportQasm } from "@/lib/studio/export-qasm"
 import { encodeCircuit } from "@/lib/studio/url-codec"
 import { circuitToSvgString } from "@/lib/studio/circuit-svg"
 import { cn } from "@/lib/utils"
+import { CollaborationDialog } from "@/components/studio/CollaborationDialog"
 
 const SHOT_OPTIONS = [256, 1024, 4096, 8192]
 
@@ -89,13 +90,6 @@ export function StudioToolbar({ onToggleTutor }: { onToggleTutor: () => void }) 
     toast.success(`Exported ${kind.toUpperCase()}`)
   }
 
-  function handleShare() {
-    const hash = encodeCircuit(circuit)
-    const url = `${window.location.origin}${window.location.pathname}#c=${hash}`
-    navigator.clipboard?.writeText(url)
-    toast.success("Share link copied to clipboard")
-  }
-
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-[#0A0E17]/80 px-3 py-2">
       {editingName ? (
@@ -151,9 +145,7 @@ export function StudioToolbar({ onToggleTutor }: { onToggleTutor: () => void }) 
       >
         <Save className="h-4 w-4" />
       </button>
-      <button type="button" onClick={handleShare} aria-label="Share circuit" className="rounded-md p-1.5 text-white/60 hover:bg-white/5 hover:text-white">
-        <Link2 className="h-4 w-4" />
-      </button>
+      <CollaborationDialog designName={circuit.name} snapshot={encodeCircuit(circuit)} />
 
       <div ref={exportRef} className="relative">
         <button type="button" onClick={() => setExportOpen((v) => !v)} className="flex items-center gap-1 rounded-md border border-white/10 px-2 py-1.5 text-xs font-medium text-white/70 hover:bg-white/5">

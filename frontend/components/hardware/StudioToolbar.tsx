@@ -13,6 +13,8 @@ import {
 import { LINE_LIST } from "@/lib/hardware/lines"
 import { PRESETS } from "@/lib/hardware/presets"
 import { useHardware } from "@/store/use-hardware"
+import { CollaborationDialog } from "@/components/studio/CollaborationDialog"
+import { encodeDesign } from "@/lib/hardware/url-codec"
 
 export function StudioToolbar() {
   const design = useHardware((s) => s.design)
@@ -101,6 +103,8 @@ export function StudioToolbar() {
       >
         <Redo2 className="h-3.5 w-3.5" /> New
       </button>
+
+      <CollaborationDialog designName={nameDraft || design.meta.name} snapshot={encodeDesign(design)} kind="hardware design" />
 
       <div className="mx-1 h-5 w-px bg-white/10" />
 
