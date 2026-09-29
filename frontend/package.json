@@ -9,7 +9,8 @@
     "start": "next start",
     "curriculum:export": "node scripts/export-curriculum.mjs",
     "curriculum:check": "node scripts/export-curriculum.mjs --check",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:connected": "playwright test --config playwright.connected.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

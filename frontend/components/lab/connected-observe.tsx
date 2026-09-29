@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useLab } from "@/lib/lab-context"
 import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
 import { connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition } from "@/lib/services/connected-lab-run"
 import { useSession } from "@/store/use-session"
 import { StageHeader } from "./stage-header"
+import { ConnectedRoundHistory } from "./connected-round-history"
 
 export function ConnectedObserve() {
   const { connectedResult, showConnectedResult, gates, goToStage, advanceStage } = useLab()
@@ -15,13 +16,9 @@ export function ConnectedObserve() {
   const [error, setError] = useState("")
   const [empty, setEmpty] = useState(false)
   const [reload, setReload] = useState(0)
-  const requested = useRef("")
 
   useEffect(() => {
     if (!learnerId || (connectedResult && reload === 0)) return
-    const requestKey = `${learnerId}:${reload}`
-    if (requested.current === requestKey) return
-    requested.current = requestKey
     let active = true
     const runId = new URLSearchParams(window.location.search).get("run")
     setLoading(true)
@@ -71,5 +68,6 @@ export function ConnectedObserve() {
       <button type="button" onClick={() => advanceStage(5, 6)} className="mt-5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Discuss this run with Lab Partner →</button>
       <button type="button" onClick={() => goToStage(4)} className="mt-5 rounded-full border border-border px-4 py-2 text-sm font-semibold">Return to Run</button>
     </section>}
+    {connectedResult && <ConnectedRoundHistory key={`${learnerId}:${connectedResult.learningSessionId}`} result={connectedResult} />}
   </div>
 }

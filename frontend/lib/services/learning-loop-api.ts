@@ -44,6 +44,29 @@ export type SavedRun = {
   result: Record<string, unknown> | null
   created_at: string
 }
+export type AgreementHistory = {
+  lesson_id: string
+  lesson_version: number
+  learning_session_id: string
+  items: {
+    learning_session_id: string
+    prediction_id: string
+    run_id: string
+    locked_at: string
+    comparison_basis: "ideal_probability" | "noisy_probability" | "sampled_frequency"
+    metric_version: "tvd-v1"
+    prediction_match: number
+    confidence: number | null
+    backend: string
+    shots: number | null
+    seed: number | null
+    circuit_revision: number
+    largest_deltas: { basis_label: string; predicted: number; simulated: number; delta: number }[]
+  }[]
+  scanned_count: number
+  older_records_not_scanned: boolean
+  unavailable_sources: ("missed_questions" | "hints" | "next_lessons")[]
+}
 export type TutorRequestBody = {
   action: "explain" | "changed" | "unexpected" | "optimize" | "generate" | "plan"
   stage: "learn" | "predict" | "build" | "run" | "observe" | "discuss"
@@ -133,6 +156,7 @@ export function createLearningLoopApi(
     createSession: (body: { lesson_id: string; lesson_version: number }, key: string) =>
       post<LearningSession>("/learning-sessions", body, key),
     getSession: (id: string) => request<LearningSession>(sessionPath(id)),
+    getAgreementHistory: (sessionId: string) => request<AgreementHistory>(`${sessionPath(sessionId)}/agreement-history`),
     listPredictions: (sessionId: string, options?: { limit?: number; cursor?: string }) =>
       request<Page<LockedPrediction>>(pagePath(`${sessionPath(sessionId)}/predictions`, options)),
     lockPrediction: (sessionId: string, body: PredictionSubmission, key: string) =>

@@ -144,6 +144,9 @@ test('learning loop client uses current bearer tokens and backend routes', async
   await api.sendTutorMessage('session/id', { action: 'unexpected', stage: 'observe', prompt: 'Why?', run_id: 'run-id' }, 'tutor-key')
   expect(calls[6].url).toBe('https://api.example.test/api/v1/learning-sessions/session%2Fid/tutor/messages')
   expect(calls[6].init?.headers).toMatchObject({ 'Idempotency-Key': 'tutor-key' })
+  await api.getAgreementHistory('session/id')
+  expect(calls[7].url).toBe('https://api.example.test/api/v1/learning-sessions/session%2Fid/agreement-history')
+  expect(calls[7].init?.headers).toMatchObject({ Authorization: 'Bearer refreshed-token' })
 })
 
 test('learning loop client preserves safe service errors and requires managed auth', async () => {
