@@ -187,6 +187,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 **Current checkpoint:** Authenticated learners can create and reopen owner-scoped circuits, list their library with cursor pagination, update them with `If-Match` revision checks, and read immutable historical revision snapshots. Simulation requests pin an exact circuit revision and checksum. Creation requires an idempotency key. The validator bounds qubits, gates, steps, angles, IDs, and payload bytes, rejects collisions, and prevents later operations on measured qubits. Local Aer supports ideal terminal measurement and rejects later gates after a measurement. Archive/restore, sharing, import/export, object storage, accessible browser editing, and connected frontend use remain open.
 
 - [ ] Apply the cross-cutting accessibility workstream below: synchronized readable gate sequence, keyboard placement/editing, and step inspection tied to immutable run snapshots.
+- [x] Add a readable, time-ordered gate sequence beside the guided Build grid, with qubit labels, grid-focus and removal actions, live gate-count feedback, and focus recovery after removal. Full Studio parity and screen-reader acceptance remain open.
 - [x] Implement owner-scoped circuit create/read/update, immutable revision snapshots, and stale-save checks using `If-Match`.
 - [x] Pin every submitted simulation to the exact authorized circuit revision and checksum.
 - [ ] Add paginated circuit list and archive/restore lifecycle.
