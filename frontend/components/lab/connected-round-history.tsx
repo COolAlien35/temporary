@@ -53,6 +53,20 @@ export function ConnectedRoundHistory({ result }: { result: ConnectedLabResult }
         <span className="font-medium text-primary">{opening === item.run_id ? "Opening…" : item.run_id === result.run.id ? "Current run" : `${(item.prediction_match * 100).toFixed(1)}% agreement · Open`}</span>
       </button>
     </li>)}</ol>}
+    {history && history.items.length > 0 && <div className="mt-5 overflow-x-auto">
+      <table className="w-full text-left text-xs">
+        <caption className="mb-2 text-left text-muted-foreground">Prediction agreement history. Agreement is a comparison with the saved run; confidence is the learner&apos;s self-rating when predicting.</caption>
+        <thead><tr className="border-b border-border"><th scope="col" className="py-2">Round</th><th scope="col">Agreement</th><th scope="col">Self-rated confidence</th><th scope="col">Result basis</th><th scope="col">Shots</th></tr></thead>
+        <tbody>{history.items.map((item) => <tr key={item.run_id} className="border-b border-border/50">
+          <th scope="row" className="py-2">{new Date(item.locked_at).toLocaleDateString()}</th>
+          <td className="font-mono">{(item.prediction_match * 100).toFixed(1)}%</td>
+          <td className="font-mono">{item.confidence == null ? "Not recorded" : `${(item.confidence * 100).toFixed(0)}%`}</td>
+          <td>{item.comparison_basis.replaceAll("_", " ")}</td>
+          <td className="font-mono">{item.shots?.toLocaleString() ?? "Not applicable"}</td>
+        </tr>)}</tbody>
+      </table>
+      <p className="mt-2 text-xs text-muted-foreground">These saved rounds do not establish confidence calibration or learning gains. Shot counts and result bases may differ.</p>
+    </div>}
     {history?.older_records_not_scanned && <p className="mt-3 text-xs text-muted-foreground">Older records were outside this bounded history window.</p>}
   </section>
 }

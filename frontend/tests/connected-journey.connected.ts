@@ -77,6 +77,7 @@ test("connected learner opens another saved run in Explain and reloads its run-b
   await expect(page.getByRole("heading", { name: "Prediction vs. Actual" })).toBeVisible()
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 98.0 percent.")).toBeVisible()
   await expect(page.getByRole("region", { name: "Recent saved Superposition rounds" }).getByRole("button", { name: /75\.0% agreement · Open/ })).toBeVisible()
+  await expect(page.getByRole("table", { name: /Prediction agreement history/ }).getByRole("row", { name: /75\.0% 80% sampled frequency 1,024/ })).toBeVisible()
   await page.getByRole("button", { name: /75\.0% agreement · Open/ }).click()
   await expect(page.getByText(`Run ID: ${ids.olderRun}`)).toBeVisible()
   await expect(page).toHaveURL(new RegExp(`run=${ids.olderRun}`))
@@ -122,7 +123,10 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
     if (request.headers().authorization !== `Bearer ${token}`) return route.fulfill({ status: 401, headers: cors, json: { error: { code: "authentication_required", message: "Sign in" } } })
     if (path === "/api/v1/me") return route.fulfill({ headers: cors, json: { id: ids.user, name: "Connected Learner", email: user.email, role: "learner" } })
-    if (path === "/api/v1/curriculum/units/u1") return route.fulfill({ headers: cors, json: { content_version: 1, lessons: [{ id: "u1-quantum-foundations" }] } })
+    if (path === "/api/v1/curriculum/units/u1") return route.fulfill({ headers: cors, json: {
+      id: "u1", title: "Quantum Foundations", content_version: 1, review_status: "faculty-reviewed", is_placeholder: false,
+      lessons: [{ id: "u1-quantum-foundations", title: "Verified Superposition Lesson", sections: [{ type: "paragraph", text: "The server lesson explains a Hadamard on q0." }], takeaways: ["Compare the saved measurement with your prediction."] }],
+    } })
     if (request.method() === "POST") writes.push({ path, body: request.postDataJSON() as Record<string, unknown>, key: request.headers()["idempotency-key"] })
     if (path === "/api/v1/learning-sessions" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentSession, lesson_id: "u1-quantum-foundations", lesson_version: 1 } })
     if (path === `/api/v1/learning-sessions/${ids.currentSession}/predictions` && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentPrediction } })
@@ -155,6 +159,8 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await expect(page.getByRole("button", { name: "Save prediction and run on Aer" })).toBeDisabled()
   await expect(page.getByText("Lock a prediction in Predict before starting a new Aer run.", { exact: false })).toBeVisible()
   await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /1 Learn/ }).click()
+  await expect(page.getByRole("heading", { name: "Verified Superposition Lesson" })).toBeVisible()
+  await expect(page.getByText("The server lesson explains a Hadamard on q0.")).toBeVisible()
   await page.getByRole("button", { name: "Formulate Hypothesis →" }).click()
   const firstOutcome = page.getByRole("slider", { name: "Predicted probability for |00⟩" })
   const secondOutcome = page.getByRole("slider", { name: "Predicted probability for |01⟩" })
