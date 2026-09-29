@@ -19,9 +19,9 @@ export function ConnectedObserve() {
   const [reload, setReload] = useState(0)
 
   useEffect(() => {
-    if (!learnerId || (connectedResult && reload === 0)) return
-    let active = true
     const runId = new URLSearchParams(window.location.search).get("run")
+    if (!learnerId || (connectedResult && (!runId || runId.toLowerCase() === connectedResult.run.id.toLowerCase()))) return
+    let active = true
     setLoading(true)
     setError("")
     setRunUnavailable(null)
@@ -42,8 +42,10 @@ export function ConnectedObserve() {
     return () => { active = false }
   }, [connectedResult, learnerId, reload, showConnectedResult])
 
-  const pair = connectedResult?.pair
-  const run = connectedResult?.run
+  const requestedRunId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("run")
+  const visibleResult = connectedResult && (!requestedRunId || connectedResult.run.id.toLowerCase() === requestedRunId.toLowerCase()) ? connectedResult : null
+  const pair = visibleResult?.pair
+  const run = visibleResult?.run
   const stale = run ? connectedCircuitIsStale(gates, run) : false
 
   if (!learnerId) return <div className="mx-auto max-w-3xl"><StageHeader eyebrow="Stage 5 of 9 · Verified Observation" title="Prediction vs. Actual" /><p role="status" className="mt-4 text-sm text-muted-foreground">Sign in to load a saved Aer comparison.</p><Link href="/login" className="mt-4 inline-block text-sm font-semibold text-primary">Go to login →</Link></div>
@@ -73,6 +75,6 @@ export function ConnectedObserve() {
       <button type="button" onClick={() => advanceStage(5, 6)} className="mt-5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Discuss this run with Lab Partner →</button>
       <button type="button" onClick={() => goToStage(4)} className="mt-5 rounded-full border border-border px-4 py-2 text-sm font-semibold">Return to Run</button>
     </section>}
-    {connectedResult && <ConnectedRoundHistory key={`${learnerId}:${connectedResult.learningSessionId}`} result={connectedResult} />}
+    {visibleResult && <ConnectedRoundHistory key={`${learnerId}:${visibleResult.learningSessionId}`} result={visibleResult} />}
   </div>
 }

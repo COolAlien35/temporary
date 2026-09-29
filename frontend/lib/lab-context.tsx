@@ -51,6 +51,7 @@ interface LabState {
   simulationError: string
   connectedResult: ConnectedLabResult | null
   showConnectedResult: (result: ConnectedLabResult) => void
+  openConnectedRun: (runId: string) => void
 }
 
 interface LabContextValue extends LabState {
@@ -169,6 +170,16 @@ export function LabProvider({
     url.searchParams.set("run", result.run.id)
     window.history.replaceState(window.history.state, "", url)
   }, [learnerId])
+  const openConnectedRun = useCallback((runId: string) => {
+    setConnectedResult(null)
+    setConnectedResultOwnerId(null)
+    setStage(5)
+    setActiveTab("circuit")
+    const url = new URL(window.location.href)
+    url.searchParams.set("stage", "5")
+    url.searchParams.set("run", runId)
+    window.history.replaceState(window.history.state, "", url)
+  }, [])
   const currentConnectedResult = connectedResultOwnerId === learnerId ? connectedResult : null
 
   useEffect(() => {
@@ -474,6 +485,7 @@ export function LabProvider({
     simulationError,
     connectedResult: currentConnectedResult,
     showConnectedResult,
+    openConnectedRun,
     goToStage,
     isStageUnlocked,
     setHypothesis,

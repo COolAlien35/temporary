@@ -11,7 +11,7 @@ import { useSession } from "@/store/use-session"
 const SHOTS = [128, 512, 1024, 4096]
 
 export function ConnectedAerRun() {
-  const { gates, hypothesis, confidence, shots, setShots, predictionLocked, connectedResult, showConnectedResult } = useLab()
+  const { gates, hypothesis, confidence, shots, setShots, predictionLocked, connectedResult, showConnectedResult, openConnectedRun } = useLab()
   const learnerId = useSession((state) => state.user?.id ?? null)
   const api = useMemo(() => connectedLearningLoopApi(), [])
   const [pending, setPending] = useState(false)
@@ -113,7 +113,7 @@ export function ConnectedAerRun() {
     {!predictionLocked && <p role="status" className="mt-4 text-xs text-muted-foreground">Lock a prediction in Predict before starting a new Aer run. You can still recover a recent saved run.</p>}
     <button type="button" disabled={pending || !predictionLocked} onClick={() => void submit()} className="mt-5 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-black disabled:opacity-50">{pending ? "Running on Aer…" : "Save prediction and run on Aer"}</button>
     <button type="button" disabled={pending} onClick={() => void loadRecent()} className="mt-3 w-full rounded-full border border-border px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-50">Recover recent saved run</button>
-    {pendingRunId && <Link href={`/lab/superposition?stage=5&run=${encodeURIComponent(pendingRunId)}`} className="mt-3 block text-sm font-semibold text-primary underline">Check saved run status</Link>}
+    {pendingRunId && <button type="button" onClick={() => openConnectedRun(pendingRunId)} className="mt-3 block text-sm font-semibold text-primary underline">Check saved run status</button>}
     {connectedResult && <button type="button" disabled={pending} onClick={() => showConnectedResult(connectedResult)} className="mt-3 w-full rounded-full border border-primary/50 px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50">View saved comparison</button>}
     {status && <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{status}</p>}
     {error && <p role="alert" className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error} <button type="button" disabled={pending} onClick={() => void (errorAction === "recover" ? loadRecent() : submit())} className="underline">{errorAction === "recover" ? "Retry recovery" : "Retry the same run"}</button></p>}

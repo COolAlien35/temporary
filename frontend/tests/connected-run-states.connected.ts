@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test"
 test("a saved run link rejects mismatched pairs and distinguishes run states", async ({ page }) => {
   const userId = "77777777-7777-4777-8777-777777777777"
   const runId = "11111111-1111-4111-8111-111111111111"
+  const pendingRunId = "44444444-4444-4444-8444-444444444444"
   const predictionId = "22222222-2222-4222-8222-222222222222"
+  const pendingPredictionId = "55555555-5555-4555-8555-555555555555"
   const sessionId = "33333333-3333-4333-8333-333333333333"
   const token = `${Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: userId, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.test-signature`
   const user = { id: userId, aud: "authenticated", role: "authenticated", email: "learner@example.test", app_metadata: {}, user_metadata: {}, created_at: "2026-09-29T00:00:00Z" }
@@ -23,6 +25,9 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
     if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
     if (route.request().headers().authorization !== `Bearer ${token}`) return route.fulfill({ status: 401, headers: cors, json: { error: { code: "authentication_required", message: "Sign in" } } })
     if (path === "/api/v1/me") return route.fulfill({ headers: cors, json: { id: userId, name: "Connected Learner", email: user.email, role: "learner" } })
+    if (path === "/api/v1/learning-sessions") return route.fulfill({ headers: cors, json: { items: [{ id: sessionId }], next_cursor: null } })
+    if (path === `/api/v1/learning-sessions/${sessionId}/predictions`) return route.fulfill({ headers: cors, json: { items: [{ id: pendingPredictionId, pairing_status: "pending", run_id: pendingRunId }], next_cursor: null } })
+    if (path === `/api/v1/experiments/runs/${pendingRunId}`) return route.fulfill({ headers: cors, json: { id: pendingRunId, status: "queued", prediction_id: pendingPredictionId } })
     if (path === `/api/v1/experiments/runs/${runId}`) {
       if (runState === "missing") return route.fulfill({ status: 404, headers: cors, json: { error: { code: "not_found", message: "Not found" } } })
       return route.fulfill({ headers: cors, json: { id: runId, status: runState, prediction_id: predictionId, backend: "qiskit_aer", shots: 1024, circuit_revision: 1, circuit_snapshot: { schema_version: 1, name: "Superposition lab", qubits: 2, gates: [] } } })
@@ -61,4 +66,12 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
   await page.getByRole("button", { name: "Retry" }).click()
   await expect(comparisonStatus).toContainText("Saved Aer comparison ready. Prediction agreement 98.0 percent.")
   await expect(page.getByRole("table", { name: /Server-derived outcome comparison/ })).toBeVisible()
+
+  await page.getByRole("button", { name: "Return to Run" }).click()
+  await page.getByRole("button", { name: "Recover recent saved run" }).click()
+  await page.getByRole("button", { name: "Check saved run status" }).click()
+  await expect(page).toHaveURL(new RegExp(`run=${pendingRunId}`))
+  await expect(comparisonStatus).toContainText("This saved Aer run is queued. Check again for its comparison.")
+  await expect(page.getByRole("table")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Discuss this run with Lab Partner →" })).toHaveCount(0)
 })

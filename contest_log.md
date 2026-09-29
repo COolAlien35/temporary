@@ -23,3 +23,4 @@
 - 2026-09-29: Rejected mismatched saved-run and pair IDs before showing a comparison or tutor action, with saved-run discovery recovery; TypeScript, build, focused contract test, and connected browser tests (4/4) passed.
 - 2026-09-29: Extended recent saved-comparison recovery across bounded owner-scoped session and prediction pages, with accurate empty-state copy and cursor-contract coverage; TypeScript and connected service tests (5/5) passed.
 - 2026-09-29: Added Run-stage recovery of owned queued/running Aer jobs after reload, linking to exact run status and retrying discovery errors correctly; TypeScript and connected service tests (6/6) passed.
+- 2026-09-29: Prevented an older in-memory comparison from appearing for a newly recovered run link; isolated production build and connected browser tests (4/4) passed, including pending-run stale-result rejection.
