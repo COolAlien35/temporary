@@ -22,6 +22,7 @@ bearer = HTTPBearer(auto_error=False)
 class IdentityClaims:
     subject: UUID
     email: str
+    display_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -89,7 +90,16 @@ def verify_access_token(token: str, settings: Settings) -> IdentityClaims:
         raise HTTPException(
             status_code=401, detail="Invalid access token", headers={"WWW-Authenticate": "Bearer"}
         ) from None
-    return IdentityClaims(subject=subject, email=email.strip().lower())
+    metadata = claims.get("user_metadata")
+    raw_name = metadata.get("name") if isinstance(metadata, dict) else None
+    display_name = raw_name.strip() if isinstance(raw_name, str) else None
+    if display_name and len(display_name) > 120:
+        display_name = None
+    return IdentityClaims(
+        subject=subject,
+        email=email.strip().lower(),
+        display_name=display_name or None,
+    )
 
 
 def get_claims(
@@ -107,7 +117,7 @@ def get_current_profile(
     claims: IdentityClaims = Depends(get_claims),  # noqa: B008
     session: Session = Depends(get_session),  # noqa: B008
 ) -> Profile:
-    return get_or_create_profile(session, claims.subject, claims.email)
+    return get_or_create_profile(session, claims.subject, claims.email, claims.display_name)
 
 
 def get_actor(profile: Profile = Depends(get_current_profile)) -> Actor:  # noqa: B008

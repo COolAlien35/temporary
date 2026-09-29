@@ -8,9 +8,11 @@ from app.modules.identity.models import Profile
 from app.modules.identity.schemas import LearningPreferences
 
 
-def upsert_profile(session: Session, subject: UUID, email: str) -> Profile:
+def upsert_profile(
+    session: Session, subject: UUID, email: str, display_name: str | None = None
+) -> Profile:
     """Create on first authenticated request; never accept a client-supplied role."""
-    default_name = email.split("@", 1)[0].strip()[:120] or "Learner"
+    default_name = display_name or email.split("@", 1)[0].strip()[:120] or "Learner"
     base_query = insert(Profile).values(
         id=uuid4(),
         auth_subject=subject,
