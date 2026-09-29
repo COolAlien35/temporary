@@ -23,7 +23,7 @@ export type ConnectedLabKeys = {
 export type ConnectedLabResult = { pair: PredictionPair; run: SavedRun; learningSessionId: string }
 
 export class ConnectedRunUnavailableError extends Error {
-  constructor(public readonly kind: "pending" | "failed" | "missing", message: string) {
+  constructor(public readonly kind: "pending" | "failed" | "missing" | "mismatch", message: string) {
     super(message)
     this.name = "ConnectedRunUnavailableError"
   }
@@ -43,7 +43,9 @@ export async function latestConnectedSuperposition(api: Api): Promise<ConnectedL
       const run = await api.getRun(prediction.run_id)
       if (run.status !== "succeeded") continue
       const pair = await api.getPair(prediction.id)
-      if (pair.run_id !== run.id || pair.prediction_id !== prediction.id) throw new Error("Saved comparison has mismatched references.")
+      if (pair.run_id !== run.id || pair.prediction_id !== prediction.id) {
+        throw new ConnectedRunUnavailableError("mismatch", "This saved comparison does not match its run. Try another saved run.")
+      }
       return { pair, run, learningSessionId: session.id }
     }
   }
@@ -64,6 +66,9 @@ export async function connectedSuperpositionForRun(api: Api, runId: string): Pro
     }
     throw cause
   }
+  if (run.id.toLowerCase() !== runId.toLowerCase()) {
+    throw new ConnectedRunUnavailableError("mismatch", "This saved run does not match the requested link. Try another saved run.")
+  }
   if (run.status === "queued" || run.status === "running") {
     throw new ConnectedRunUnavailableError("pending", `This saved Aer run is ${run.status}. Check again for its comparison.`)
   }
@@ -77,7 +82,9 @@ export async function connectedSuperpositionForRun(api: Api, runId: string): Pro
   const prediction = await api.getPrediction(run.prediction_id)
   if (prediction.lesson_id !== "u1-quantum-foundations") throw new Error("This run belongs to another lesson.")
   const pair = await api.getPair(run.prediction_id)
-  if (pair.run_id !== run.id || pair.prediction_id !== run.prediction_id) throw new Error("Saved comparison has mismatched references.")
+  if (pair.run_id !== run.id || pair.prediction_id !== run.prediction_id) {
+    throw new ConnectedRunUnavailableError("mismatch", "This saved comparison does not match the requested run. Try another saved run.")
+  }
   return { pair, run, learningSessionId: prediction.learning_session_id }
 }
 

@@ -101,7 +101,13 @@ test("exact run lookup rejects mismatched pairs and stale editor gates", async (
     if (String(url).includes("/pair")) return Response.json({ run_id: "another-run", prediction_id: predictionId })
     return fetcher(url)
   }) as typeof fetch)
-  await expect(connectedSuperpositionForRun(mismatch, runId)).rejects.toThrow("mismatched references")
+  await expect(connectedSuperpositionForRun(mismatch, runId)).rejects.toThrow("does not match the requested run")
+
+  const wrongRun = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", (async (url: string | URL | Request) => {
+    if (String(url).endsWith(`/experiments/runs/${runId}`)) return Response.json({ id: "another-run", status: "succeeded", prediction_id: predictionId })
+    return fetcher(url)
+  }) as typeof fetch)
+  await expect(connectedSuperpositionForRun(wrongRun, runId)).rejects.toThrow("does not match the requested link")
 
   const wrongLesson = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", (async (url: string | URL | Request) => {
     if (String(url).endsWith(`/predictions/${predictionId}`)) return Response.json({ id: predictionId, lesson_id: "u3-bell-states" })

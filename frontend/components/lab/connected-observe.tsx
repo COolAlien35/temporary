@@ -54,6 +54,7 @@ export function ConnectedObserve() {
       {loading ? "Loading your saved Aer comparison…" : pair ? `Saved Aer comparison ready. Prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? "No completed Superposition comparison was found in your ten most recent sessions." : runUnavailable?.message || error || "Run the circuit on Aer to compare your prediction."}
     </p>
     {(error || runUnavailable) && <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">{runUnavailable?.kind === "pending" ? "Check again" : "Retry"}</button>}
+    {runUnavailable && runUnavailable.kind !== "pending" && <button type="button" onClick={() => goToStage(4)} className="mt-4 ml-3 rounded-full border border-border px-4 py-2 text-sm font-semibold">Find another saved run</button>}
     {empty && <button type="button" onClick={() => goToStage(4)} className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Go to Run</button>}
     {pair && run && <section aria-label="Saved prediction versus actual comparison" className="mt-5 rounded-xl border border-border bg-card/60 p-5">
       <h3 className="text-lg font-semibold">Saved Aer result</h3>

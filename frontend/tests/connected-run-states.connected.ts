@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
 
-test("a saved run link distinguishes pending, failed, missing, and completed comparisons", async ({ page }) => {
+test("a saved run link rejects mismatched pairs and distinguishes run states", async ({ page }) => {
   const userId = "77777777-7777-4777-8777-777777777777"
   const runId = "11111111-1111-4111-8111-111111111111"
   const predictionId = "22222222-2222-4222-8222-222222222222"
@@ -9,6 +9,7 @@ test("a saved run link distinguishes pending, failed, missing, and completed com
   const user = { id: userId, aud: "authenticated", role: "authenticated", email: "learner@example.test", app_metadata: {}, user_metadata: {}, created_at: "2026-09-29T00:00:00Z" }
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, idempotency-key", "Content-Type": "application/json" }
   let runState: "queued" | "failed" | "missing" | "succeeded" = "queued"
+  let pairRunId = runId
 
   await page.route("https://provider.example.test/**", async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -27,7 +28,7 @@ test("a saved run link distinguishes pending, failed, missing, and completed com
       return route.fulfill({ headers: cors, json: { id: runId, status: runState, prediction_id: predictionId, backend: "qiskit_aer", shots: 1024, circuit_revision: 1, circuit_snapshot: { schema_version: 1, name: "Superposition lab", qubits: 2, gates: [] } } })
     }
     if (path === `/api/v1/predictions/${predictionId}`) return route.fulfill({ headers: cors, json: { id: predictionId, lesson_id: "u1-quantum-foundations", learning_session_id: sessionId } })
-    if (path === `/api/v1/predictions/${predictionId}/pair`) return route.fulfill({ headers: cors, json: { schema_version: 1, prediction_id: predictionId, run_id: runId, prediction_vector: [0.5, 0.5, 0, 0], simulated_vector: [0.48, 0.52, 0, 0], basis_labels: ["00", "01", "10", "11"], measurement_qubits: [1, 0], comparison_basis: "sampled_frequency", metric_version: "tvd-v1", prediction_match: 0.98, backend: "qiskit_aer", shots: 1024, circuit_revision: 1 } })
+    if (path === `/api/v1/predictions/${predictionId}/pair`) return route.fulfill({ headers: cors, json: { schema_version: 1, prediction_id: predictionId, run_id: pairRunId, prediction_vector: [0.5, 0.5, 0, 0], simulated_vector: [0.48, 0.52, 0, 0], basis_labels: ["00", "01", "10", "11"], measurement_qubits: [1, 0], comparison_basis: "sampled_frequency", metric_version: "tvd-v1", prediction_match: 0.98, backend: "qiskit_aer", shots: 1024, circuit_revision: 1 } })
     if (path === `/api/v1/learning-sessions/${sessionId}/agreement-history`) return route.fulfill({ headers: cors, json: { lesson_id: "u1-quantum-foundations", lesson_version: 1, learning_session_id: sessionId, items: [], scanned_count: 0, older_records_not_scanned: false, unavailable_sources: [] } })
     return route.fulfill({ status: 404, headers: cors, json: { error: { code: "missing_fixture", message: `Unexpected API route: ${path}` } } })
   })
@@ -49,6 +50,14 @@ test("a saved run link distinguishes pending, failed, missing, and completed com
   await expect(comparisonStatus).toContainText("This saved run is unavailable for this account.")
 
   runState = "succeeded"
+  pairRunId = "44444444-4444-4444-8444-444444444444"
+  await page.getByRole("button", { name: "Retry" }).click()
+  await expect(comparisonStatus).toContainText("This saved comparison does not match the requested run.")
+  await expect(page.getByRole("table")).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Discuss this run with Lab Partner →" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: "Find another saved run" })).toBeVisible()
+
+  pairRunId = runId
   await page.getByRole("button", { name: "Retry" }).click()
   await expect(comparisonStatus).toContainText("Saved Aer comparison ready. Prediction agreement 98.0 percent.")
   await expect(page.getByRole("table", { name: /Server-derived outcome comparison/ })).toBeVisible()
