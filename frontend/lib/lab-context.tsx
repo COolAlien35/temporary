@@ -265,7 +265,7 @@ export function LabProvider({
       if (connectedRunMode) {
         const url = new URL(window.location.href)
         url.searchParams.set("stage", String(n))
-        if (n !== 5) url.searchParams.delete("run")
+        if (n !== 5 && n !== 6) url.searchParams.delete("run")
         window.history.replaceState(window.history.state, "", url)
       }
       if (tabForStage[n]) setActiveTab(tabForStage[n] as ViewTab)
@@ -296,6 +296,12 @@ export function LabProvider({
     })
     if (next < 1 || next > STAGES.length) return
     setStage(next)
+    if (connectedRunMode) {
+      const url = new URL(window.location.href)
+      url.searchParams.set("stage", String(next))
+      if (next !== 5 && next !== 6) url.searchParams.delete("run")
+      window.history.replaceState(window.history.state, "", url)
+    }
     if (tabForStage[next]) setActiveTab(tabForStage[next] as ViewTab)
   }, [addLearnerXp, algorithm.slug, completedStages, connectedRunMode, updateLearnerStage])
 

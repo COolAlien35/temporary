@@ -4,8 +4,19 @@ import { ChevronRight } from "lucide-react"
 import { useLab } from "@/lib/lab-context"
 import { StageHeader, AccuracyBadge } from "@/components/lab/stage-header"
 import { LabPartnerChat } from "@/components/lab/lab-partner-chat"
+import { ConnectedExplain } from "@/components/lab/connected-explain"
+import { connectedAuthConfigured } from "@/lib/services/connected-auth"
+import { useSession } from "@/store/use-session"
 
 export function StageExplain() {
+  const accountMode = useSession((state) => state.mode)
+  const learnerId = useSession((state) => state.user?.id ?? null)
+  const { algorithm } = useLab()
+  if (connectedAuthConfigured && accountMode !== "demo" && algorithm.slug === "superposition") return <ConnectedExplain key={learnerId ?? "guest"} />
+  return <DemoStageExplain />
+}
+
+function DemoStageExplain() {
   const { algorithm, runAccuracy, hypothesis, shots, backend, advanceStage, simulationResult } = useLab()
   const actual = simulationResult?.noisyProbabilities ?? {}
 

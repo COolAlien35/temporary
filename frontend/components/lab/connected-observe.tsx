@@ -9,7 +9,7 @@ import { useSession } from "@/store/use-session"
 import { StageHeader } from "./stage-header"
 
 export function ConnectedObserve() {
-  const { connectedResult, showConnectedResult, gates, goToStage } = useLab()
+  const { connectedResult, showConnectedResult, gates, goToStage, advanceStage } = useLab()
   const learnerId = useSession((state) => state.user?.id ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -68,6 +68,7 @@ export function ConnectedObserve() {
         return <tr key={label} className="border-b border-border/50"><th scope="row" className="py-2 font-mono">|{label}⟩</th><td className="font-mono">{predicted.toFixed(1)}%</td><td className="font-mono">{actual.toFixed(1)}%</td><td className="font-mono">{delta > 0 ? "+" : ""}{delta.toFixed(1)} pts</td></tr>
       })}</tbody></table></div>
       <p className="mt-4 break-all text-xs text-muted-foreground">Run ID: <span className="font-mono">{run.id}</span></p>
+      <button type="button" onClick={() => advanceStage(5, 6)} className="mt-5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Discuss this run with Lab Partner →</button>
       <button type="button" onClick={() => goToStage(4)} className="mt-5 rounded-full border border-border px-4 py-2 text-sm font-semibold">Return to Run</button>
     </section>}
   </div>

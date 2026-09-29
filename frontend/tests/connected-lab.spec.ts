@@ -34,6 +34,7 @@ test("connected superposition saves prediction before the exact circuit run and 
   const result = await runConnectedSuperposition(api, input, keys, (message) => statuses.push(message))
 
   expect(result.pair.prediction_match).toBe(0.98)
+  expect(result.learningSessionId).toBe("session-1")
   expect(calls.map((item) => item.path)).toEqual([
     "/api/v1/curriculum/units/u1", "/api/v1/learning-sessions", "/api/v1/learning-sessions/session-1/predictions",
     "/api/v1/circuits", "/api/v1/experiments/runs", "/api/v1/experiments/runs/run-1",
@@ -67,7 +68,9 @@ test("recent connected comparison is recovered through owner-scoped session and 
     return new Response(null, { status: 404 })
   }) as typeof fetch
   const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
-  expect((await latestConnectedSuperposition(api))?.pair.prediction_match).toBe(0.75)
+  const recent = await latestConnectedSuperposition(api)
+  expect(recent?.pair.prediction_match).toBe(0.75)
+  expect(recent?.learningSessionId).toBe("session-latest")
   expect(calls).toEqual([
     "/api/v1/learning-sessions", "/api/v1/learning-sessions/session-latest/predictions",
     "/api/v1/experiments/runs/run-latest", "/api/v1/predictions/prediction-latest/pair",
@@ -83,12 +86,13 @@ test("exact run lookup rejects mismatched pairs and stale editor gates", async (
       id: runId, status: "succeeded", prediction_id: predictionId,
       circuit_snapshot: { schema_version: 1, name: "Superposition lab", qubits: 2, gates: [{ id: "h-q0", type: "H", step: 0, qubit: 0 }] },
     })
-    if (path.endsWith(`/predictions/${predictionId}`)) return Response.json({ id: predictionId, lesson_id: "u1-quantum-foundations" })
+    if (path.endsWith(`/predictions/${predictionId}`)) return Response.json({ id: predictionId, lesson_id: "u1-quantum-foundations", learning_session_id: "session-owned" })
     if (path.endsWith(`/predictions/${predictionId}/pair`)) return Response.json({ run_id: runId, prediction_id: predictionId })
     return new Response(null, { status: 404 })
   }) as typeof fetch
   const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
   const saved = await connectedSuperpositionForRun(api, runId)
+  expect(saved.learningSessionId).toBe("session-owned")
   expect(connectedCircuitIsStale(input.gates, saved.run)).toBe(false)
   expect(connectedCircuitIsStale([], saved.run)).toBe(true)
   await expect(connectedSuperpositionForRun(api, "not-a-uuid")).rejects.toThrow("Invalid saved run ID")

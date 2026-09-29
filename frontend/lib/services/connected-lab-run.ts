@@ -20,7 +20,7 @@ export type ConnectedLabKeys = {
   run: string
 }
 
-export type ConnectedLabResult = { pair: PredictionPair; run: SavedRun }
+export type ConnectedLabResult = { pair: PredictionPair; run: SavedRun; learningSessionId: string }
 
 export function newConnectedLabKeys(): ConnectedLabKeys {
   return { session: crypto.randomUUID(), prediction: crypto.randomUUID(), circuit: crypto.randomUUID(), run: crypto.randomUUID() }
@@ -37,7 +37,7 @@ export async function latestConnectedSuperposition(api: Api): Promise<ConnectedL
       if (run.status !== "succeeded") continue
       const pair = await api.getPair(prediction.id)
       if (pair.run_id !== run.id || pair.prediction_id !== prediction.id) throw new Error("Saved comparison has mismatched references.")
-      return { pair, run }
+      return { pair, run, learningSessionId: session.id }
     }
   }
   return null
@@ -54,7 +54,7 @@ export async function connectedSuperpositionForRun(api: Api, runId: string): Pro
   if (prediction.lesson_id !== "u1-quantum-foundations") throw new Error("This run belongs to another lesson.")
   const pair = await api.getPair(run.prediction_id)
   if (pair.run_id !== run.id || pair.prediction_id !== run.prediction_id) throw new Error("Saved comparison has mismatched references.")
-  return { pair, run }
+  return { pair, run, learningSessionId: prediction.learning_session_id }
 }
 
 export function connectedCircuitIsStale(gates: GatePlacement[], run: SavedRun): boolean {
@@ -140,7 +140,7 @@ export async function runConnectedSuperposition(
       onStatus("Loading the verified comparison…")
       const pair = await api.getPair(prediction.id)
       if (pair.run_id !== run.id || pair.prediction_id !== prediction.id) throw new Error("The saved comparison does not match this run.")
-      return { pair, run }
+      return { pair, run, learningSessionId: session.id }
     }
     if (["failed", "cancelled", "timed_out", "unknown"].includes(run.status)) {
       throw new LearningLoopApiError(409, run.error_code ?? "run_failed", "The Aer run did not complete. Review the circuit and retry.")
