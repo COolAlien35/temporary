@@ -21,6 +21,7 @@ export type ConnectedLabKeys = {
 }
 
 export type ConnectedLabResult = { pair: PredictionPair; run: SavedRun; learningSessionId: string }
+export type PendingConnectedRun = { pendingRunId: string }
 
 export class ConnectedRunUnavailableError extends Error {
   constructor(public readonly kind: "pending" | "failed" | "missing" | "mismatch", message: string) {
@@ -37,8 +38,10 @@ const RECOVERY_PAGE_SIZE = 10
 const RECOVERY_MAX_PAGES = 5
 export const RECENT_COMPARISON_EMPTY_MESSAGE = "No completed Superposition comparison was found in the latest 50 sessions (up to 50 predictions each)."
 
-/** Find a recent completed superposition pair using owner-scoped backend discovery. */
-export async function latestConnectedSuperposition(api: Api): Promise<ConnectedLabResult | null> {
+/** Find a recent owned Superposition run, optionally including work still processing. */
+export async function latestConnectedSuperposition(api: Api): Promise<ConnectedLabResult | null>
+export async function latestConnectedSuperposition(api: Api, includePending: true): Promise<ConnectedLabResult | PendingConnectedRun | null>
+export async function latestConnectedSuperposition(api: Api, includePending = false): Promise<ConnectedLabResult | PendingConnectedRun | null> {
   let sessionCursor: string | undefined
   for (let sessionPage = 0; sessionPage < RECOVERY_MAX_PAGES; sessionPage++) {
     const sessions = await api.listSessions({ lessonId: "u1-quantum-foundations", limit: RECOVERY_PAGE_SIZE, cursor: sessionCursor })
@@ -47,7 +50,15 @@ export async function latestConnectedSuperposition(api: Api): Promise<ConnectedL
       for (let predictionPage = 0; predictionPage < RECOVERY_MAX_PAGES; predictionPage++) {
         const predictions = await api.listPredictions(session.id, { limit: RECOVERY_PAGE_SIZE, cursor: predictionCursor })
         for (const prediction of predictions.items) {
-          if (prediction.pairing_status !== "paired" || !prediction.run_id) continue
+          if (!prediction.run_id) continue
+          if (includePending && prediction.pairing_status === "pending") {
+            const pendingRun = await api.getRun(prediction.run_id)
+            if (pendingRun.id !== prediction.run_id) {
+              throw new ConnectedRunUnavailableError("mismatch", "This saved run does not match its prediction. Try another saved run.")
+            }
+            if (pendingRun.status === "queued" || pendingRun.status === "running") return { pendingRunId: pendingRun.id }
+          }
+          if (prediction.pairing_status !== "paired") continue
           const run = await api.getRun(prediction.run_id)
           if (run.status !== "succeeded") continue
           const pair = await api.getPair(prediction.id)

@@ -17,6 +17,8 @@ export function ConnectedAerRun() {
   const [pending, setPending] = useState(false)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
+  const [errorAction, setErrorAction] = useState<"submit" | "recover">("submit")
+  const [pendingRunId, setPendingRunId] = useState<string | null>(null)
   const operation = useRef<{ signature: string; input: ConnectedLabInput; keys: ConnectedLabKeys } | null>(null)
   const controller = useRef<AbortController | null>(null)
   const mounted = useRef(true)
@@ -34,6 +36,8 @@ export function ConnectedAerRun() {
     setPending(false)
     setStatus("")
     setError("")
+    setErrorAction("submit")
+    setPendingRunId(null)
   }, [learnerId])
 
   async function submit() {
@@ -42,6 +46,8 @@ export function ConnectedAerRun() {
     const sameOwner = () => useSession.getState().mode === "connected" && useSession.getState().user?.id === ownerId
     setPending(true)
     setError("")
+    setErrorAction("submit")
+    setPendingRunId(null)
     try {
       if (!operation.current || operation.current.signature !== currentSignature) {
         operation.current = {
@@ -70,17 +76,25 @@ export function ConnectedAerRun() {
     const sameOwner = () => useSession.getState().mode === "connected" && useSession.getState().user?.id === ownerId
     setPending(true)
     setError("")
-    setStatus("Looking up recent saved comparisons…")
+    setErrorAction("recover")
+    setPendingRunId(null)
+    setStatus("Looking up recent saved runs…")
     try {
-      const saved = await latestConnectedSuperposition(api)
+      const saved = await latestConnectedSuperposition(api, true)
       if (!mounted.current || !sameOwner()) return
-      if (saved) {
+      if (saved && "pendingRunId" in saved) {
+        setPendingRunId(saved.pendingRunId)
+        setStatus("A saved Aer run is still processing. Open its status to check again.")
+      } else if (saved) {
         showConnectedResult(saved)
       } else {
         setStatus(RECENT_COMPARISON_EMPTY_MESSAGE)
       }
     } catch (cause) {
-      if (mounted.current && sameOwner()) setError(cause instanceof Error ? cause.message : "Could not load saved comparisons.")
+      if (mounted.current && sameOwner()) {
+        setStatus("")
+        setError(cause instanceof Error ? cause.message : "Could not load saved runs.")
+      }
     } finally {
       if (mounted.current && sameOwner()) setPending(false)
     }
@@ -96,11 +110,12 @@ export function ConnectedAerRun() {
       <div className="mt-3 flex flex-wrap gap-2">{SHOTS.map((count) => <button key={count} type="button" disabled={pending} onClick={() => setShots(count)} aria-pressed={shots === count} className={`rounded-md border px-3.5 py-1.5 text-sm ${shots === count ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground"}`}>{count.toLocaleString()}</button>)}</div>
       <p className="mt-3 text-xs text-muted-foreground">Ideal Aer circuit with sampled measurements. The browser noise preview is unavailable for connected runs.</p>
     </div>
-    {!predictionLocked && <p role="status" className="mt-4 text-xs text-muted-foreground">Lock a prediction in Predict before starting a new Aer run. You can still load a recent saved comparison.</p>}
+    {!predictionLocked && <p role="status" className="mt-4 text-xs text-muted-foreground">Lock a prediction in Predict before starting a new Aer run. You can still recover a recent saved run.</p>}
     <button type="button" disabled={pending || !predictionLocked} onClick={() => void submit()} className="mt-5 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-black disabled:opacity-50">{pending ? "Running on Aer…" : "Save prediction and run on Aer"}</button>
-    <button type="button" disabled={pending} onClick={() => void loadRecent()} className="mt-3 w-full rounded-full border border-border px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-50">Load recent saved comparison</button>
+    <button type="button" disabled={pending} onClick={() => void loadRecent()} className="mt-3 w-full rounded-full border border-border px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-50">Recover recent saved run</button>
+    {pendingRunId && <Link href={`/lab/superposition?stage=5&run=${encodeURIComponent(pendingRunId)}`} className="mt-3 block text-sm font-semibold text-primary underline">Check saved run status</Link>}
     {connectedResult && <button type="button" disabled={pending} onClick={() => showConnectedResult(connectedResult)} className="mt-3 w-full rounded-full border border-primary/50 px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50">View saved comparison</button>}
     {status && <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{status}</p>}
-    {error && <p role="alert" className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error} <button type="button" disabled={pending} onClick={() => void submit()} className="underline">Retry the same run</button></p>}
+    {error && <p role="alert" className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error} <button type="button" disabled={pending} onClick={() => void (errorAction === "recover" ? loadRecent() : submit())} className="underline">{errorAction === "recover" ? "Retry recovery" : "Retry the same run"}</button></p>}
   </div>
 }

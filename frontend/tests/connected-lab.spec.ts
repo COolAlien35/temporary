@@ -114,6 +114,27 @@ test("recent comparison search follows session and prediction cursors", async ()
   ])
 })
 
+test("recovery offers an owned pending run before an older completed comparison", async () => {
+  let latestStatus: "queued" | "failed" = "queued"
+  const fetcher = (async (url: string | URL | Request) => {
+    const path = new URL(String(url)).pathname
+    if (path.endsWith("/learning-sessions")) return Response.json({ items: [{ id: "new-session" }, { id: "old-session" }], next_cursor: null })
+    if (path.endsWith("/learning-sessions/new-session/predictions")) return Response.json({ items: [{ id: "new-prediction", pairing_status: "pending", run_id: "new-run" }], next_cursor: null })
+    if (path.endsWith("/learning-sessions/old-session/predictions")) return Response.json({ items: [{ id: "old-prediction", pairing_status: "paired", run_id: "old-run" }], next_cursor: null })
+    if (path.endsWith("/experiments/runs/new-run")) return Response.json({ id: "new-run", status: latestStatus })
+    if (path.endsWith("/experiments/runs/old-run")) return Response.json({ id: "old-run", status: "succeeded" })
+    if (path.endsWith("/predictions/old-prediction/pair")) return Response.json({ prediction_id: "old-prediction", run_id: "old-run", prediction_match: 0.8 })
+    return new Response(null, { status: 404 })
+  }) as typeof fetch
+  const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
+
+  expect(await latestConnectedSuperposition(api, true)).toEqual({ pendingRunId: "new-run" })
+  expect((await latestConnectedSuperposition(api))?.pair.prediction_match).toBe(0.8)
+  latestStatus = "failed"
+  const fallback = await latestConnectedSuperposition(api, true)
+  expect(fallback).toMatchObject({ run: { id: "old-run" }, pair: { prediction_match: 0.8 } })
+})
+
 test("exact run lookup rejects mismatched pairs and stale editor gates", async () => {
   const runId = "cc5c8e0f-b7c4-495f-83a8-52ed54e430bd"
   const predictionId = "c7b86b70-f6d3-4b84-a772-183015075eaa"
