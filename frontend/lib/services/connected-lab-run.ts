@@ -150,6 +150,7 @@ export async function runConnectedSuperposition(
   keys: ConnectedLabKeys,
   onStatus: (status: string) => void,
   signal?: AbortSignal,
+  onSubmitted?: (runId: string) => void,
 ): Promise<ConnectedLabResult> {
   if (!Number.isInteger(input.shots) || input.shots < 1 || input.shots > 8192) throw new Error("Choose 1 to 8,192 shots.")
   const lessonId = "u1-quantum-foundations"
@@ -190,6 +191,8 @@ export async function runConnectedSuperposition(
     shots: input.shots,
     prediction_id: prediction.id,
   }, keys.run)
+  ensureActive(signal)
+  onSubmitted?.(accepted.resource_id)
 
   for (let attempt = 0; attempt < 60; attempt++) {
     ensureActive(signal)

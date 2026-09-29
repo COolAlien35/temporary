@@ -28,10 +28,14 @@ function useCountUp(value: number, duration = 500) {
 }
 
 export function TopBar() {
-  const { algorithm, stage, completedStages, hints, attempts, xp, runAccuracy, hasRun, mode, setMode, goToStage } =
+  const { algorithm, stage, completedStages, hints, attempts, xp, runAccuracy, hasRun, connectedRunMode, connectedResult, mode, setMode, goToStage } =
     useLab()
   const displayXp = useCountUp(xp)
-  const accuracyKnown = hasRun
+  const requestedRunId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("run")
+  const verifiedResult = connectedRunMode && (stage === 5 || stage === 6) && connectedResult &&
+    (!requestedRunId || connectedResult.run.id.toLowerCase() === requestedRunId.toLowerCase()) ? connectedResult : null
+  const accuracyKnown = connectedRunMode ? Boolean(verifiedResult) : hasRun
+  const agreement = connectedRunMode ? verifiedResult?.pair.prediction_match : runAccuracy / 100
 
   const curriculumHref = algorithm.slug === "superposition" ? "/curriculum/u1" : algorithm.slug === "gates" ? "/curriculum/u2" : algorithm.slug === "entanglement" ? "/curriculum/u3" : "/curriculum"
 
@@ -83,10 +87,11 @@ export function TopBar() {
         <div className="hidden items-center gap-4 md:flex">
           <div className="flex flex-col items-end">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Agreement</span>
-            <span className={cn("font-mono font-semibold", accuracyKnown && runAccuracy === 0 ? "text-rose-400" : "text-foreground")}>
-              {accuracyKnown ? `${runAccuracy}%` : "\u2014"}
+            <span className={cn("font-mono font-semibold", accuracyKnown && agreement === 0 ? "text-rose-400" : "text-foreground")}>
+              {accuracyKnown ? connectedRunMode ? `${((agreement ?? 0) * 100).toFixed(1)}%` : `${runAccuracy}%` : "\u2014"}
             </span>
           </div>
+          {!connectedRunMode && <>
           <div className="flex flex-col items-end">
             <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
               <Lightbulb className="size-2.5" /> Hints
@@ -105,6 +110,7 @@ export function TopBar() {
             </span>
             <span className="font-mono font-semibold text-primary">{displayXp}</span>
           </div>
+          </>}
         </div>
 
         <div className="flex items-center rounded-full border border-border bg-secondary/50 p-0.5">

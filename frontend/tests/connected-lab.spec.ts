@@ -31,7 +31,8 @@ test("connected superposition saves prediction before the exact circuit run and 
   }) as typeof fetch
   const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "current-token", fetcher)
   const statuses: string[] = []
-  const result = await runConnectedSuperposition(api, input, keys, (message) => statuses.push(message))
+  const submitted: string[] = []
+  const result = await runConnectedSuperposition(api, input, keys, (message) => statuses.push(message), undefined, (runId) => submitted.push(runId))
 
   expect(result.pair.prediction_match).toBe(0.98)
   expect(result.learningSessionId).toBe("session-1")
@@ -48,6 +49,7 @@ test("connected superposition saves prediction before the exact circuit run and 
   expect(calls.slice(1, 5).map((item) => (item.init.headers as Record<string, string>)["Idempotency-Key"])).toEqual([keys.session, keys.prediction, keys.circuit, keys.run])
   expect(calls.every((item) => (item.init.headers as Record<string, string>).Authorization === "Bearer current-token")).toBe(true)
   expect(statuses).toContain("Loading the verified comparison…")
+  expect(submitted).toEqual(["run-1"])
 })
 
 test("invalid prediction is rejected before any connected write", async () => {

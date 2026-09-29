@@ -50,6 +50,8 @@ interface LabState {
   resultsStale: boolean
   simulationError: string
   connectedResult: ConnectedLabResult | null
+  connectedRunMode: boolean
+  rememberConnectedResult: (result: ConnectedLabResult) => void
   showConnectedResult: (result: ConnectedLabResult) => void
   openConnectedRun: (runId: string) => void
 }
@@ -160,16 +162,19 @@ export function LabProvider({
 
   useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null) }, [learnerId, algorithm.slug])
 
-  const showConnectedResult = useCallback((result: ConnectedLabResult) => {
+  const rememberConnectedResult = useCallback((result: ConnectedLabResult) => {
     setConnectedResult(result)
     setConnectedResultOwnerId(learnerId)
+  }, [learnerId])
+  const showConnectedResult = useCallback((result: ConnectedLabResult) => {
+    rememberConnectedResult(result)
     setStage(5)
     setActiveTab("circuit")
     const url = new URL(window.location.href)
     url.searchParams.set("stage", "5")
     url.searchParams.set("run", result.run.id)
     window.history.replaceState(window.history.state, "", url)
-  }, [learnerId])
+  }, [rememberConnectedResult])
   const openConnectedRun = useCallback((runId: string) => {
     setConnectedResult(null)
     setConnectedResultOwnerId(null)
@@ -237,6 +242,7 @@ export function LabProvider({
 
   const isStageUnlocked = useCallback(
     (n: number) => {
+      if (connectedRunMode && n > 6) return false
       if (n === 1) return true
       if (connectedRunMode && n === 5) return true
       // Any stage already reached (current or earlier) is always revisitable.
@@ -305,7 +311,7 @@ export function LabProvider({
       nextSet.add(completed)
       return nextSet
     })
-    if (next < 1 || next > STAGES.length) return
+    if (next < 1 || next > STAGES.length || (connectedRunMode && next > 6)) return
     setStage(next)
     if (connectedRunMode) {
       const url = new URL(window.location.href)
@@ -484,6 +490,8 @@ export function LabProvider({
     resultsStale,
     simulationError,
     connectedResult: currentConnectedResult,
+    connectedRunMode,
+    rememberConnectedResult,
     showConnectedResult,
     openConnectedRun,
     goToStage,

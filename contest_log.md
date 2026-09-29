@@ -27,3 +27,4 @@
 - 2026-09-29: Bound connected Explain's comparison and tutor context to the saved run URL and verified older/current round navigation plus reload; TypeScript and connected browser tests (4/4) passed.
 - 2026-09-29: Added queued/failed/unavailable recovery to saved-run Explain links, including recheck and discovery actions; TypeScript, production build, and focused connected browser regression passed.
 - 2026-09-29: Connected the Superposition Build stage to owner-scoped circuit save/list/reopen/revision APIs, preserving gate IDs and rejecting unsupported library circuits; TypeScript and focused browser recovery after clearing the local draft passed.
+- 2026-09-29: Showed server agreement in connected lab, exposed accepted Aer run status during polling, and blocked local grading/preview screens from connected mode; production build, connected service tests (6/6), and connected browser tests (5/5) passed.

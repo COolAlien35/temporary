@@ -60,7 +60,9 @@ export function ConnectedAerRun() {
       controller.current = new AbortController()
       const completed = await runConnectedSuperposition(api, input, keys, (message) => {
         if (mounted.current && sameOwner()) setStatus(message)
-      }, controller.current.signal)
+      }, controller.current.signal, (runId) => {
+        if (mounted.current && sameOwner()) setPendingRunId(runId)
+      })
       if (!mounted.current || !sameOwner()) return
       showConnectedResult(completed)
     } catch (cause) {

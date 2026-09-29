@@ -90,11 +90,16 @@ test("connected learner opens another saved run in Explain and reloads its run-b
   await page.goto(`/lab/superposition?stage=6&run=${ids.currentRun}`)
   await expect(page.getByText("Server-derived prediction agreement 98.0 percent.")).toBeVisible()
   await expect(page.getByText(`Saved run: ${ids.currentRun}`)).toBeVisible()
+  await expect(page.getByRole("banner").getByText("98.0%", { exact: true })).toBeVisible()
   await expect(page.getByText("The 00 outcome increased in this saved run.")).not.toBeVisible()
   await page.getByRole("button", { name: "Explain", exact: true }).click()
   expect(tutorPosts[1]).toMatchObject({ action: "explain", run_id: ids.currentRun })
   await page.reload()
   await expect(page.getByText("The 00 outcome increased in this saved run.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Proceed to Debug Challenge" })).toHaveCount(0)
+  await page.goto("/lab/superposition?stage=8")
+  await expect(page.getByText("Connected grading is not available yet")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Submit for Scoring" })).toHaveCount(0)
 })
 
 test("connected learner locks a prediction, runs the exact circuit, and asks the tutor about the saved pair", async ({ page }) => {
