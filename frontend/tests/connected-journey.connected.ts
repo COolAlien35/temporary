@@ -88,3 +88,78 @@ test("connected learner reopens a prior Aer round and reloads its run-bound tuto
   await page.reload()
   await expect(page.getByText("The 00 outcome increased in this saved run.")).toBeVisible()
 })
+
+test("connected learner locks a prediction, runs the exact circuit, and asks the tutor about the saved pair", async ({ page }) => {
+  const token = `${Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: ids.user, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.test-signature`
+  const user = { id: ids.user, aud: "authenticated", role: "authenticated", email: "learner@example.test", app_metadata: {}, user_metadata: {}, created_at: "2026-09-29T00:00:00Z" }
+  const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, idempotency-key", "Content-Type": "application/json" }
+  const writes: { path: string; body: Record<string, unknown>; key: string | undefined }[] = []
+  let polls = 0
+
+  await page.route("https://provider.example.test/**", async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
+    if (path === "/auth/v1/token") return route.fulfill({ headers: cors, json: { access_token: token, refresh_token: "test-refresh-token", expires_in: 3600, token_type: "bearer", user } })
+    if (path === "/auth/v1/user") return route.fulfill({ headers: cors, json: user })
+    return route.fulfill({ status: 404, headers: cors, json: { message: `Unexpected provider route: ${path}` } })
+  })
+  await page.route("https://api.example.test/**", async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
+    if (request.headers().authorization !== `Bearer ${token}`) return route.fulfill({ status: 401, headers: cors, json: { error: { code: "authentication_required", message: "Sign in" } } })
+    if (path === "/api/v1/me") return route.fulfill({ headers: cors, json: { id: ids.user, name: "Connected Learner", email: user.email, role: "learner" } })
+    if (path === "/api/v1/curriculum/units/u1") return route.fulfill({ headers: cors, json: { content_version: 1, lessons: [{ id: "u1-quantum-foundations" }] } })
+    if (request.method() === "POST") writes.push({ path, body: request.postDataJSON() as Record<string, unknown>, key: request.headers()["idempotency-key"] })
+    if (path === "/api/v1/learning-sessions" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentSession, lesson_id: "u1-quantum-foundations", lesson_version: 1 } })
+    if (path === `/api/v1/learning-sessions/${ids.currentSession}/predictions` && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentPrediction } })
+    if (path === "/api/v1/circuits" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: "99999999-9999-4999-8999-999999999999", revision: 1 } })
+    if (path === "/api/v1/experiments/runs" && request.method() === "POST") return route.fulfill({ headers: cors, json: { resource_id: ids.currentRun, status: "queued" } })
+    if (path === `/api/v1/experiments/runs/${ids.currentRun}`) return route.fulfill({ headers: cors, json: {
+      id: ids.currentRun, status: ++polls === 1 ? "queued" : "succeeded", prediction_id: ids.currentPrediction,
+      backend: "qiskit_aer", shots: 1024, circuit_revision: 1,
+      circuit_snapshot: { schema_version: 1, name: "Superposition lab", qubits: 2, gates: [{ id: "gate-0", type: "H", step: 0, qubit: 0 }] },
+    } })
+    if (path === `/api/v1/predictions/${ids.currentPrediction}/pair`) return route.fulfill({ headers: cors, json: {
+      schema_version: 1, prediction_id: ids.currentPrediction, run_id: ids.currentRun,
+      prediction_vector: [0.25, 0.25, 0.25, 0.25], simulated_vector: [0.5, 0.5, 0, 0],
+      basis_labels: ["00", "01", "10", "11"], measurement_qubits: [1, 0], comparison_basis: "sampled_frequency",
+      metric_version: "tvd-v1", prediction_match: 0.5, backend: "qiskit_aer", shots: 1024, circuit_revision: 1,
+    } })
+    if (path === `/api/v1/learning-sessions/${ids.currentSession}/agreement-history`) return route.fulfill({ headers: cors, json: { lesson_id: "u1-quantum-foundations", lesson_version: 1, learning_session_id: ids.currentSession, items: [], scanned_count: 0, older_records_not_scanned: false, unavailable_sources: [] } })
+    if (path === `/api/v1/learning-sessions/${ids.currentSession}/tutor/messages`) {
+      if (request.method() === "GET") return route.fulfill({ headers: cors, json: [] })
+      const body = request.postDataJSON() as Record<string, unknown>
+      return route.fulfill({ headers: cors, json: { ...body, id: ids.tutorMessage, learning_session_id: ids.currentSession, status: "completed", role: "pedagogical_guide", prompt_version: "guide-v1", model: "test-tutor", source_record_ids: [ids.currentSession, ids.currentRun], response_text: "Your saved prediction gave equal weight to all four outcomes.", recommendation: null, provider_called: true, error_code: null, created_at: "2026-09-29T12:01:00Z", completed_at: "2026-09-29T12:01:01Z" } })
+    }
+    return route.fulfill({ status: 404, headers: cors, json: { error: { code: "missing_fixture", message: `Unexpected API route: ${path}` } } })
+  })
+
+  await page.goto(`/login?next=${encodeURIComponent("/lab/superposition?stage=4")}`)
+  await page.getByLabel("Email").fill(user.email)
+  await page.locator("#password").fill("test-password")
+  await page.locator("form").getByRole("button", { name: "Log in" }).click()
+  await expect(page.getByRole("button", { name: "Save prediction and run on Aer" })).toBeDisabled()
+  await expect(page.getByText("Lock a prediction in Predict before starting a new Aer run.", { exact: false })).toBeVisible()
+  await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /1 Learn/ }).click()
+  await page.getByRole("button", { name: "Formulate Hypothesis →" }).click()
+  await page.getByRole("button", { name: "Lock Prediction & Arm Simulation Gate" }).click()
+  await page.getByRole("button", { name: "Place H on q0 at step 0" }).click()
+  await page.getByRole("button", { name: "Proceed to Run →" }).click()
+  await page.getByRole("button", { name: "Save prediction and run on Aer" }).click()
+  await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).toBeVisible()
+  expect(polls).toBeGreaterThanOrEqual(2)
+  expect(writes.map((item) => item.path)).toEqual([
+    "/api/v1/learning-sessions", `/api/v1/learning-sessions/${ids.currentSession}/predictions`, "/api/v1/circuits", "/api/v1/experiments/runs",
+  ])
+  expect(writes.every((item) => Boolean(item.key))).toBe(true)
+  expect(writes[1].body).toMatchObject({ learning_session_id: ids.currentSession, prediction_vector: [0.25, 0.25, 0.25, 0.25] })
+  expect(writes[2].body).toMatchObject({ qubits: 2, gates: [expect.objectContaining({ type: "H", step: 0, qubit: 0 })] })
+  expect(writes[3].body).toMatchObject({ prediction_id: ids.currentPrediction, circuit_revision: 1, backend: "qiskit_aer" })
+  await page.getByRole("button", { name: "Discuss this run with Lab Partner →" }).click()
+  await page.getByRole("button", { name: "Explain", exact: true }).click()
+  await expect(page.getByText("Your saved prediction gave equal weight to all four outcomes.")).toBeVisible()
+  expect(writes[4].path).toBe(`/api/v1/learning-sessions/${ids.currentSession}/tutor/messages`)
+  expect(writes[4].body).toMatchObject({ action: "explain", stage: "discuss", run_id: ids.currentRun })
+  expect(writes[4].body).not.toHaveProperty("prediction_match")
+})
