@@ -238,6 +238,6 @@ test("switching connected accounts clears the open learner's lab draft and canno
   await expect(page.getByText("No gates placed")).toBeVisible()
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).not.toBeVisible()
   await page.goto(`/lab/superposition?stage=5&run=${ids.currentRun}`)
-  await expect(page.getByRole("alert").getByText("Run not found")).toBeVisible()
+  await expect(page.locator('p[role="status"][aria-live="polite"]')).toContainText("This saved run is unavailable for this account.")
   expect(secondAccountReadDenied).toBe(true)
 })

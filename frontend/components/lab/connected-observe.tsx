@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useLab } from "@/lib/lab-context"
 import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
-import { connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition } from "@/lib/services/connected-lab-run"
+import { ConnectedRunUnavailableError, connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition } from "@/lib/services/connected-lab-run"
 import { useSession } from "@/store/use-session"
 import { StageHeader } from "./stage-header"
 import { ConnectedRoundHistory } from "./connected-round-history"
@@ -14,6 +14,7 @@ export function ConnectedObserve() {
   const learnerId = useSession((state) => state.user?.id ?? null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [runUnavailable, setRunUnavailable] = useState<ConnectedRunUnavailableError | null>(null)
   const [empty, setEmpty] = useState(false)
   const [reload, setReload] = useState(0)
 
@@ -23,6 +24,7 @@ export function ConnectedObserve() {
     const runId = new URLSearchParams(window.location.search).get("run")
     setLoading(true)
     setError("")
+    setRunUnavailable(null)
     setEmpty(false)
     const api = connectedLearningLoopApi()
     void (runId ? connectedSuperpositionForRun(api, runId) : latestConnectedSuperposition(api))
@@ -32,7 +34,9 @@ export function ConnectedObserve() {
         else setEmpty(true)
       })
       .catch((cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Could not load the saved comparison.")
+        if (!active) return
+        if (cause instanceof ConnectedRunUnavailableError) setRunUnavailable(cause)
+        else setError(cause instanceof Error ? cause.message : "Could not load the saved comparison.")
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -47,9 +51,9 @@ export function ConnectedObserve() {
   return <div className="mx-auto max-w-3xl">
     <StageHeader eyebrow="Stage 5 of 9 · Verified Observation" title="Prediction vs. Actual" />
     <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">
-      {loading ? "Loading your saved Aer comparison…" : pair ? `Saved Aer comparison ready. Prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? "No completed Superposition comparison was found in your ten most recent sessions." : error || "Run the circuit on Aer to compare your prediction."}
+      {loading ? "Loading your saved Aer comparison…" : pair ? `Saved Aer comparison ready. Prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? "No completed Superposition comparison was found in your ten most recent sessions." : runUnavailable?.message || error || "Run the circuit on Aer to compare your prediction."}
     </p>
-    {error && <div role="alert" className="mt-4 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error} <button type="button" onClick={() => setReload((n) => n + 1)} className="underline">Retry</button></div>}
+    {(error || runUnavailable) && <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">{runUnavailable?.kind === "pending" ? "Check again" : "Retry"}</button>}
     {empty && <button type="button" onClick={() => goToStage(4)} className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Go to Run</button>}
     {pair && run && <section aria-label="Saved prediction versus actual comparison" className="mt-5 rounded-xl border border-border bg-card/60 p-5">
       <h3 className="text-lg font-semibold">Saved Aer result</h3>

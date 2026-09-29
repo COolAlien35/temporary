@@ -22,6 +22,13 @@ export type ConnectedLabKeys = {
 
 export type ConnectedLabResult = { pair: PredictionPair; run: SavedRun; learningSessionId: string }
 
+export class ConnectedRunUnavailableError extends Error {
+  constructor(public readonly kind: "pending" | "failed" | "missing", message: string) {
+    super(message)
+    this.name = "ConnectedRunUnavailableError"
+  }
+}
+
 export function newConnectedLabKeys(): ConnectedLabKeys {
   return { session: crypto.randomUUID(), prediction: crypto.randomUUID(), circuit: crypto.randomUUID(), run: crypto.randomUUID() }
 }
@@ -48,8 +55,25 @@ export async function connectedSuperpositionForRun(api: Api, runId: string): Pro
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(runId)) {
     throw new Error("Invalid saved run ID.")
   }
-  const run = await api.getRun(runId)
-  if (run.status !== "succeeded" || !run.prediction_id) throw new Error("This saved run has no completed prediction comparison.")
+  let run: SavedRun
+  try {
+    run = await api.getRun(runId)
+  } catch (cause) {
+    if (cause instanceof LearningLoopApiError && cause.status === 404) {
+      throw new ConnectedRunUnavailableError("missing", "This saved run is unavailable for this account. Check the link or choose one of your own runs.")
+    }
+    throw cause
+  }
+  if (run.status === "queued" || run.status === "running") {
+    throw new ConnectedRunUnavailableError("pending", `This saved Aer run is ${run.status}. Check again for its comparison.`)
+  }
+  if (run.status !== "succeeded") {
+    const status = run.status === "timed_out" ? "timed out" : run.status === "unknown" ? "unavailable" : run.status
+    throw new ConnectedRunUnavailableError("failed", `This saved Aer run ${status}. No prediction comparison was recorded.`)
+  }
+  if (!run.prediction_id) {
+    throw new ConnectedRunUnavailableError("missing", "This saved run has no paired prediction comparison.")
+  }
   const prediction = await api.getPrediction(run.prediction_id)
   if (prediction.lesson_id !== "u1-quantum-foundations") throw new Error("This run belongs to another lesson.")
   const pair = await api.getPair(run.prediction_id)
