@@ -38,3 +38,4 @@
 - 2026-09-29: Built and booted the production frontend container alongside the healthy API and Aer worker; frontend returned HTTP 200 and API readiness returned ready on local ports 3300/8000.
 - 2026-09-29: Connected account settings to revision-checked `/me` reads/writes, hydrated preferences at sign-in, and recovered stale-write conflicts; production build, 11 service tests, six connected browser tests, and two demo settings tests passed.
 - 2026-09-30: Kept explicit Supabase and local-demo signup/recovery choices, preserved Supabase signup names in first backend profiles, and connected password reset through the provider SDK; TypeScript, build, identity unit tests, and four focused connected browser tests passed.
+- 2026-09-30: Gave connected accounts a focused home entry into the persisted Superposition loop and removed demo XP/streak from that home view; connected and demo browser regressions passed.

@@ -167,7 +167,7 @@ export function AppShell({
           {/* Right Section */}
           <div className="flex items-center gap-3 sm:gap-4">
             {/* Streak Pill */}
-            {mounted && sessionUser && <div className="hidden items-center gap-1.5 rounded-full border border-[#FFB800]/30 bg-[#FFB800]/10 px-2.5 py-1 text-[11px] font-medium text-[#FFB800] sm:flex">
+            {mounted && sessionUser && sessionMode === "demo" && <div className="hidden items-center gap-1.5 rounded-full border border-[#FFB800]/30 bg-[#FFB800]/10 px-2.5 py-1 text-[11px] font-medium text-[#FFB800] sm:flex">
               <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor">
                 <path d="M12 2c1 3-1 4.5-2.5 6C8 9.5 7 11 7 13a5 5 0 0 0 10 0c0-1.6-.6-2.7-1.3-3.7.4 2-.3 3.2-1.4 3.7-.2-2.2-1.2-3.3-2.3-4.3C13.1 7.8 13.4 5 12 2Z" />
               </svg>
