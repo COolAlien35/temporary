@@ -39,3 +39,5 @@
 - 2026-09-29: Connected account settings to revision-checked `/me` reads/writes, hydrated preferences at sign-in, and recovered stale-write conflicts; production build, 11 service tests, six connected browser tests, and two demo settings tests passed.
 - 2026-09-30: Kept explicit Supabase and local-demo signup/recovery choices, preserved Supabase signup names in first backend profiles, and connected password reset through the provider SDK; TypeScript, build, identity unit tests, and four focused connected browser tests passed.
 - 2026-09-30: Gave connected accounts a focused home entry into the persisted Superposition loop and removed demo XP/streak from that home view; connected and demo browser regressions passed.
+- 2026-09-30: Rebuilt the local API/Aer worker stack and passed the full real-service Docker suite: 106 tests, 86.73% coverage, including durable profile creation from signup names.
+- 2026-09-30: Built the production frontend container with Supabase settings; signup/home and API readiness returned HTTP 200, both signup choices rendered with Supabase enabled, and README now distinguishes the working connected slice from the wider roadmap.
