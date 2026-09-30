@@ -22,6 +22,7 @@ export function ConnectedSessionSync() {
           }
           return
         }
+        if (window.location.pathname === "/reset-password") return
         void profileForToken(session.access_token).then((result) => {
           if (!active || current !== generation || useSession.getState().mode === "demo") return
           useSession.getState().startSession(result)

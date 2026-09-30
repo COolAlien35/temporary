@@ -90,3 +90,22 @@ export async function signOutConnected(): Promise<void> {
   const { error } = await connectedProvider().auth.signOut({ scope: "local" })
   if (error) throw error
 }
+
+export async function requestConnectedPasswordReset(email: string): Promise<void> {
+  const { error } = await connectedProvider().auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password?connected=1`,
+  })
+  if (error) throw error
+}
+
+export async function connectedRecoverySessionAvailable(): Promise<boolean> {
+  const { data, error } = await connectedProvider().auth.getSession()
+  if (error) throw error
+  return Boolean(data.session)
+}
+
+export async function updateConnectedPassword(password: string): Promise<void> {
+  const { error } = await connectedProvider().auth.updateUser({ password })
+  if (error) throw error
+  await signOutConnected()
+}

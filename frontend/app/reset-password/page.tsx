@@ -1,15 +1,16 @@
 import { ResetPasswordPanel } from "@/components/account/ResetPasswordPanel"
+import { ConnectedResetPasswordPanel } from "@/components/account/ConnectedResetPasswordPanel"
 
 export default async function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string | string[]; preview?: string | string[] }>
+  searchParams: Promise<{ token?: string | string[]; preview?: string | string[]; connected?: string | string[] }>
 }) {
   const query = await searchParams
   const token = typeof query.token === "string" ? query.token : null
   const preview = !token && (query.preview === "expired" || query.preview === "invalid") ? query.preview : null
 
   return <main className="flex min-h-screen items-center justify-center bg-[#0A0E17] px-5 py-12 text-white">
-    <ResetPasswordPanel token={token} preview={preview} />
+    {query.connected === "1" ? <ConnectedResetPasswordPanel /> : <ResetPasswordPanel token={token} preview={preview} />}
   </main>
 }
