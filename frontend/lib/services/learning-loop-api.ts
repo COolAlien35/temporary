@@ -180,6 +180,7 @@ export function createLearningLoopApi(
         body: JSON.stringify(patch),
       }),
     getCurriculumUnit: (id: string) => request<LearnerUnit>(`/curriculum/units/${encodeURIComponent(id)}`),
+    listCurriculumUnits: () => request<LearnerUnit[]>("/curriculum/units"),
     listSessions: (options?: { lessonId?: string; limit?: number; cursor?: string }) =>
       request<Page<LearningSession>>(pagePath("/learning-sessions", options)),
     createSession: (body: { lesson_id: string; lesson_version: number }, key: string) =>

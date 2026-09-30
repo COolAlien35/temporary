@@ -41,3 +41,4 @@
 - 2026-09-30: Gave connected accounts a focused home entry into the persisted Superposition loop and removed demo XP/streak from that home view; connected and demo browser regressions passed.
 - 2026-09-30: Rebuilt the local API/Aer worker stack and passed the full real-service Docker suite: 106 tests, 86.73% coverage, including durable profile creation from signup names.
 - 2026-09-30: Built the production frontend container with Supabase settings; signup/home and API readiness returned HTTP 200, both signup choices rendered with Supabase enabled, and README now distinguishes the working connected slice from the wider roadmap.
+- 2026-09-30: Connected the curriculum index to backend learner-safe units, linked supported Superposition to the saved lab, and guarded legacy demo-scored curriculum routes for connected users; production build, connected browser, and demo progress regressions passed.

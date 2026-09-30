@@ -53,6 +53,7 @@ test("Supabase signup with an immediate session loads the backend profile", asyn
   const token = `${Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: id, role: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.test-signature`
   const user = { id, aud: "authenticated", role: "authenticated", email: "direct@example.test", app_metadata: {}, user_metadata: { name: "Direct Learner" }, created_at: "2026-09-29T00:00:00Z" }
   let profileRequests = 0
+  let curriculumRequests = 0
   await page.route("https://provider.example.test/**", async (route) => {
     const request = route.request()
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
@@ -65,7 +66,12 @@ test("Supabase signup with an immediate session loads the backend profile", asyn
     const request = route.request()
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
     expect(request.headers().authorization).toBe(`Bearer ${token}`)
-    expect(new URL(request.url()).pathname).toBe("/api/v1/me")
+    const path = new URL(request.url()).pathname
+    if (path === "/api/v1/curriculum/units") {
+      curriculumRequests++
+      return route.fulfill({ headers: cors, json: [{ id: "u1", title: "Quantum Foundations", tagline: "Start with a qubit.", level: "Beginner", minutes: 30, prerequisites: [], lessons: [{ id: "u1-quantum-foundations" }], xpTotal: 0, badge: "", tools: [], review_status: "pending", is_placeholder: false, content_version: 1 }] })
+    }
+    expect(path).toBe("/api/v1/me")
     profileRequests++
     return route.fulfill({ headers: cors, json: { id, email: user.email, name: "Direct Learner", role: "learner", revision: 1, timezone: "UTC", preferences: { focus: "foundations", pace: "guided", reduceMotion: false }, created_at: user.created_at, updated_at: user.created_at } })
   })
@@ -83,4 +89,12 @@ test("Supabase signup with an immediate session loads the backend profile", asyn
   expect(profileRequests).toBeGreaterThan(0)
   await page.reload()
   await expect(page.getByRole("heading", { name: "Welcome, Direct Learner" })).toBeVisible()
+  await page.goto("/curriculum")
+  await expect(page.getByRole("heading", { name: "Learn by experimenting" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "Open connected Superposition lesson" })).toHaveAttribute("href", "/lab/superposition")
+  await expect(page.getByText("XP", { exact: true })).toHaveCount(0)
+  expect(curriculumRequests).toBeGreaterThan(0)
+  await page.goto("/curriculum/u1/u1-quantum-foundations")
+  await expect(page.getByRole("heading", { name: "This lesson uses demo progress" })).toBeVisible()
+  await expect(page.getByRole("button", { name: /Complete lesson/ })).toHaveCount(0)
 })

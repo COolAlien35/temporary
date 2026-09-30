@@ -391,6 +391,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 - [x] Save the Superposition prediction and lesson session when the learner locks Predict, then reuse that immutable prediction for Aer submission. Recover a recent unpaired prediction through owner-scoped discovery after a local draft is lost.
 - [x] Connect Settings to the owned `/me` profile, including saved learning preferences, revision preconditions, conflict recovery, and account-scoped session hydration.
 - [x] Route connected home to the implemented Superposition learning loop and account settings, with honest scope text; hide browser-demo XP and streak metrics from the connected home shell.
+- [x] Load the connected curriculum index from the backend learner-safe unit list, link supported Superposition into its saved lab, and keep browser-demo XP/progress off the connected index. Route connected learners away from legacy demo-scored curriculum lessons and quizzes.
 - [ ] Add explicit demo/connected environment selection in `frontend/lib/services/index.ts`, authenticated requests, typed errors, and token-refresh behavior.
 - [ ] Set the API adapter base to `/api/v1`; replace provisional password APIs with managed-auth integration and update obsolete actor-ID/vote contracts.
 - [ ] Extend adapters and frontend stores for each backend feature. Replace direct local grading, mock tutor calls, coursework reads, and summary calculations in connected mode.
