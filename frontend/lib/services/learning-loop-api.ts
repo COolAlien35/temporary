@@ -206,6 +206,7 @@ export function createLearningLoopApi(
     submitRun: (body: { circuit_id: string; circuit_revision: number; backend: "qiskit_aer"; shots: number; seed?: number; prediction_id?: string }, key: string) =>
       post<RunAccepted>("/experiments/runs", body, key),
     getRun: (id: string, signal?: AbortSignal) => request<SavedRun>(`/experiments/runs/${encodeURIComponent(id)}`, { signal }),
+    cancelJob: (id: string) => request<{ id: string; status: SavedRun["status"] }>(`/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
     listTutorMessages: (sessionId: string) => request<SavedTutorMessage[]>(`${sessionPath(sessionId)}/tutor/messages`),
     sendTutorMessage: (sessionId: string, body: TutorRequestBody, key: string) =>
       post<SavedTutorMessage>(`${sessionPath(sessionId)}/tutor/messages`, body, key),

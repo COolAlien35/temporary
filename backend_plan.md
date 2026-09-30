@@ -211,6 +211,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 - [x] Define durable job records and transitions: queued, running, succeeded, failed, cancelled, timed out, and unknown; map them to frontend statuses.
 - [x] For local simulation, return `202` plus run/job ID and status URL, then provide owner-scoped run/job status and results.
 - [x] Expose owner-scoped cursor-paginated job summaries so interrupted clients can discover durable status records without downloading result payloads.
+- [x] Let an owner cancel a queued job idempotently, discard its unpublished dispatch intent, and fence late worker claims; expose cancellation for a queued saved Aer run in connected Observe.
 - [ ] Add authorized cancellation and paginated run/job history endpoints.
 - [ ] Create separate Celery queues and concurrency/resource limits for simulation, optimization, code grading, and maintenance/export tasks.
 - [x] Use a transactional outbox so committed jobs remain dispatchable through broker outages.

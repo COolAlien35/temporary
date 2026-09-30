@@ -106,10 +106,15 @@ def test_outbox_retries_broker_failure_and_delivers_to_real_worker():
                 cancelled_id = create_dispatchable_job(
                     session, owner, kind="export", task_name="quantumloop.jobs.probe"
                 ).id
+            cancelled = client.post(f"/api/v1/jobs/{cancelled_id}/cancel")
+            assert cancelled.status_code == 200
+            assert cancelled.json()["status"] == "cancelled"
+            assert cancelled.json()["finished_at"] is not None
+            assert client.post(f"/api/v1/jobs/{cancelled_id}/cancel").json() == cancelled.json()
             with Session(engine) as session:
-                transition_job(session, cancelled_id, "queued", "cancelled")
+                assert dispatch_pending(session).published == 0
             with Session(engine) as session:
-                assert dispatch_pending(session).discarded == 1
+                assert claim_job(session, cancelled_id, lease_seconds=5) is None
             with Session(engine) as session:
                 cancelled_message = get_outbox_for_job(session, cancelled_id)
                 assert cancelled_message is not None

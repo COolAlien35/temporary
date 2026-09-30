@@ -35,6 +35,7 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
             with Session(engine) as session:
                 job_id = create_job(session, owner, "simulation").id
             assert client.get(f"/api/v1/jobs/{job_id}").status_code == 404
+            assert client.post(f"/api/v1/jobs/{job_id}/cancel").status_code == 404
             assert client.get(f"/api/v1/jobs/{uuid4()}").status_code == 404
 
             current = IdentityClaims(subjects[0], "job-owner@example.test")
@@ -51,6 +52,9 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
             with Session(engine) as session:
                 running = transition_job(session, job_id, "queued", "running")
                 assert running.started_at is not None
+            running_cancel = client.post(f"/api/v1/jobs/{job_id}/cancel")
+            assert running_cancel.status_code == 409
+            assert running_cancel.json()["error"]["code"] == "job_not_queued"
             with Session(engine) as session:
                 transition_job(session, job_id, "running", "unknown")
             unknown = client.get(f"/api/v1/jobs/{job_id}")
@@ -83,6 +87,7 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
             assert completed_response.json()["status"] == "succeeded"
             assert completed_response.json()["frontend_status"] == "completed"
             assert completed_response.json()["result_summary"] == result
+            assert client.post(f"/api/v1/jobs/{job_id}/cancel").status_code == 409
 
             other_ids: list[UUID] = []
             for target, expected, error_code in (

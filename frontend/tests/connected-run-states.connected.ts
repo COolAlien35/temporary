@@ -11,6 +11,7 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
   const user = { id: userId, aud: "authenticated", role: "authenticated", email: "learner@example.test", app_metadata: {}, user_metadata: {}, created_at: "2026-09-29T00:00:00Z" }
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, idempotency-key", "Content-Type": "application/json" }
   let runState: "queued" | "failed" | "missing" | "succeeded" = "queued"
+  let pendingRunState: "queued" | "cancelled" = "queued"
   let pairRunId = runId
 
   await page.route("https://provider.example.test/**", async (route) => {
@@ -27,7 +28,11 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
     if (path === "/api/v1/me") return route.fulfill({ headers: cors, json: { id: userId, name: "Connected Learner", email: user.email, role: "learner" } })
     if (path === "/api/v1/learning-sessions") return route.fulfill({ headers: cors, json: { items: [{ id: sessionId }], next_cursor: null } })
     if (path === `/api/v1/learning-sessions/${sessionId}/predictions`) return route.fulfill({ headers: cors, json: { items: [{ id: pendingPredictionId, pairing_status: "pending", run_id: pendingRunId }], next_cursor: null } })
-    if (path === `/api/v1/experiments/runs/${pendingRunId}`) return route.fulfill({ headers: cors, json: { id: pendingRunId, status: "queued", prediction_id: pendingPredictionId } })
+    if (path === `/api/v1/experiments/runs/${pendingRunId}`) return route.fulfill({ headers: cors, json: { id: pendingRunId, status: pendingRunState, prediction_id: pendingPredictionId } })
+    if (path === `/api/v1/jobs/${pendingRunId}/cancel` && route.request().method() === "POST") {
+      pendingRunState = "cancelled"
+      return route.fulfill({ headers: cors, json: { id: pendingRunId, status: "cancelled" } })
+    }
     if (path === `/api/v1/experiments/runs/${runId}`) {
       if (runState === "missing") return route.fulfill({ status: 404, headers: cors, json: { error: { code: "not_found", message: "Not found" } } })
       return route.fulfill({ headers: cors, json: { id: runId, status: runState, prediction_id: predictionId, backend: "qiskit_aer", shots: 1024, circuit_revision: 1, circuit_snapshot: { schema_version: 1, name: "Superposition lab", qubits: 2, gates: [] } } })
@@ -75,6 +80,9 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
   await expect(comparisonStatus).toContainText("This saved Aer run is queued. Check again for its comparison.")
   await expect(page.getByRole("table")).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Discuss this run with Lab Partner →" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Cancel queued run" }).click()
+  await expect(comparisonStatus).toContainText("This saved Aer run cancelled. No prediction comparison was recorded.")
+  await expect(page.getByRole("button", { name: "Cancel queued run" })).toHaveCount(0)
 
   runState = "queued"
   await page.goto(`/lab/superposition?stage=6&run=${runId}`)

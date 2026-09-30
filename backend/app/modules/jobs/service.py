@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from app.core.errors import ApiHTTPException
 from app.modules.identity.public import Actor
 from app.modules.jobs.models import Job
-from app.modules.jobs.repository import get_job_for_update, get_owned_job, list_owned_jobs
+from app.modules.jobs.repository import (
+    get_job_for_update,
+    get_outbox_for_job,
+    get_owned_job,
+    list_owned_jobs,
+)
 from app.modules.jobs.schemas import FRONTEND_STATUS, JobKind, JobPage, JobStatus, JobSummary
 
 QUEUE_FOR_KIND: dict[JobKind, str] = {
@@ -52,6 +57,27 @@ def read_job(session: Session, actor: Actor, job_id: UUID) -> Job:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+def cancel_queued_job(session: Session, actor: Actor, job_id: UUID) -> Job:
+    """Cancel before worker claim; a published delivery remains fenced by job status."""
+    with session.begin():
+        job = get_job_for_update(session, job_id)
+        if job is None or job.owner_id != actor.id:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.status == "cancelled":
+            return job
+        if job.status != "queued":
+            raise ApiHTTPException(409, "job_not_queued", "Only queued jobs can be cancelled")
+        now = datetime.now(UTC)
+        job.status = "cancelled"
+        job.finished_at = now
+        message = get_outbox_for_job(session, job_id)
+        if message is not None and message.published_at is None:
+            message.discarded_at = now
+        session.flush()
+        session.refresh(job)
+        return job
 
 
 def _decode_cursor(cursor: str | None) -> tuple[datetime, UUID] | None:

@@ -48,6 +48,23 @@ export function ConnectedObserve() {
   const run = visibleResult?.run
   const stale = run ? connectedCircuitIsStale(gates, run) : false
 
+  async function cancelQueuedRun() {
+    if (!requestedRunId || !learnerId || loading) return
+    setLoading(true)
+    setError("")
+    try {
+      const cancelled = await connectedLearningLoopApi().cancelJob(requestedRunId)
+      if (cancelled.id.toLowerCase() !== requestedRunId.toLowerCase() || cancelled.status !== "cancelled") {
+        throw new Error("The saved run cancellation could not be verified. Check its status again.")
+      }
+      setReload((n) => n + 1)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not cancel the queued run.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!learnerId) return <div className="mx-auto max-w-3xl"><StageHeader eyebrow="Stage 5 of 9 · Verified Observation" title="Prediction vs. Actual" /><p role="status" className="mt-4 text-sm text-muted-foreground">Sign in to load a saved Aer comparison.</p><Link href="/login" className="mt-4 inline-block text-sm font-semibold text-primary">Go to login →</Link></div>
 
   return <div className="mx-auto max-w-3xl">
@@ -56,6 +73,7 @@ export function ConnectedObserve() {
       {loading ? "Loading your saved Aer comparison…" : pair ? `Saved Aer comparison ready. Prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? RECENT_COMPARISON_EMPTY_MESSAGE : runUnavailable?.message || error || "Run the circuit on Aer to compare your prediction."}
     </p>
     {(error || runUnavailable) && <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">{runUnavailable?.kind === "pending" ? "Check again" : "Retry"}</button>}
+    {runUnavailable?.cancellable && requestedRunId && <button type="button" disabled={loading} onClick={() => void cancelQueuedRun()} className="mt-4 ml-3 rounded-full border border-border px-4 py-2 text-sm font-semibold disabled:opacity-50">Cancel queued run</button>}
     {runUnavailable && runUnavailable.kind !== "pending" && <button type="button" onClick={() => goToStage(4)} className="mt-4 ml-3 rounded-full border border-border px-4 py-2 text-sm font-semibold">Find another saved run</button>}
     {empty && <button type="button" onClick={() => goToStage(4)} className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Go to Run</button>}
     {pair && run && <section aria-label="Saved prediction versus actual comparison" className="mt-5 rounded-xl border border-border bg-card/60 p-5">

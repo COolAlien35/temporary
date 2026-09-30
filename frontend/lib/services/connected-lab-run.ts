@@ -28,7 +28,7 @@ export type ConnectedLabResult = { pair: PredictionPair; run: SavedRun; learning
 export type PendingConnectedRun = { pendingRunId: string }
 
 export class ConnectedRunUnavailableError extends Error {
-  constructor(public readonly kind: "pending" | "failed" | "missing" | "mismatch", message: string) {
+  constructor(public readonly kind: "pending" | "failed" | "missing" | "mismatch", message: string, public readonly cancellable = false) {
     super(message)
     this.name = "ConnectedRunUnavailableError"
   }
@@ -149,7 +149,7 @@ export async function connectedSuperpositionForRun(api: Api, runId: string): Pro
     throw new ConnectedRunUnavailableError("mismatch", "This saved run does not match the requested link. Try another saved run.")
   }
   if (run.status === "queued" || run.status === "running") {
-    throw new ConnectedRunUnavailableError("pending", `This saved Aer run is ${run.status}. Check again for its comparison.`)
+    throw new ConnectedRunUnavailableError("pending", `This saved Aer run is ${run.status}. Check again for its comparison.`, run.status === "queued")
   }
   if (run.status !== "succeeded") {
     const status = run.status === "timed_out" ? "timed out" : run.status === "unknown" ? "unavailable" : run.status
