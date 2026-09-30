@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useLab } from "@/lib/lab-context"
 import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
+import type { RunSummary } from "@/lib/services/learning-loop-api"
 import { RECENT_COMPARISON_EMPTY_MESSAGE, latestConnectedSuperposition, latestUnpairedConnectedPrediction, newConnectedLabKeys, runConnectedSuperposition, type ConnectedLabInput, type ConnectedLabKeys } from "@/lib/services/connected-lab-run"
 import { StageHeader } from "./stage-header"
 import { useSession } from "@/store/use-session"
@@ -19,6 +20,10 @@ export function ConnectedAerRun() {
   const [error, setError] = useState("")
   const [errorAction, setErrorAction] = useState<"submit" | "recover" | "prediction">("submit")
   const [pendingRunId, setPendingRunId] = useState<string | null>(null)
+  const [savedRuns, setSavedRuns] = useState<RunSummary[] | null>(null)
+  const [runsCursor, setRunsCursor] = useState<string | null>(null)
+  const [runsBusy, setRunsBusy] = useState(false)
+  const [runsError, setRunsError] = useState("")
   const operation = useRef<{ signature: string; input: ConnectedLabInput; keys: ConnectedLabKeys } | null>(null)
   const controller = useRef<AbortController | null>(null)
   const mounted = useRef(true)
@@ -38,7 +43,48 @@ export function ConnectedAerRun() {
     setError("")
     setErrorAction("submit")
     setPendingRunId(null)
+    setSavedRuns(null)
+    setRunsCursor(null)
+    setRunsBusy(false)
+    setRunsError("")
   }, [learnerId])
+
+  async function browseRuns(cursor?: string) {
+    if (runsBusy || !learnerId) return
+    const ownerId = learnerId
+    setRunsBusy(true)
+    setRunsError("")
+    try {
+      const page = await api.listRuns({ limit: 10, cursor })
+      if (!mounted.current || useSession.getState().user?.id !== ownerId) return
+      setSavedRuns((previous) => cursor ? [...(previous ?? []), ...page.items] : page.items)
+      setRunsCursor(page.next_cursor)
+    } catch (cause) {
+      if (mounted.current && useSession.getState().user?.id === ownerId) setRunsError(cause instanceof Error ? cause.message : "Could not load saved runs.")
+    } finally {
+      if (mounted.current && useSession.getState().user?.id === ownerId) setRunsBusy(false)
+    }
+  }
+
+  async function openSavedRun(run: RunSummary) {
+    if (!run.prediction_id || runsBusy || !learnerId) return
+    const ownerId = learnerId
+    setRunsBusy(true)
+    setRunsError("")
+    try {
+      const prediction = await api.getPrediction(run.prediction_id)
+      if (!mounted.current || useSession.getState().user?.id !== ownerId) return
+      if (prediction.lesson_id !== "u1-quantum-foundations" || prediction.run_id !== run.id) {
+        setRunsError("This run does not have a Superposition prediction comparison.")
+        return
+      }
+      openConnectedRun(run.id)
+    } catch (cause) {
+      if (mounted.current && useSession.getState().user?.id === ownerId) setRunsError(cause instanceof Error ? cause.message : "Could not open this saved run.")
+    } finally {
+      if (mounted.current && useSession.getState().user?.id === ownerId) setRunsBusy(false)
+    }
+  }
 
   async function submit() {
     if (pending || !learnerId || !predictionLocked || !connectedPrediction) return
@@ -141,6 +187,18 @@ export function ConnectedAerRun() {
     <button type="button" disabled={pending || !predictionLocked || !connectedPrediction} onClick={() => void submit()} className="mt-5 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-black disabled:opacity-50">{pending ? "Running on Aer…" : "Run saved prediction on Aer"}</button>
     {!connectedPrediction && !pendingRunId && <button type="button" disabled={pending} onClick={() => void loadPrediction()} className="mt-3 w-full rounded-full border border-border px-4 py-2.5 text-sm font-semibold disabled:opacity-50">Recover saved prediction</button>}
     <button type="button" disabled={pending} onClick={() => void loadRecent()} className="mt-3 w-full rounded-full border border-border px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-50">Recover recent saved run</button>
+    <button type="button" disabled={runsBusy} onClick={() => void browseRuns()} className="mt-3 w-full rounded-full border border-border px-4 py-2.5 text-sm font-semibold text-foreground disabled:opacity-50">Browse saved Aer runs</button>
+    {savedRuns && <section aria-label="Saved Aer runs" className="mt-4 rounded-xl border border-border bg-card/60 p-4">
+      <h3 className="text-sm font-semibold">Saved Aer runs</h3>
+      {savedRuns.length === 0 && <p className="mt-3 text-sm text-muted-foreground">No saved Aer runs yet.</p>}
+      <ul className="mt-3 space-y-3">{savedRuns.map((run) => <li key={run.id} className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm">
+        <span><strong className="capitalize">{run.status}</strong> · {new Date(run.created_at).toLocaleString()} · {run.shots.toLocaleString()} shots · revision {run.circuit_revision}</span>
+        {run.prediction_id ? <button type="button" disabled={runsBusy} onClick={() => void openSavedRun(run)} className="font-semibold text-primary underline disabled:opacity-50">Open run</button> : <span className="text-xs text-muted-foreground">No prediction comparison</span>}
+      </li>)}</ul>
+      {runsCursor && <button type="button" disabled={runsBusy} onClick={() => void browseRuns(runsCursor)} className="mt-4 text-sm font-semibold text-primary underline disabled:opacity-50">Load older runs</button>}
+    </section>}
+    {runsBusy && <p role="status" className="mt-3 text-sm text-muted-foreground">Loading saved runs…</p>}
+    {runsError && <p role="alert" className="mt-3 text-sm text-rose-200">{runsError}</p>}
     {pendingRunId && <button type="button" onClick={() => openConnectedRun(pendingRunId)} className="mt-3 block text-sm font-semibold text-primary underline">Check saved run status</button>}
     {connectedResult && <button type="button" disabled={pending} onClick={() => showConnectedResult(connectedResult)} className="mt-3 w-full rounded-full border border-primary/50 px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50">View saved comparison</button>}
     {status && <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{status}</p>}

@@ -12,7 +12,7 @@ Connected users see a focused home screen linking to the implemented Superpositi
 
 Connected Settings loads the owned `/me` profile, saves name and learning preferences with the profile revision in `If-Match`, and reloads the latest values after a `412` conflict. Sign-in and browser-session restore hydrate account preferences for the rest of the UI. Demo settings remain local to the browser.
 
-Once the run is accepted, Run exposes its saved status link during polling. Connected Superposition shows the server agreement in the lab header. Debug, Challenge, and Master are unavailable in connected mode until their grading is trusted; local visualization tabs are withheld because they do not describe the saved Aer run. Demo mode retains those practice screens.
+Once the run is accepted, Run exposes its saved status link during polling. Learners can browse owner-scoped saved Aer runs in pages and open a run whose prediction belongs to the connected Superposition lesson. Connected Superposition shows the server agreement in the lab header. Debug, Challenge, and Master are unavailable in connected mode until their grading is trusted; local visualization tabs are withheld because they do not describe the saved Aer run. Demo mode retains those practice screens.
 
 Connected Superposition Learn reads its lesson sections and takeaways from the learner-safe `/curriculum/units/u1` response. Observe includes a numeric history of saved prediction agreement and separately labeled self-rated confidence, basis, and shots. This history is not a statistical confidence-calibration score.
 

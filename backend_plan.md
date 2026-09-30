@@ -206,11 +206,12 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 
 ### B07 — Reliable async jobs and event delivery
 
-**Current checkpoint:** Job persistence, transitions, an owner-scoped status read, transactional outbox, and bounded recovery are implemented. Simulation submission now creates a durable run snapshot and job/outbox intent in one transaction, returns `202`, and stores the worker result in PostgreSQL under a fenced lease. Local Aer runs are deterministic/replay-safe; duplicate deliveries cannot replace completed results. Job cancellation/history, additional domain task policies, and release-wide operations remain open.
+**Current checkpoint:** Job persistence, transitions, owner-scoped job and run history, transactional outbox, and bounded recovery are implemented. Simulation submission creates a durable run snapshot and job/outbox intent in one transaction, returns `202`, and stores the worker result in PostgreSQL under a fenced lease. Local Aer runs are deterministic/replay-safe; duplicate deliveries cannot replace completed results. Queued jobs can be cancelled; active cancellation, additional domain task policies, and release-wide operations remain open.
 
 - [x] Define durable job records and transitions: queued, running, succeeded, failed, cancelled, timed out, and unknown; map them to frontend statuses.
 - [x] For local simulation, return `202` plus run/job ID and status URL, then provide owner-scoped run/job status and results.
 - [x] Expose owner-scoped cursor-paginated job summaries so interrupted clients can discover durable status records without downloading result payloads.
+- [x] Expose owner-scoped cursor-paginated Aer run summaries and browse them from the connected Run stage, including runs older than the recent-pair scan window.
 - [x] Let an owner cancel a queued job idempotently, discard its unpublished dispatch intent, and fence late worker claims; expose cancellation for a queued saved Aer run in connected Observe.
 - [ ] Add authorized cancellation and paginated run/job history endpoints.
 - [ ] Create separate Celery queues and concurrency/resource limits for simulation, optimization, code grading, and maintenance/export tasks.

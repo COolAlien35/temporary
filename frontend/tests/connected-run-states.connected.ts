@@ -28,6 +28,12 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
     if (path === "/api/v1/me") return route.fulfill({ headers: cors, json: { id: userId, name: "Connected Learner", email: user.email, role: "learner" } })
     if (path === "/api/v1/learning-sessions") return route.fulfill({ headers: cors, json: { items: [{ id: sessionId }], next_cursor: null } })
     if (path === `/api/v1/learning-sessions/${sessionId}/predictions`) return route.fulfill({ headers: cors, json: { items: [{ id: pendingPredictionId, pairing_status: "pending", run_id: pendingRunId }], next_cursor: null } })
+    if (path === "/api/v1/experiments/runs") {
+      const cursor = new URL(route.request().url()).searchParams.get("cursor")
+      return route.fulfill({ headers: cors, json: cursor
+        ? { items: [{ id: runId, status: runState, prediction_id: predictionId, circuit_revision: 1, shots: 1024, created_at: "2026-09-28T00:00:00Z" }], next_cursor: null }
+        : { items: [{ id: pendingRunId, status: pendingRunState, prediction_id: pendingPredictionId, circuit_revision: 1, shots: 128, created_at: "2026-09-29T00:00:00Z" }], next_cursor: "older" } })
+    }
     if (path === `/api/v1/experiments/runs/${pendingRunId}`) return route.fulfill({ headers: cors, json: { id: pendingRunId, status: pendingRunState, prediction_id: pendingPredictionId } })
     if (path === `/api/v1/jobs/${pendingRunId}/cancel` && route.request().method() === "POST") {
       pendingRunState = "cancelled"
@@ -37,7 +43,7 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
       if (runState === "missing") return route.fulfill({ status: 404, headers: cors, json: { error: { code: "not_found", message: "Not found" } } })
       return route.fulfill({ headers: cors, json: { id: runId, status: runState, prediction_id: predictionId, backend: "qiskit_aer", shots: 1024, circuit_revision: 1, circuit_snapshot: { schema_version: 1, name: "Superposition lab", qubits: 2, gates: [] } } })
     }
-    if (path === `/api/v1/predictions/${predictionId}`) return route.fulfill({ headers: cors, json: { id: predictionId, lesson_id: "u1-quantum-foundations", learning_session_id: sessionId } })
+    if (path === `/api/v1/predictions/${predictionId}`) return route.fulfill({ headers: cors, json: { id: predictionId, lesson_id: "u1-quantum-foundations", learning_session_id: sessionId, run_id: runId } })
     if (path === `/api/v1/predictions/${predictionId}/pair`) return route.fulfill({ headers: cors, json: { schema_version: 1, prediction_id: predictionId, run_id: pairRunId, prediction_vector: [0.5, 0.5, 0, 0], simulated_vector: [0.48, 0.52, 0, 0], basis_labels: ["00", "01", "10", "11"], measurement_qubits: [1, 0], comparison_basis: "sampled_frequency", metric_version: "tvd-v1", prediction_match: 0.98, backend: "qiskit_aer", shots: 1024, circuit_revision: 1 } })
     if (path === `/api/v1/learning-sessions/${sessionId}/agreement-history`) return route.fulfill({ headers: cors, json: { lesson_id: "u1-quantum-foundations", lesson_version: 1, learning_session_id: sessionId, items: [], scanned_count: 0, older_records_not_scanned: false, unavailable_sources: [] } })
     if (path === `/api/v1/learning-sessions/${sessionId}/tutor/messages`) return route.fulfill({ headers: cors, json: [] })
@@ -95,6 +101,12 @@ test("a saved run link rejects mismatched pairs and distinguishes run states", a
   await page.getByRole("button", { name: "Find another saved run" }).click()
   await expect(page).toHaveURL(/stage=4/)
   await expect(page).not.toHaveURL(/run=/)
+  await page.getByRole("button", { name: "Browse saved Aer runs" }).click()
+  await expect(page.getByRole("region", { name: "Saved Aer runs" })).toContainText("cancelled")
+  await page.getByRole("button", { name: "Load older runs" }).click()
+  await expect(page.getByRole("region", { name: "Saved Aer runs" }).getByRole("listitem")).toHaveCount(2)
+  await page.getByRole("region", { name: "Saved Aer runs" }).getByRole("listitem").nth(1).getByRole("button", { name: "Open run" }).click()
+  await expect(page).toHaveURL(new RegExp(`run=${runId}`))
   runState = "succeeded"
   await page.goto(`/lab/superposition?stage=6&run=${runId}`)
   await expect(comparisonStatus).toContainText("Server-derived prediction agreement 98.0 percent.")

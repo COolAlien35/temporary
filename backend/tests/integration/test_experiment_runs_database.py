@@ -26,6 +26,7 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
     app.dependency_overrides[get_claims] = lambda: current
     circuit_id: UUID | None = None
     run_id: UUID | None = None
+    second_run_id: UUID | None = None
     try:
         with TestClient(app) as client:
             assert client.get("/api/v1/me").status_code == 200
@@ -124,8 +125,45 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
             finally:
                 duplicate.forget()
 
+            second = client.post(
+                "/api/v1/experiments/runs",
+                json={**body, "shots": 128},
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert second.status_code == 202, second.text
+            second_run_id = UUID(second.json()["resource_id"])
+            dispatch_once()
+            second_receipt = AsyncResult(str(second_run_id), app=celery_app)
+            try:
+                assert second_receipt.get(timeout=60) == "succeeded"
+            finally:
+                second_receipt.forget()
+            first_page = client.get("/api/v1/experiments/runs?limit=1")
+            assert first_page.status_code == 200, first_page.text
+            assert [item["id"] for item in first_page.json()["items"]] == [str(second_run_id)]
+            assert first_page.json()["items"][0]["status"] == "succeeded"
+            assert "circuit_snapshot" not in first_page.json()["items"][0]
+            cursor = first_page.json()["next_cursor"]
+            assert cursor
+            older_page = client.get(
+                "/api/v1/experiments/runs", params={"limit": 1, "cursor": cursor}
+            )
+            assert older_page.status_code == 200, older_page.text
+            assert [item["id"] for item in older_page.json()["items"]] == [str(run_id)]
+            assert older_page.json()["items"][0]["status"] == "succeeded"
+            assert older_page.json()["next_cursor"] is None
+            invalid = client.get("/api/v1/experiments/runs?cursor=bad!")
+            assert invalid.status_code == 422
+            assert invalid.json()["error"]["code"] == "invalid_cursor"
+
             current = IdentityClaims(second_subject, "aer-second@example.test")
             assert client.get("/api/v1/me").status_code == 200
+            empty_page = {"items": [], "next_cursor": None}
+            assert client.get("/api/v1/experiments/runs").json() == empty_page
+            assert (
+                client.get("/api/v1/experiments/runs", params={"cursor": cursor}).json()
+                == empty_page
+            )
             assert client.get(f"/api/v1/experiments/runs/{run_id}").status_code == 404
             forbidden = client.post(
                 "/api/v1/experiments/runs",
@@ -140,10 +178,11 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
     finally:
         app.dependency_overrides.clear()
         with Session(get_engine()) as db, db.begin():
-            if run_id is not None:
-                db.execute(delete(ExperimentRun).where(ExperimentRun.id == run_id))
-                db.execute(delete(JobOutbox).where(JobOutbox.job_id == run_id))
-                db.execute(delete(Job).where(Job.id == run_id))
+            for saved_id in (run_id, second_run_id):
+                if saved_id is not None:
+                    db.execute(delete(ExperimentRun).where(ExperimentRun.id == saved_id))
+                    db.execute(delete(JobOutbox).where(JobOutbox.job_id == saved_id))
+                    db.execute(delete(Job).where(Job.id == saved_id))
             if circuit_id is not None:
                 db.execute(delete(Circuit).where(Circuit.id == circuit_id))
             db.execute(

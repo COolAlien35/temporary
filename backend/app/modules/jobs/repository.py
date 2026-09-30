@@ -11,6 +11,20 @@ def get_owned_job(session: Session, job_id: UUID, owner_id: UUID) -> Job | None:
     return session.scalar(select(Job).where(Job.id == job_id, Job.owner_id == owner_id))
 
 
+def list_owned_job_statuses(
+    session: Session, owner_id: UUID, job_ids: list[UUID]
+) -> list[tuple[UUID, str, str | None]]:
+    if not job_ids:
+        return []
+    return list(
+        session.execute(
+            select(Job.id, Job.status, Job.error_code).where(
+                Job.owner_id == owner_id, Job.id.in_(job_ids)
+            )
+        ).tuples()
+    )
+
+
 def list_owned_jobs(
     session: Session, owner_id: UUID, limit: int, before: tuple[datetime, UUID] | None
 ) -> list[Job]:

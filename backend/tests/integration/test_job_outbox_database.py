@@ -272,7 +272,7 @@ def test_reconciler_replays_only_safe_expired_jobs_and_caps_attempts():
                 assert capped_message is not None and capped_message.discarded_at is not None
                 assert uncertain_message is not None and uncertain_message.discarded_at is not None
 
-            assert dispatch_once().published == 1
+            dispatch_once()
             receipt = AsyncResult(str(safe_id), app=celery_app)
             try:
                 assert receipt.get(timeout=30) == "succeeded"
@@ -280,7 +280,9 @@ def test_reconciler_replays_only_safe_expired_jobs_and_caps_attempts():
                 receipt.forget()
             with Session(engine) as session:
                 safe = session.get(Job, safe_id)
+                safe_message = get_outbox_for_job(session, safe_id)
                 assert safe is not None
+                assert safe_message is not None and safe_message.published_at is not None
                 assert safe.status == "succeeded"
                 assert safe.attempt_count == 2
                 assert safe.result_summary == {"diagnostic": "ok"}

@@ -40,3 +40,20 @@ class RunRead(BaseModel):
     prediction_id: UUID | None
     result: dict[str, object] | None
     created_at: datetime
+
+
+class RunSummary(BaseModel):
+    id: UUID
+    status: JobStatus
+    error_code: str | None
+    circuit_id: UUID
+    circuit_revision: int
+    backend: str
+    shots: int
+    prediction_id: UUID | None
+    created_at: datetime
+
+
+class RunPage(BaseModel):
+    items: list[RunSummary]
+    next_cursor: str | None

@@ -1,4 +1,7 @@
 import json
+from base64 import b64decode, urlsafe_b64encode
+from binascii import Error as Base64Error
+from datetime import datetime
 from hashlib import sha256
 from uuid import UUID
 
@@ -11,10 +14,10 @@ from app.integrations.quantum.contract import UnsupportedCircuit, ideal_measurem
 from app.modules.circuits.public import owned_revision
 from app.modules.circuits.schemas import CircuitSnapshot
 from app.modules.experiments.models import ExperimentRun
-from app.modules.experiments.repository import get_owned_run, get_run_by_key
-from app.modules.experiments.schemas import RunCreate, RunRead
+from app.modules.experiments.repository import get_owned_run, get_run_by_key, list_owned_runs
+from app.modules.experiments.schemas import RunCreate, RunPage, RunRead, RunSummary
 from app.modules.identity.public import Actor
-from app.modules.jobs.public import enqueue_job, owned_job_state
+from app.modules.jobs.public import enqueue_job, owned_job_state, owned_job_summaries
 from app.modules.predictions.public import bind_prediction
 
 
@@ -100,3 +103,51 @@ def read_run(session: Session, actor: Actor, run_id: UUID) -> RunRead:
         result=job.result_summary if job.status == "succeeded" else None,
         created_at=run.created_at,
     )
+
+
+def _decode_cursor(cursor: str | None) -> tuple[datetime, UUID] | None:
+    if cursor is None:
+        return None
+    try:
+        if not 1 <= len(cursor) <= 256:
+            raise ValueError
+        raw = b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
+        value = json.loads(raw)
+        if not isinstance(value, dict) or set(value) != {"created_at", "id"}:
+            raise ValueError
+        created_at = datetime.fromisoformat(value["created_at"])
+        if created_at.tzinfo is None or created_at.utcoffset() is None:
+            raise ValueError
+        return created_at, UUID(value["id"])
+    except (ValueError, TypeError, KeyError, Base64Error, UnicodeDecodeError):
+        raise ApiHTTPException(422, "invalid_cursor", "Invalid run cursor") from None
+
+
+def list_runs(session: Session, actor: Actor, limit: int, cursor: str | None) -> RunPage:
+    rows = list_owned_runs(session, actor.id, limit + 1, _decode_cursor(cursor))
+    visible = rows[:limit]
+    statuses = owned_job_summaries(session, actor, [run.id for run in visible])
+    items = []
+    for run in visible:
+        job = statuses.get(run.id)
+        if job is None:
+            raise RuntimeError("Experiment run is missing its job")
+        items.append(
+            RunSummary(
+                id=run.id,
+                status=job.status,
+                error_code=job.error_code,
+                circuit_id=run.circuit_id,
+                circuit_revision=run.circuit_revision,
+                backend=run.backend,
+                shots=run.shots,
+                prediction_id=run.prediction_id,
+                created_at=run.created_at,
+            )
+        )
+    next_cursor = None
+    if len(rows) > limit and visible:
+        last = visible[-1]
+        payload = json.dumps({"created_at": last.created_at.isoformat(), "id": str(last.id)})
+        next_cursor = urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    return RunPage(items=items, next_cursor=next_cursor)
