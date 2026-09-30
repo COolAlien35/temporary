@@ -1,14 +1,24 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_session
 from app.modules.identity.public import Actor, get_actor
-from app.modules.jobs.schemas import FRONTEND_STATUS, JobRead
-from app.modules.jobs.service import read_job
+from app.modules.jobs.schemas import FRONTEND_STATUS, JobPage, JobRead
+from app.modules.jobs.service import list_jobs, read_job
 
 router = APIRouter(tags=["jobs"])
+
+
+@router.get("/jobs", response_model=JobPage)
+def get_jobs(
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(default=None),
+    actor: Actor = Depends(get_actor),  # noqa: B008
+    session: Session = Depends(get_session),  # noqa: B008
+) -> JobPage:
+    return list_jobs(session, actor, limit, cursor)
 
 
 @router.get("/jobs/{job_id}", response_model=JobRead)

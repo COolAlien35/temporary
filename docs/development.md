@@ -129,7 +129,9 @@ The current baseline establishes Alembic tracking without inventing domain table
 
 `CI` runs on pushes, pull requests, and manual invocation, and can be called by the publication workflow. Its jobs run backend static/unit checks, frontend build/type/browser checks, and a Docker integration stack. `Required checks` fails when any prerequisite fails, is cancelled, or is skipped. Workflows have read-only permissions unless publishing, and external actions use immutable commit references.
 
-After pushing these files, enable a GitHub branch ruleset for the default branch that requires `Required checks`, a current branch, and review as appropriate. This repository setting cannot be enabled by adding YAML; it requires repository administrator access. Workflow files have been prepared locally; a hosted run starts only after they are pushed.
+Enable a GitHub branch ruleset for the default branch that requires `Required checks`, a current branch, and review as appropriate. This repository setting cannot be enabled by adding YAML; it requires repository administrator access. The workflow is pushed and its latest run passed, but the ruleset is still absent.
+
+As of 2026-10-01, the current GitHub account has push access but no repository administrator access, and `main` has no branch protection or ruleset. An administrator must enable the `Required checks` rule in repository settings before it becomes an enforced merge gate.
 
 `Publish images` is manually triggered from the default branch. It first reruns the complete CI workflow for that commit, then publishes backend/frontend images to GHCR using the built-in `GITHUB_TOKEN`, tagged by commit SHA with provenance and SBOM. It does not deploy a provider or require cloud credentials. GitHub package policy must allow the token to publish. Deployment infrastructure remains B23 work once hosting is selected.
 

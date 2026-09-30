@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.modules.jobs.models import Job, JobOutbox
@@ -9,6 +9,23 @@ from app.modules.jobs.models import Job, JobOutbox
 
 def get_owned_job(session: Session, job_id: UUID, owner_id: UUID) -> Job | None:
     return session.scalar(select(Job).where(Job.id == job_id, Job.owner_id == owner_id))
+
+
+def list_owned_jobs(
+    session: Session, owner_id: UUID, limit: int, before: tuple[datetime, UUID] | None
+) -> list[Job]:
+    query = (
+        select(Job)
+        .where(Job.owner_id == owner_id)
+        .order_by(Job.created_at.desc(), Job.id.desc())
+        .limit(limit)
+    )
+    if before is not None:
+        created_at, job_id = before
+        query = query.where(
+            or_(Job.created_at < created_at, and_(Job.created_at == created_at, Job.id < job_id))
+        )
+    return list(session.scalars(query))
 
 
 def get_job_for_update(session: Session, job_id: UUID) -> Job | None:

@@ -32,3 +32,19 @@ class JobRead(BaseModel):
     updated_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+
+
+class JobSummary(BaseModel):
+    id: UUID
+    kind: JobKind
+    status: JobStatus
+    frontend_status: FrontendStatus
+    error_code: str | None
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class JobPage(BaseModel):
+    items: list[JobSummary]
+    next_cursor: str | None
