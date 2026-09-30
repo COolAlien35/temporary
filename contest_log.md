@@ -45,3 +45,4 @@
 - 2026-10-01: Registered the existing content-chunk schema for drift checks, fixed its lint, stabilized Studio drag pointer movement, and added connected browser tests to CI; local gates passed 106 Docker backend, 107 production browser, and 10 connected browser tests.
 - 2026-10-01: Added owner-scoped cursor-paginated job history with bounded summaries and account-isolation tests; 106 real-service Docker tests passed at 86.25% coverage, and documented the admin-only branch ruleset gate.
 - 2026-10-01: Added idempotent queued-job cancellation with outbox/worker fencing and a saved-Aer-run cancel control; 106 Docker tests passed at 86.29% coverage, plus 107 production and 10 connected browser tests.
+- 2026-10-01: Replaced the Linux-flaky Studio drag helper with a measured pointer path and hovered-slot assertion after its trace showed a neighboring-step drop; the exact-slot check passed 20 repeated production-browser runs locally.

@@ -13,10 +13,17 @@ test('checks flag reused ordinary ports but allow feedthrough grids to fan out',
 test('a palette gate can be dragged onto a circuit wire', async ({ page }) => {
   await page.goto('/studio')
   const slot = page.getByTestId('circuit-slot-3-0')
+  const source = page.getByTestId('palette-gate-H').first()
   await expect(slot).toBeVisible()
-  // dnd-kit measures the droppable after the pointer sensor activates. Move
-  // through the canvas so the browser delivers those pointer moves on CI too.
-  await page.getByTestId('palette-gate-H').first().dragTo(slot, { steps: 12 })
+  const sourceBox = await source.boundingBox()
+  const targetBox = await slot.boundingBox()
+  if (!sourceBox || !targetBox) throw new Error('The gate palette and target slot must be visible')
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 12, sourceBox.y + sourceBox.height / 2, { steps: 3 })
+  await page.mouse.move(targetBox.x + targetBox.width * 0.75, targetBox.y + targetBox.height / 2, { steps: 24 })
+  await expect(slot).toHaveClass(/ring-1/)
+  await page.mouse.up()
   await expect(slot).toHaveCount(0)
   await expect(page.getByTestId('circuit-slot-3-1')).toBeVisible()
 })
