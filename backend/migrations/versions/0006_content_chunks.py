@@ -1,8 +1,6 @@
 """Create curriculum content chunks and pgvector search indexes."""
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision = "0006_content_chunks"
 down_revision = "0005_jobs"
@@ -37,18 +35,23 @@ def upgrade() -> None:
     )
     op.execute(
         "COMMENT ON COLUMN content_chunks.embedding IS "
-        "'vector(1536); generated with text-embedding-3-small; changing dimensions requires re-embedding'"
+        "'vector(1536); generated with text-embedding-3-small; "
+        "changing dimensions requires re-embedding'"
     )
     op.execute(
         "CREATE INDEX ix_content_chunks_embedding_hnsw "
         "ON content_chunks USING hnsw (embedding vector_cosine_ops)"
     )
     op.execute(
-        "CREATE INDEX ix_content_chunks_search_vector "
-        "ON content_chunks USING gin (search_vector)"
+        "CREATE INDEX ix_content_chunks_search_vector ON content_chunks USING gin (search_vector)"
     )
     op.create_index("ix_content_chunks_unit_lesson", "content_chunks", ["unit_id", "lesson_id"])
-    op.create_index("ix_content_chunks_concept_tags", "content_chunks", ["concept_tags"], postgresql_using="gin")
+    op.create_index(
+        "ix_content_chunks_concept_tags",
+        "content_chunks",
+        ["concept_tags"],
+        postgresql_using="gin",
+    )
 
 
 def downgrade() -> None:

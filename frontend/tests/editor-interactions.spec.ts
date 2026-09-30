@@ -14,7 +14,9 @@ test('a palette gate can be dragged onto a circuit wire', async ({ page }) => {
   await page.goto('/studio')
   const slot = page.getByTestId('circuit-slot-3-0')
   await expect(slot).toBeVisible()
-  await page.getByTestId('palette-gate-H').first().dragTo(slot)
+  // dnd-kit measures the droppable after the pointer sensor activates. Move
+  // through the canvas so the browser delivers those pointer moves on CI too.
+  await page.getByTestId('palette-gate-H').first().dragTo(slot, { steps: 12 })
   await expect(slot).toHaveCount(0)
   await expect(page.getByTestId('circuit-slot-3-1')).toBeVisible()
 })

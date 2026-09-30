@@ -441,6 +441,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 
 ### B22 — Verification and release acceptance
 
+- [x] Include the mocked connected learner browser suite in CI alongside production demo browser tests; reconcile existing content-chunk migration metadata so schema drift remains a meaningful gate.
 - [ ] After every major task, add its acceptance tests, run its required suites, debug failures, and rerun the affected regression suites before marking it complete. Use the task-specific matrix below.
 - [ ] Require GitHub Actions `Required checks` in branch protection; require success on the latest commit. A workflow file alone does not enable repository rules.
 - [ ] Keep production-build frontend browser tests and real PostgreSQL/Redis/worker integration tests in CI. Do not use eager Celery or SQLite as evidence that the deployed stack works.
