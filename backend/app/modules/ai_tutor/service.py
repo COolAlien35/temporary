@@ -89,6 +89,7 @@ def submit_message(
             id=uuid4(),
             owner_id=actor.id,
             learning_session_id=learning_session_id,
+            run_id=body.run_id,
             idempotency_key=idempotency_key,
             request_hash=digest,
             action=body.action,

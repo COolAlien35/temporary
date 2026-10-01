@@ -11,6 +11,8 @@ from app.db.session import get_engine
 from app.jobs.celery_app import celery_app
 from app.main import create_app
 from app.modules.ai_tutor.context import load_tutor_context
+from app.modules.ai_tutor.models import TutorMessage
+from app.modules.ai_tutor.router import get_tutor_provider
 from app.modules.circuits.models import Circuit
 from app.modules.experiments.models import ExperimentRun
 from app.modules.identity.models import Profile
@@ -22,13 +24,18 @@ from app.modules.predictions.models import LearningSession, Prediction
 pytestmark = pytest.mark.integration
 
 
+class FakeTutorProvider:
+    def complete(self, messages, *, model, max_completion_tokens, timeout_seconds):
+        return "The saved H gate gives equal ideal probabilities."
+
+
 def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> None:
     first_subject, second_subject = uuid4(), uuid4()
     current = IdentityClaims(first_subject, "pair-first@example.test")
     app = create_app()
     app.dependency_overrides[get_claims] = lambda: current
     circuit_id = second_circuit_id = session_id = second_session_id = prediction_id = run_id = None
-    sampled_prediction_id = sampled_run_id = None
+    sampled_prediction_id = sampled_run_id = tutor_message_id = None
     try:
         with TestClient(app) as client:
             profile = client.get("/api/v1/me")
@@ -206,6 +213,27 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
                 "revisit_lesson",
                 "current_experiment_0",
             }
+            app.dependency_overrides[get_tutor_provider] = lambda: FakeTutorProvider()
+            tutor_path = f"/api/v1/learning-sessions/{session_id}/tutor/messages"
+            tutor = client.post(
+                tutor_path,
+                headers={"Idempotency-Key": str(uuid4())},
+                json={
+                    "action": "explain",
+                    "stage": "discuss",
+                    "prompt": "Explain this exact saved run.",
+                    "run_id": run_id,
+                },
+            )
+            assert tutor.status_code == 201, tutor.text
+            tutor_message_id = tutor.json()["id"]
+            assert tutor.json()["run_id"] == run_id
+            assert client.get(f"/api/v1/tutor/messages/{tutor_message_id}").json() == tutor.json()
+            saved_messages = client.get(tutor_path).json()
+            assert (
+                next(item for item in saved_messages if item["id"] == tutor_message_id)["run_id"]
+                == run_id
+            )
             second_session = client.post(
                 "/api/v1/learning-sessions",
                 headers={"Idempotency-Key": str(uuid4())},
@@ -233,6 +261,7 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
             assert client.get("/api/v1/me").status_code == 200
             assert client.get(history_url).status_code == 404
             assert client.get(pair_url).status_code == 404
+            assert client.get(f"/api/v1/tutor/messages/{tutor_message_id}").status_code == 404
             assert client.get(f"/api/v1/predictions/{prediction_id}").status_code == 404
             other_circuit = client.post(
                 "/api/v1/circuits",
@@ -252,6 +281,8 @@ def test_locked_prediction_pairs_only_with_owned_successful_matching_run() -> No
     finally:
         app.dependency_overrides.clear()
         with Session(get_engine()) as db, db.begin():
+            if tutor_message_id is not None:
+                db.execute(delete(TutorMessage).where(TutorMessage.id == UUID(tutor_message_id)))
             if prediction_id is not None:
                 db.execute(delete(Prediction).where(Prediction.id == UUID(prediction_id)))
             if sampled_prediction_id is not None:

@@ -63,6 +63,7 @@ def test_tutor_messages_are_durable_scoped_idempotent_and_quota_bound() -> None:
             message_id = response.json()["id"]
             assert response.json()["status"] == "completed"
             assert response.json()["role"] == "pedagogical_guide"
+            assert response.json()["run_id"] is None
             assert response.json()["provider_called"] is True
             assert learning_session_id in response.json()["source_record_ids"]
             assert provider.calls == 1

@@ -98,9 +98,10 @@ export type TutorRequestBody = {
   circuit_id?: string
   circuit_revision?: number
 }
-export type SavedTutorMessage = TutorRequestBody & {
+export type SavedTutorMessage = Pick<TutorRequestBody, "action" | "stage" | "prompt"> & {
   id: string
   learning_session_id: string
+  run_id: string | null
   status: "pending" | "completed" | "failed"
   role: "pedagogical_guide" | "circuit_debugger" | "analytics_planner"
   prompt_version: string
