@@ -472,6 +472,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 - [x] Add a credentialed, unmocked Playwright deployment journey for two Supabase learners, saved Aer comparison, tutor reload, and cross-account denial; execution against live hosting remains open.
 - [x] Add a disposable PostgreSQL backup/restore rehearsal to CI with a saved-row and Alembic-version check. Supabase staging recovery, artifact access, and Redis reconstruction remain open.
 - [x] Require valid public connected-account settings during the Render frontend build and exclude local `.env` files from the backend Docker context; CI checks the build gate. Live Blueprint application remains open.
+- [x] Let the hosted API smoke sign in two Supabase test learners from environment credentials, matching the browser smoke, with sanitized authentication failures; live execution remains open.
 - [ ] Provision staging/production API, worker queues, scheduler if needed, managed PostgreSQL, compatible Redis, object storage, and the isolated grading service.
 - [ ] Configure provider secrets, DNS/TLS, frontend origins, auth redirect URLs, storage CORS, realtime proxy timeouts, and health probes.
 - [ ] Build CI/CD gates for static checks, tests, images, and controlled migrations; run migrations once per release before incompatible application traffic.

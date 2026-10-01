@@ -1,4 +1,4 @@
-"""Run the hosted learner API journey with two real Supabase access tokens.
+"""Run the hosted learner API journey with two real Supabase accounts.
 
 Credentials are read only from the environment and are never printed.
 """
@@ -28,6 +28,51 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 OPENER = build_opener(NoRedirect)
+
+
+def valid_https_origin(value: str) -> bool:
+    parsed = urlsplit(value)
+    return bool(
+        parsed.scheme == "https"
+        and parsed.netloc
+        and not parsed.path
+        and not parsed.query
+        and not parsed.fragment
+        and not parsed.username
+        and not parsed.password
+    )
+
+
+def sign_in_test_account(base: str, publishable_key: str, email: str, password: str) -> str:
+    """Exchange test credentials for a short-lived token without logging response bodies."""
+    call = Request(
+        f"{base}/auth/v1/token?grant_type=password",
+        data=json.dumps({"email": email, "password": password}).encode(),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "apikey": publishable_key,
+        },
+        method="POST",
+    )
+    try:
+        with OPENER.open(call, timeout=20) as response:
+            raw = response.read()
+            status = response.status
+    except HTTPError as exc:
+        raise SmokeFailure(f"Supabase test-account sign-in failed (HTTP {exc.code})") from None
+    except (URLError, TimeoutError):
+        raise SmokeFailure("Supabase test-account sign-in failed (network error)") from None
+    if status != 200:
+        raise SmokeFailure(f"Supabase test-account sign-in failed (HTTP {status})")
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        raise SmokeFailure("Supabase sign-in response is not JSON") from None
+    token = payload.get("access_token") if isinstance(payload, dict) else None
+    if not isinstance(token, str) or not token:
+        raise SmokeFailure("Supabase sign-in response has no access token")
+    return token
 
 
 def request(
@@ -202,27 +247,37 @@ def run(base: str, token_a: str, token_b: str, *, tutor: bool, deadline: int) ->
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tutor", action="store_true", help="Exercise the paid tutor provider")
+    parser.add_argument(
+        "--supabase-login",
+        action="store_true",
+        help="Sign in both test accounts using QL_SMOKE_EMAIL/PASSWORD_A/B",
+    )
     parser.add_argument("--deadline", type=int, default=180, help="Aer wait in seconds")
     args = parser.parse_args()
     base = os.environ.get("QL_SMOKE_API_URL", "").rstrip("/")
     token_a = os.environ.get("QL_SMOKE_TOKEN_A", "")
     token_b = os.environ.get("QL_SMOKE_TOKEN_B", "")
-    parsed = urlsplit(base)
-    if (
-        parsed.scheme != "https"
-        or not parsed.netloc
-        or parsed.path
-        or parsed.query
-        or parsed.fragment
-        or parsed.username
-        or parsed.password
-    ):
+    if not valid_https_origin(base):
         parser.error("QL_SMOKE_API_URL must be a public HTTPS origin without a path")
-    if not token_a or not token_b:
+    if not args.supabase_login and (not token_a or not token_b):
         parser.error("Set QL_SMOKE_TOKEN_A and QL_SMOKE_TOKEN_B from separate Supabase accounts")
+    if args.supabase_login:
+        supabase_url = os.environ.get("QL_SMOKE_SUPABASE_URL", "").rstrip("/")
+        publishable_key = os.environ.get("QL_SMOKE_SUPABASE_PUBLISHABLE_KEY", "")
+        email_a = os.environ.get("QL_SMOKE_EMAIL_A", "")
+        password_a = os.environ.get("QL_SMOKE_PASSWORD_A", "")
+        email_b = os.environ.get("QL_SMOKE_EMAIL_B", "")
+        password_b = os.environ.get("QL_SMOKE_PASSWORD_B", "")
+        if not valid_https_origin(supabase_url):
+            parser.error("QL_SMOKE_SUPABASE_URL must be a public HTTPS origin")
+        if not all((publishable_key, email_a, password_a, email_b, password_b)):
+            parser.error("Set the Supabase publishable key and both QL_SMOKE_EMAIL/PASSWORD_A/B")
     if args.deadline < 1:
         parser.error("--deadline must be positive")
     try:
+        if args.supabase_login:
+            token_a = sign_in_test_account(supabase_url, publishable_key, email_a, password_a)
+            token_b = sign_in_test_account(supabase_url, publishable_key, email_b, password_b)
         run(base, token_a, token_b, tutor=args.tutor, deadline=args.deadline)
     except (SmokeFailure, KeyError, TypeError, ValueError) as exc:
         print(f"FAIL {type(exc).__name__}: {exc}", file=sys.stderr)
