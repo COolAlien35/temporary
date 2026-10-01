@@ -67,6 +67,20 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - name: Check connected image configuration gate
+        run: |
+          sh scripts/check-connected-config.sh
+          if REQUIRE_CONNECTED_CONFIG=1 sh scripts/check-connected-config.sh >/dev/null 2>&1; then exit 1; fi
+          REQUIRE_CONNECTED_CONFIG=1 \
+            NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co \
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=example-public-key \
+            NEXT_PUBLIC_QUANTUMLOOP_API_URL=https://api.example.com \
+            sh scripts/check-connected-config.sh
+          if REQUIRE_CONNECTED_CONFIG=1 \
+            NEXT_PUBLIC_SUPABASE_URL=http://example.supabase.co \
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=example-public-key \
+            NEXT_PUBLIC_QUANTUMLOOP_API_URL=https://api.example.com \
+            sh scripts/check-connected-config.sh >/dev/null 2>&1; then exit 1; fi
       - run: pnpm curriculum:check
       - run: pnpm build
       - run: pnpm exec tsc --noEmit

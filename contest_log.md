@@ -53,3 +53,4 @@
 - 2026-10-01: Fixed saved tutor discussion recovery by persisting and returning the exact paired run ID; backend static/88 unit and 10 connected browser checks passed, with Docker integration deferred to CI after local Docker Desktop stopped.
 - 2026-10-01: Added an unmocked hosted-browser smoke journey for real Supabase login, saved Aer comparison, tutor reload, and account isolation; TypeScript and Playwright test discovery passed, while live credentials remain open.
 - 2026-10-01: Added a CI PostgreSQL dump/restore rehearsal that checks a saved learner row and migration version in a disposable restored database; Supabase staging recovery remains open.
+- 2026-10-01: Made the Render frontend image fail on missing connected-account build settings, checked the gate in CI, and excluded local `.env` files from the backend Docker context.
