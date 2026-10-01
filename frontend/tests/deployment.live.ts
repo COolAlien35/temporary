@@ -5,7 +5,7 @@ const passwordA = process.env.QL_SMOKE_PASSWORD_A ?? ""
 const emailB = process.env.QL_SMOKE_EMAIL_B ?? ""
 const passwordB = process.env.QL_SMOKE_PASSWORD_B ?? ""
 
-test("hosted learner run and tutor survive reload and stay owner-scoped", async ({ context, page }) => {
+test("hosted learner run and tutor survive reload and stay owner-scoped", async ({ browser, page }) => {
   expect(emailA && passwordA && emailB && passwordB, "Set both QL_SMOKE_EMAIL/PASSWORD accounts").toBeTruthy()
   expect(emailA.toLowerCase(), "Test accounts must differ").not.toBe(emailB.toLowerCase())
 
@@ -45,13 +45,23 @@ test("hosted learner run and tutor survive reload and stay owner-scoped", async 
   await page.reload()
   await expect(page.getByRole("region", { name: "Saved run Lab Partner" }).getByText("Explain this saved run and its prediction comparison.")).toBeVisible()
 
-  const otherTab = await context.newPage()
-  await otherTab.goto("/login")
-  await otherTab.getByLabel("Email").fill(emailB)
-  await otherTab.locator("#password").fill(passwordB)
-  await otherTab.locator("form").getByRole("button", { name: "Log in" }).click()
-  await expect(otherTab).toHaveURL(/\/home$/)
-  await page.goto(`/lab/superposition?stage=5&run=${runId}`)
-  await expect(page.locator('p[role="status"][aria-live="polite"]')).toContainText("This saved run is unavailable for this account.")
-  await expect(page.getByText(`Run ID: ${runId}`)).toHaveCount(0)
+  const origin = new URL(page.url()).origin
+  const otherContext = await browser.newContext()
+  try {
+    const otherTab = await otherContext.newPage()
+    await otherTab.goto(`${origin}/login`)
+    await otherTab.getByLabel("Email").fill(emailB)
+    await otherTab.locator("#password").fill(passwordB)
+    await otherTab.locator("form").getByRole("button", { name: "Log in" }).click()
+    await expect(otherTab).toHaveURL(/\/home$/)
+
+    await otherTab.goto(`${origin}/lab/superposition?stage=5&run=${runId}`)
+    await expect(otherTab.locator('p[role="status"][aria-live="polite"]')).toContainText("This saved run is unavailable for this account.")
+    await expect(otherTab.getByText(`Run ID: ${runId}`)).toHaveCount(0)
+
+    await page.reload()
+    await expect(page.getByText(`Run ID: ${runId}`)).toBeVisible()
+  } finally {
+    await otherContext.close()
+  }
 })
