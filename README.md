@@ -8,7 +8,7 @@ Learners make a prediction before a run, compare it with the measured result, in
 
 The connected MVP currently covers Supabase signup, login, password recovery, and durable profiles; the Superposition lesson; owner-scoped saved circuits and immutable revisions; locked predictions; local Qiskit Aer runs through a worker; server-derived prediction comparisons; and run-bound tutor messages. The account home links directly to this path. The other frontend areas remain explicitly labeled demo experiences, and the wider backend features below are planned rather than release-ready. See [the implementation checklist](backend_plan.md) for acceptance status and [the contest log](contest_log.md) for completed increments.
 
-For a local stack, use `docker compose --profile web up -d --build` after configuring the public Supabase and API settings described in [development.md](docs/development.md). The production frontend, API, PostgreSQL, Redis, and worker images currently boot together; deployment to managed services and live multi-account acceptance are still open.
+For a local stack, use `docker compose --profile web up -d --build` after configuring the public Supabase and API settings described in [development.md](docs/development.md). The production frontend, API, PostgreSQL, Redis, and worker images currently boot together. A [Render deployment Blueprint and runbook](docs/deployment.md) are prepared; deployment to managed services and live multi-account acceptance are still open.
 
 ## Product roadmap
 

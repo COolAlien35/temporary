@@ -466,6 +466,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 ### B23 — Deploy and hand over
 
 - [x] Build and boot the local production frontend image with configured public Supabase values alongside the API, PostgreSQL, Redis, and Aer worker; check frontend signup/home and API readiness responses.
+- [x] Prepare a Render Blueprint for the learner deployment slice with distinct API, Aer worker, dispatcher, frontend, broker, and cache services; document Supabase values and rollout/smoke steps. Live provisioning and recovery acceptance remain open.
 - [ ] Provision staging/production API, worker queues, scheduler if needed, managed PostgreSQL, compatible Redis, object storage, and the isolated grading service.
 - [ ] Configure provider secrets, DNS/TLS, frontend origins, auth redirect URLs, storage CORS, realtime proxy timeouts, and health probes.
 - [ ] Build CI/CD gates for static checks, tests, images, and controlled migrations; run migrations once per release before incompatible application traffic.

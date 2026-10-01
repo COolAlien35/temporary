@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+# Change every region together before creating the Blueprint if the database is elsewhere.
+services:
+  - type: keyvalue
+    name: quantumloop-broker
+    plan: 256mb
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+  - type: keyvalue
+    name: quantumloop-cache
+    plan: 256mb
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: "off"
+
+  - type: web
+    name: quantumloop-api
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health/ready
+    preDeployCommand: alembic upgrade head
+    autoDeployTrigger: "off"
+    envVars:
+      - key: DEPLOY_STAGE
+        value: runtime
+      - key: PORT
+        value: "8000"
+      - key: QL_ENVIRONMENT
+        value: production
+      - key: QL_DATABASE_URL
+        sync: false
+      - key: QL_AUTH_ISSUER
+        sync: false
+      - key: QL_CORS_ORIGINS
+        sync: false
+      - key: QL_TUTOR_API_KEY
+        sync: false
+      - key: QL_BROKER_URL
+        fromService: {type: keyvalue, name: quantumloop-broker, property: connectionString}
+      - key: QL_CACHE_URL
+        fromService: {type: keyvalue, name: quantumloop-cache, property: connectionString}
+      - key: QL_RESULT_BACKEND
+        fromService: {type: keyvalue, name: quantumloop-cache, property: connectionString}
+      - key: QL_SIMULATION_DAILY_RUN_LIMIT
+        value: "100"
+
+  - type: worker
+    name: quantumloop-worker
+    runtime: docker
+    plan: 1c-2g
+    region: singapore
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    maxShutdownDelaySeconds: 300
+    autoDeployTrigger: "off"
+    envVars:
+      - key: DEPLOY_STAGE
+        value: worker
+      - key: QL_ENVIRONMENT
+        value: production
+      - key: QL_DATABASE_URL
+        fromService: {type: web, name: quantumloop-api, envVarKey: QL_DATABASE_URL}
+      - key: QL_AUTH_ISSUER
+        fromService: {type: web, name: quantumloop-api, envVarKey: QL_AUTH_ISSUER}
+      - key: QL_CORS_ORIGINS
+        fromService: {type: web, name: quantumloop-api, envVarKey: QL_CORS_ORIGINS}
+      - key: QL_BROKER_URL
+        fromService: {type: keyvalue, name: quantumloop-broker, property: connectionString}
+      - key: QL_CACHE_URL
+        fromService: {type: keyvalue, name: quantumloop-cache, property: connectionString}
+      - key: QL_RESULT_BACKEND
+        fromService: {type: keyvalue, name: quantumloop-cache, property: connectionString}
+
+  - type: worker
+    name: quantumloop-dispatcher
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    dockerCommand: python -m app.modules.jobs.dispatcher
+    autoDeployTrigger: "off"
+    envVars:
+      - key: DEPLOY_STAGE
+        value: runtime
+      - key: QL_ENVIRONMENT
+        value: production
+      - key: QL_DATABASE_URL
+        fromService: {type: web, name: quantumloop-api, envVarKey: QL_DATABASE_URL}
+      - key: QL_AUTH_ISSUER
+        fromService: {type: web, name: quantumloop-api, envVarKey: QL_AUTH_ISSUER}
+      - key: QL_CORS_ORIGINS
+        fromService: {type: web, name: quantumloop-api, envVarKey: QL_CORS_ORIGINS}
+      - key: QL_BROKER_URL
+        fromService: {type: keyvalue, name: quantumloop-broker, property: connectionString}
+      - key: QL_CACHE_URL
+        fromService: {type: keyvalue, name: quantumloop-cache, property: connectionString}
+      - key: QL_RESULT_BACKEND
+        fromService: {type: keyvalue, name: quantumloop-cache, property: connectionString}
+
+  - type: web
+    name: quantumloop-frontend
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    dockerfilePath: frontend/Dockerfile
+    dockerContext: frontend
+    healthCheckPath: /
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_QUANTUMLOOP_API_URL
+        fromService: {type: web, name: quantumloop-api, envVarKey: RENDER_EXTERNAL_URL}

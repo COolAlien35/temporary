@@ -1,5 +1,7 @@
 # Development, Docker, and CI
 
+For the hosted learner slice, see the [Render and Supabase deployment runbook](deployment.md). The Blueprint is prepared but has not been applied to live services.
+
 ## Current implementation boundary
 
 The backend provides infrastructure, health endpoints, Supabase JWT verification, durable `GET/PATCH /api/v1/me` profiles, cohort membership/invitation APIs, a read-only learner-safe curriculum unit API, learner-owned lesson sessions and locked predictions, owner-scoped circuit revisions and a paginated circuit library, and local Qiskit Aer simulations through durable jobs. A locked prediction can bind to one exact owned run, and `GET /api/v1/predictions/{id}/pair` derives agreement from a successful persisted result. `GET /api/v1/learning-sessions/{id}/agreement-history` exposes bounded successful-pair context for the tutor. Frontend Supabase signup/login and password recovery are opt-in, while account workflows, noise, grading, storage, and collaboration remain tracked in `backend_plan.md`. Most frontend pages still use labeled browser demo services; starting both containers does not connect those pages to the backend.
