@@ -44,6 +44,15 @@ python3 backend/scripts/deployment_smoke.py --tutor
 
 The command checks health, real bearer identities, the supported lesson, saved circuit/prediction, Aer completion, server-derived pair, run-grounded tutor response, and owner isolation at every persisted resource. It prints only pass/fail steps, never token values or API response bodies. It creates a circuit, lesson session, prediction, run, and tutor message for account A and uses one run and one tutor request from that account's daily quotas; use disposable test accounts. `--tutor` calls the paid provider and should be included in release acceptance. Without it, the command checks the Aer slice only. Obtain fresh tokens if an account session expires; a `401` is a failed smoke, not a reason to bypass auth. This API command supplements the browser signup/recovery, keyboard, and actual screen-reader checks above.
 
+For the real browser path, use two confirmed Supabase email/password **test accounts** and set `QL_SMOKE_FRONTEND_URL` to the deployed frontend HTTPS origin. Set `QL_SMOKE_EMAIL_A`, `QL_SMOKE_PASSWORD_A`, `QL_SMOKE_EMAIL_B`, and `QL_SMOKE_PASSWORD_B` in the shell environment, then run:
+
+```sh
+cd frontend
+pnpm test:deployment
+```
+
+The browser check signs in through the real Supabase UI, saves a prediction and circuit, waits for the Aer comparison, reloads its direct run link, requests a tutor explanation, reloads that saved discussion, then signs in as the other learner and confirms the run is unavailable. It uses no network mocks. Playwright traces, screenshots, and video are disabled for this credentialed run. Do not put these test passwords in committed files or CI logs. The check creates one run and one tutor message. Its separate configuration is excluded from ordinary CI until a secure hosted test environment and secrets are provisioned.
+
 The API has a per-account daily Aer submission cap (`QL_SIMULATION_DAILY_RUN_LIMIT`, default 100), and the worker's hard task limit is five minutes. The initial plan runs one API instance, one worker at Celery concurrency 2, and one dispatcher. Monitor CPU, memory, queue age, Redis usage, and Supabase connection count before scaling. Keep a previous known-good image/commit available. If a release fails after a compatible migration, redeploy that commit and let queued jobs reconcile; for an incompatible migration, follow a separately rehearsed database recovery procedure. Do not reverse production migrations blindly.
 
 ## Remaining release gates

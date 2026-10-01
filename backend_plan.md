@@ -469,6 +469,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 - [x] Prepare a Render Blueprint for the learner deployment slice with distinct API, Aer worker, dispatcher, frontend, broker, and cache services; document Supabase values and rollout/smoke steps. Live provisioning and recovery acceptance remain open.
 - [x] Add a credentialed two-account deployment smoke command for health, saved learner Aer pairing, tutor, and cross-account denials. Execution against a hosted provider remains open.
 - [x] Persist and return each tutor message's exact optional run ID so connected Explain restores the correct saved discussion after reload; verify owner-scoped read/list behavior. Existing messages before this migration have no recoverable exact run ID.
+- [x] Add a credentialed, unmocked Playwright deployment journey for two Supabase learners, saved Aer comparison, tutor reload, and cross-account denial; execution against live hosting remains open.
 - [ ] Provision staging/production API, worker queues, scheduler if needed, managed PostgreSQL, compatible Redis, object storage, and the isolated grading service.
 - [ ] Configure provider secrets, DNS/TLS, frontend origins, auth redirect URLs, storage CORS, realtime proxy timeouts, and health probes.
 - [ ] Build CI/CD gates for static checks, tests, images, and controlled migrations; run migrations once per release before incompatible application traffic.
