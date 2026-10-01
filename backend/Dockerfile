@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG DEPLOY_STAGE=runtime
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.14-slim-bookworm AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
@@ -19,7 +19,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 FROM base AS quantum-build
 RUN uv sync --frozen --no-dev --group quantum --no-install-project
 
-FROM python:3.12-slim-bookworm AS runtime-common
+FROM python:3.14-slim-bookworm AS runtime-common
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PATH="/app/.venv/bin:$PATH"
 WORKDIR /app
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
