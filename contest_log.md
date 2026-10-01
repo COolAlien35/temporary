@@ -49,3 +49,4 @@
 - 2026-10-01: Added owner-scoped paginated Aer run history and a connected Run-stage picker beyond the recent recovery window; made outbox recovery test accept either competing dispatcher after verifying durable publication and completion.
 - 2026-10-01: Added a configurable per-account UTC-day Aer run quota with serialized submissions, `429`/`Retry-After`, and quota-safe idempotent replay to protect MVP worker capacity.
 - 2026-10-01: Prepared the Render learner-stack Blueprint, selectable backend deploy images, and Supabase rollout/smoke runbook; both image variants built and 108 real-service Docker tests passed at 86.44% coverage, while live provisioning remains open.
+- 2026-10-01: Added a hosted two-account learner API smoke command covering health, saved prediction/Aer pairing, optional tutor, and owner isolation; Ruff, formatting, mypy, and 88 backend unit tests passed, while live credentialed execution remains open.

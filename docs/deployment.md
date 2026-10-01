@@ -36,6 +36,14 @@ All service auto deploys are off. Wait for the first Blueprint sync and ensure t
 4. Check API/worker/dispatcher logs and queue backlog. Run the documented instructor provisioning command only after the intended instructor has signed in; then verify cohort access with separate instructor and learner accounts if that path is part of the demo.
 5. Record the tested commit, API and frontend URLs, account-specific resource limits, smoke results, and any open findings in the release log. Keep database backup/restore and rollback unclaimed until exercised on staging.
 
+For a repeatable API check, sign in as two **separate test learners** and put their short-lived Supabase access tokens in `QL_SMOKE_TOKEN_A` and `QL_SMOKE_TOKEN_B`. Set `QL_SMOKE_API_URL` to the deployed API HTTPS origin, without `/api/v1`. Run from the repository root:
+
+```sh
+python3 backend/scripts/deployment_smoke.py --tutor
+```
+
+The command checks health, real bearer identities, the supported lesson, saved circuit/prediction, Aer completion, server-derived pair, run-grounded tutor response, and owner isolation at every persisted resource. It prints only pass/fail steps, never token values or API response bodies. It creates a circuit, lesson session, prediction, run, and tutor message for account A and uses one run and one tutor request from that account's daily quotas; use disposable test accounts. `--tutor` calls the paid provider and should be included in release acceptance. Without it, the command checks the Aer slice only. Obtain fresh tokens if an account session expires; a `401` is a failed smoke, not a reason to bypass auth. This API command supplements the browser signup/recovery, keyboard, and actual screen-reader checks above.
+
 The API has a per-account daily Aer submission cap (`QL_SIMULATION_DAILY_RUN_LIMIT`, default 100), and the worker's hard task limit is five minutes. The initial plan runs one API instance, one worker at Celery concurrency 2, and one dispatcher. Monitor CPU, memory, queue age, Redis usage, and Supabase connection count before scaling. Keep a previous known-good image/commit available. If a release fails after a compatible migration, redeploy that commit and let queued jobs reconcile; for an incompatible migration, follow a separately rehearsed database recovery procedure. Do not reverse production migrations blindly.
 
 ## Remaining release gates
