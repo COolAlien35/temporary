@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useLab } from "@/lib/lab-context"
 import { connectedLearningLoopApi } from "@/lib/services/connected-auth"
-import type { RunSummary } from "@/lib/services/learning-loop-api"
+import { LearningLoopApiError, type RunSummary } from "@/lib/services/learning-loop-api"
 import { RECENT_COMPARISON_EMPTY_MESSAGE, latestConnectedSuperposition, latestUnpairedConnectedPrediction, newConnectedLabKeys, runConnectedSuperposition, type ConnectedLabInput, type ConnectedLabKeys } from "@/lib/services/connected-lab-run"
 import { StageHeader } from "./stage-header"
 import { useSession } from "@/store/use-session"
@@ -18,7 +18,7 @@ export function ConnectedAerRun() {
   const [pending, setPending] = useState(false)
   const [status, setStatus] = useState("")
   const [error, setError] = useState("")
-  const [errorAction, setErrorAction] = useState<"submit" | "recover" | "prediction">("submit")
+  const [errorAction, setErrorAction] = useState<"submit" | "recover" | "prediction" | "limit">("submit")
   const [pendingRunId, setPendingRunId] = useState<string | null>(null)
   const [savedRuns, setSavedRuns] = useState<RunSummary[] | null>(null)
   const [runsCursor, setRunsCursor] = useState<string | null>(null)
@@ -112,7 +112,14 @@ export function ConnectedAerRun() {
       if (!mounted.current || !sameOwner()) return
       showConnectedResult(completed)
     } catch (cause) {
-      if (mounted.current && sameOwner()) setError(cause instanceof Error ? cause.message : "The connected run failed. Please retry.")
+      if (mounted.current && sameOwner()) {
+        if (cause instanceof LearningLoopApiError && cause.code === "simulation_daily_limit") {
+          setErrorAction("limit")
+          setError("Daily Aer run limit reached. You can submit a new run after midnight UTC.")
+        } else {
+          setError(cause instanceof Error ? cause.message : "The connected run failed. Please retry.")
+        }
+      }
     } finally {
       if (mounted.current && sameOwner()) setPending(false)
     }
@@ -202,6 +209,6 @@ export function ConnectedAerRun() {
     {pendingRunId && <button type="button" onClick={() => openConnectedRun(pendingRunId)} className="mt-3 block text-sm font-semibold text-primary underline">Check saved run status</button>}
     {connectedResult && <button type="button" disabled={pending} onClick={() => showConnectedResult(connectedResult)} className="mt-3 w-full rounded-full border border-primary/50 px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50">View saved comparison</button>}
     {status && <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{status}</p>}
-    {error && <p role="alert" className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error} {!pendingRunId && <button type="button" disabled={pending} onClick={() => void (errorAction === "recover" ? loadRecent() : errorAction === "prediction" ? loadPrediction() : submit())} className="underline">{errorAction === "recover" || errorAction === "prediction" ? "Retry recovery" : "Retry the same run"}</button>}</p>}
+    {error && <p role="alert" className="mt-3 rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-sm text-rose-200">{error} {!pendingRunId && errorAction !== "limit" && <button type="button" disabled={pending} onClick={() => void (errorAction === "recover" ? loadRecent() : errorAction === "prediction" ? loadPrediction() : submit())} className="underline">{errorAction === "recover" || errorAction === "prediction" ? "Retry recovery" : "Retry the same run"}</button>}</p>}
   </div>
 }

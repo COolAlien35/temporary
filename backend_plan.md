@@ -212,6 +212,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 - [x] For local simulation, return `202` plus run/job ID and status URL, then provide owner-scoped run/job status and results.
 - [x] Expose owner-scoped cursor-paginated job summaries so interrupted clients can discover durable status records without downloading result payloads.
 - [x] Expose owner-scoped cursor-paginated Aer run summaries and browse them from the connected Run stage, including runs older than the recent-pair scan window.
+- [x] Bound new Aer submissions per learner per UTC day with a configurable quota, transactional owner lock across concurrent keys, and `429`/`Retry-After`; preserve idempotent replays after the limit.
 - [x] Let an owner cancel a queued job idempotently, discard its unpublished dispatch intent, and fence late worker claims; expose cancellation for a queued saved Aer run in connected Observe.
 - [ ] Add authorized cancellation and paginated run/job history endpoints.
 - [ ] Create separate Celery queues and concurrency/resource limits for simulation, optimization, code grading, and maintenance/export tasks.

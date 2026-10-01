@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     tutor_timeout_seconds: int = Field(default=15, ge=1, le=60)
     tutor_max_completion_tokens: int = Field(default=256, ge=64, le=1024)
     tutor_daily_request_limit: int = Field(default=20, ge=1, le=100)
+    simulation_daily_run_limit: int = Field(default=100, ge=1, le=10_000)
     embedding_model: str = Field(
         default="text-embedding-3-small", validation_alias="EMBEDDING_MODEL"
     )

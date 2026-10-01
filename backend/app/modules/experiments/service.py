@@ -1,7 +1,7 @@
 import json
 from base64 import b64decode, urlsafe_b64encode
 from binascii import Error as Base64Error
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
 
@@ -9,12 +9,18 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.core.errors import ApiHTTPException
 from app.integrations.quantum.contract import UnsupportedCircuit, ideal_measurement_qubits
 from app.modules.circuits.public import owned_revision
 from app.modules.circuits.schemas import CircuitSnapshot
 from app.modules.experiments.models import ExperimentRun
-from app.modules.experiments.repository import get_owned_run, get_run_by_key, list_owned_runs
+from app.modules.experiments.repository import (
+    count_owned_runs_since,
+    get_owned_run,
+    get_run_by_key,
+    list_owned_runs,
+)
 from app.modules.experiments.schemas import RunCreate, RunPage, RunRead, RunSummary
 from app.modules.identity.public import Actor
 from app.modules.jobs.public import enqueue_job, owned_job_state, owned_job_summaries
@@ -26,21 +32,36 @@ def _request_hash(body: RunCreate) -> str:
     return sha256(encoded.encode()).hexdigest()
 
 
-def _idempotency_lock(actor_id: UUID, key: UUID) -> int:
-    digest = sha256(actor_id.bytes + key.bytes).digest()
+def _owner_lock(actor_id: UUID) -> int:
+    digest = sha256(b"aer-daily-quota:" + actor_id.bytes).digest()
     return int.from_bytes(digest[:8], "big", signed=True)
 
 
-def create_run(session: Session, actor: Actor, body: RunCreate, key: UUID) -> UUID:
+def create_run(
+    session: Session, actor: Actor, body: RunCreate, key: UUID, settings: Settings
+) -> UUID:
     request_hash = _request_hash(body)
     with session.begin():
-        # Serialize only the same actor/key pair; a unique constraint is the final defense.
-        session.execute(select(func.pg_advisory_xact_lock(_idempotency_lock(actor.id, key))))
+        # Serialize an owner's submissions across keys before checking the durable quota.
+        session.execute(select(func.pg_advisory_xact_lock(_owner_lock(actor.id))))
         existing = get_run_by_key(session, actor.id, key)
         if existing is not None:
             if existing.request_hash != request_hash:
                 raise ApiHTTPException(409, "idempotency_conflict", "Idempotency key already used")
             return existing.id
+        now = datetime.now(UTC)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if (
+            count_owned_runs_since(session, actor.id, day_start)
+            >= settings.simulation_daily_run_limit
+        ):
+            retry_after = int(((day_start + timedelta(days=1)) - now).total_seconds()) + 1
+            raise ApiHTTPException(
+                429,
+                "simulation_daily_limit",
+                "Daily Aer run limit reached",
+                headers={"Retry-After": str(retry_after)},
+            )
         revision = owned_revision(session, actor.id, body.circuit_id, body.circuit_revision)
         if revision is None:
             raise HTTPException(status_code=404, detail="Circuit revision not found")

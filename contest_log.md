@@ -47,3 +47,4 @@
 - 2026-10-01: Added idempotent queued-job cancellation with outbox/worker fencing and a saved-Aer-run cancel control; 106 Docker tests passed at 86.29% coverage, plus 107 production and 10 connected browser tests.
 - 2026-10-01: Replaced the Linux-flaky Studio drag helper with a measured pointer path and hovered-slot assertion after its trace showed a neighboring-step drop; the exact-slot check passed 20 repeated production-browser runs locally.
 - 2026-10-01: Added owner-scoped paginated Aer run history and a connected Run-stage picker beyond the recent recovery window; made outbox recovery test accept either competing dispatcher after verifying durable publication and completion.
+- 2026-10-01: Added a configurable per-account UTC-day Aer run quota with serialized submissions, `429`/`Retry-After`, and quota-safe idempotent replay to protect MVP worker capacity.

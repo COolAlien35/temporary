@@ -66,7 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Idempotency-Key",
             "If-Match",
         ],
-        expose_headers=["X-Request-ID", "ETag"],
+        expose_headers=["X-Request-ID", "ETag", "Retry-After"],
     )
 
     @application.middleware("http")

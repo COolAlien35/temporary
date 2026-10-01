@@ -109,6 +109,7 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, idempotency-key", "Content-Type": "application/json" }
   const writes: { path: string; body: Record<string, unknown>; key: string | undefined }[] = []
   let polls = 0
+  let submittedRuns = 0
 
   await page.route("https://provider.example.test/**", async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -138,7 +139,11 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
       snapshot: { schema_version: 1, ...request.postDataJSON() as Record<string, unknown> },
       checksum_sha256: "a".repeat(64), created_at: "2026-09-29T12:00:00Z", updated_at: "2026-09-29T12:00:00Z",
     } })
-    if (path === "/api/v1/experiments/runs" && request.method() === "POST") return route.fulfill({ headers: cors, json: { resource_id: ids.currentRun, status: "queued" } })
+    if (path === "/api/v1/experiments/runs" && request.method() === "POST") {
+      submittedRuns += 1
+      if (submittedRuns > 1) return route.fulfill({ status: 429, headers: cors, json: { error: { code: "simulation_daily_limit", message: "Daily Aer run limit reached" } } })
+      return route.fulfill({ headers: cors, json: { resource_id: ids.currentRun, status: "queued" } })
+    }
     if (path === `/api/v1/experiments/runs/${ids.currentRun}`) return route.fulfill({ headers: cors, json: {
       id: ids.currentRun, status: ++polls === 1 ? "queued" : "succeeded", prediction_id: ids.currentPrediction,
       backend: "qiskit_aer", shots: 1024, circuit_revision: 1,
@@ -206,6 +211,9 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await page.getByRole("button", { name: "Recover saved prediction" }).click()
   await expect(page.getByText("Recovered your saved locked prediction. You can now run this circuit.")).toBeVisible()
   await expect(page.getByRole("button", { name: "Run saved prediction on Aer" })).toBeEnabled()
+  await page.getByRole("button", { name: "Run saved prediction on Aer" }).click()
+  await expect(page.locator('p[role="alert"]')).toContainText("Daily Aer run limit reached. You can submit a new run after midnight UTC.")
+  await expect(page.getByRole("button", { name: "Retry the same run" })).toHaveCount(0)
   await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /Predict/ }).click()
   await expect(page.getByRole("slider", { name: "Prediction confidence" })).toHaveAttribute("aria-valuenow", "70")
 })

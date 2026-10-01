@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
@@ -6,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.db.session import get_engine
 from app.jobs.celery_app import celery_app
 from app.main import create_app
@@ -22,7 +25,7 @@ pytestmark = pytest.mark.integration
 def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> None:
     first_subject, second_subject = uuid4(), uuid4()
     current = IdentityClaims(first_subject, "aer-first@example.test")
-    app = create_app()
+    app = create_app(Settings(simulation_daily_run_limit=2))
     app.dependency_overrides[get_claims] = lambda: current
     circuit_id: UUID | None = None
     run_id: UUID | None = None
@@ -152,6 +155,17 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
             assert [item["id"] for item in older_page.json()["items"]] == [str(run_id)]
             assert older_page.json()["items"][0]["status"] == "succeeded"
             assert older_page.json()["next_cursor"] is None
+            limited = client.post(
+                "/api/v1/experiments/runs",
+                json=body,
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert limited.status_code == 429
+            assert limited.json()["error"]["code"] == "simulation_daily_limit"
+            assert int(limited.headers["Retry-After"]) > 0
+            assert client.post(
+                "/api/v1/experiments/runs", json=body, headers={"Idempotency-Key": key}
+            ).json()["job_id"] == str(run_id)
             invalid = client.get("/api/v1/experiments/runs?cursor=bad!")
             assert invalid.status_code == 422
             assert invalid.json()["error"]["code"] == "invalid_cursor"
@@ -188,3 +202,75 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
             db.execute(
                 delete(Profile).where(Profile.auth_subject.in_([first_subject, second_subject]))
             )
+
+
+def test_concurrent_aer_submissions_share_one_daily_quota_slot() -> None:
+    subject = uuid4()
+    app = create_app(Settings(simulation_daily_run_limit=1))
+    app.dependency_overrides[get_claims] = lambda: IdentityClaims(
+        subject, "quota-race@example.test"
+    )
+    circuit_id: UUID | None = None
+    run_id: UUID | None = None
+    try:
+        with TestClient(app) as client:
+            assert client.get("/api/v1/me").status_code == 200
+            created = client.post(
+                "/api/v1/circuits",
+                json={
+                    "name": "Quota race",
+                    "qubits": 1,
+                    "gates": [{"id": "h", "type": "H", "step": 0, "qubit": 0}],
+                },
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert created.status_code == 201, created.text
+            circuit_id = UUID(created.json()["id"])
+            body = {"circuit_id": str(circuit_id), "circuit_revision": 1, "shots": 128}
+            keys = [str(uuid4()), str(uuid4())]
+            start = Barrier(2)
+
+            def submit(key: str):
+                start.wait(timeout=10)
+                return client.post(
+                    "/api/v1/experiments/runs",
+                    json=body,
+                    headers={"Idempotency-Key": key},
+                )
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                responses = list(pool.map(submit, keys))
+            assert sorted(response.status_code for response in responses) == [202, 429]
+            accepted = next(response for response in responses if response.status_code == 202)
+            rejected = next(response for response in responses if response.status_code == 429)
+            assert rejected.json()["error"]["code"] == "simulation_daily_limit"
+            run_id = UUID(accepted.json()["resource_id"])
+            accepted_key = keys[responses.index(accepted)]
+            replay = client.post(
+                "/api/v1/experiments/runs",
+                json=body,
+                headers={"Idempotency-Key": accepted_key},
+            )
+            assert replay.status_code == 202
+            assert replay.json()["resource_id"] == str(run_id)
+            with Session(get_engine()) as db:
+                assert (
+                    len(db.scalars(select(ExperimentRun).where(ExperimentRun.id == run_id)).all())
+                    == 1
+                )
+            dispatch_once()
+            receipt = AsyncResult(str(run_id), app=celery_app)
+            try:
+                assert receipt.get(timeout=60) == "succeeded"
+            finally:
+                receipt.forget()
+    finally:
+        app.dependency_overrides.clear()
+        with Session(get_engine()) as db, db.begin():
+            if run_id is not None:
+                db.execute(delete(ExperimentRun).where(ExperimentRun.id == run_id))
+                db.execute(delete(JobOutbox).where(JobOutbox.job_id == run_id))
+                db.execute(delete(Job).where(Job.id == run_id))
+            if circuit_id is not None:
+                db.execute(delete(Circuit).where(Circuit.id == circuit_id))
+            db.execute(delete(Profile).where(Profile.auth_subject == subject))
