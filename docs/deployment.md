@@ -55,6 +55,8 @@ The browser check signs in through the real Supabase UI, saves a prediction and 
 
 The API has a per-account daily Aer submission cap (`QL_SIMULATION_DAILY_RUN_LIMIT`, default 100), and the worker's hard task limit is five minutes. The initial plan runs one API instance, one worker at Celery concurrency 2, and one dispatcher. Monitor CPU, memory, queue age, Redis usage, and Supabase connection count before scaling. Keep a previous known-good image/commit available. If a release fails after a compatible migration, redeploy that commit and let queued jobs reconcile; for an incompatible migration, follow a separately rehearsed database recovery procedure. Do not reverse production migrations blindly.
 
+CI rehearses a `pg_dump`/`pg_restore` into a separate disposable database after its integration tests. It verifies that a saved profile and Alembic version survive restoration, then removes the temporary database and dump. To run the same check on a local Compose stack, use `QL_RESTORE_REHEARSAL=1 sh backend/scripts/rehearse_restore.sh` from the repository root. This does not verify Supabase backups, restore time, credentials, point-in-time recovery, or the behavior of in-flight jobs; rehearse those in staging before release.
+
 ## Remaining release gates
 
 This configuration is preparation, not proof of a hosted release. B23 still requires live provisioning, credentialed two-account tests, controlled rollout/rollback and backup restoration, worker drain/replay checks, accessibility review, and provider-specific smoke evidence. See [the plan](../backend_plan.md) and [local development](development.md).
