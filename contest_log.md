@@ -61,3 +61,4 @@
 - 2026-10-02: Preserved same-account connected lab state through temporary `/me` failures on Supabase token refresh while clearing switched/rejected identities; 11 connected browser tests and the production frontend build passed.
 - 2026-10-02: Added CI-bound WCAG 2.1 A/AA scans across connected Learn/Build/Observe/Explain and keyboard focus recovery on stage changes; 11 connected and 107 production browser tests, TypeScript, and the frontend production build passed.
 - 2026-10-02: Extended the connected learner acceptance journey to place a gate and save its circuit with keyboard Enter; the focused browser run passed.
+- 2026-10-02: Wrote a five-minute connected learner demo script covering prediction, saved Aer result, tutor persistence, and second-account denial; linked its hosted smoke prerequisites from the README.

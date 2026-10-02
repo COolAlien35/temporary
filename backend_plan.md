@@ -478,6 +478,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 - [x] Let the hosted API smoke sign in two Supabase test learners from environment credentials, matching the browser smoke, with sanitized authentication failures; live execution remains open.
 - [x] Make the live browser smoke use two isolated browser contexts and verify learner A retains access while learner B is denied; execution against a hosted deployment remains open.
 - [x] Add a manually dispatched hosted learner smoke workflow that runs the credentialed API and independent-session browser journeys from the default branch; repository test secrets and live execution remain open.
+- [x] Prepare a concise, reproducible two-account connected learner demo script with expected saved-run and tutor behavior, quotas, and an honest provider-outage fallback. Hosted execution remains open.
 - [ ] Provision staging/production API, worker queues, scheduler if needed, managed PostgreSQL, compatible Redis, object storage, and the isolated grading service.
 - [ ] Configure provider secrets, DNS/TLS, frontend origins, auth redirect URLs, storage CORS, realtime proxy timeouts, and health probes.
 - [ ] Build CI/CD gates for static checks, tests, images, and controlled migrations; run migrations once per release before incompatible application traffic.

@@ -10,6 +10,8 @@ The connected MVP currently covers Supabase signup, login, password recovery, an
 
 For a local stack, use `docker compose --profile web up -d --build` after configuring the public Supabase and API settings described in [development.md](docs/development.md). The production frontend, API, PostgreSQL, Redis, and worker images currently boot together. A [Render deployment Blueprint and runbook](docs/deployment.md) are prepared; deployment to managed services and live multi-account acceptance are still open.
 
+For the hackathon presentation, follow the [connected learner demo script](docs/mvp-demo.md) after the hosted smoke checks pass.
+
 ## Product roadmap
 
 ### Guided quantum learning
