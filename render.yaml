@@ -65,6 +65,8 @@ services:
         value: worker
       - key: QL_ENVIRONMENT
         value: production
+      - key: QL_TASK_TIME_LIMIT
+        value: "270"
       - key: QL_DATABASE_URL
         fromService: {type: web, name: quantumloop-api, envVarKey: QL_DATABASE_URL}
       - key: QL_AUTH_ISSUER

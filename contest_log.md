@@ -57,3 +57,4 @@
 - 2026-10-01: Let the hosted two-account API smoke obtain fresh Supabase learner tokens from test credentials and kept sign-in failures free of credential/provider response details.
 - 2026-10-02: Strengthened the hosted browser smoke with independent learner sessions: B cannot open A's saved run while A still can; live execution remains pending.
 - 2026-10-02: Added a manual GitHub Actions gate for the real two-account hosted API/Aer/tutor and browser journeys, using repository test-account secrets; live execution awaits hosting.
+- 2026-10-02: Added a Docker CI rehearsal that queues a task while the worker is stopped and verifies it completes after restart; gave the Render worker a 30-second shutdown margin, while in-flight Aer draining remains open.

@@ -119,6 +119,10 @@ jobs:
         env:
           QL_RESTORE_REHEARSAL: '1'
         run: sh backend/scripts/rehearse_restore.sh
+      - name: Rehearse queued task across worker restart
+        env:
+          QL_WORKER_RESTART_REHEARSAL: '1'
+        run: sh backend/scripts/rehearse_worker_restart.sh
       - name: Check HTTP entry points
         run: |
           curl --fail --retry 5 --retry-connrefused http://localhost:8000/api/v1/health/ready
