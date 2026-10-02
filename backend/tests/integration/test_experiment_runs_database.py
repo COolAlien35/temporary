@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from threading import Barrier
 from uuid import UUID, uuid4
 
@@ -18,6 +19,8 @@ from app.modules.identity.models import Profile
 from app.modules.identity.public import IdentityClaims, get_claims
 from app.modules.jobs.dispatcher import dispatch_once
 from app.modules.jobs.models import Job, JobOutbox
+from app.modules.jobs.public import JobTransitionConflict, claim_job, finish_job
+from app.modules.jobs.reconciliation import reconcile_expired
 
 pytestmark = pytest.mark.integration
 
@@ -84,6 +87,17 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
             )
             assert conflict.status_code == 409
             assert conflict.json()["error"]["code"] == "idempotency_conflict"
+            now = datetime.now(UTC)
+            past = now - timedelta(seconds=20)
+            with Session(get_engine()) as db:
+                abandoned = claim_job(db, run_id, lease_seconds=1, now=past)
+            assert abandoned is not None
+            with Session(get_engine()) as db, db.begin():
+                message = db.scalar(select(JobOutbox).where(JobOutbox.job_id == run_id))
+                assert message is not None
+                message.published_at = past
+            with Session(get_engine()) as db:
+                assert reconcile_expired(db, now=now).requeued == 1
             assert dispatch_once().published == 1
             receipt = AsyncResult(str(run_id), app=celery_app)
             try:
@@ -104,6 +118,11 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
             assert result["exact_probabilities"]["11"] == pytest.approx(0.5)
             assert sum(result["counts"].values()) == 1024
             assert client.get(f"/api/v1/jobs/{run_id}").json()["status"] == "succeeded"
+            with Session(get_engine()) as db:
+                job = db.get(Job, run_id)
+                assert job is not None and job.attempt_count == 2
+            with Session(get_engine()) as db, pytest.raises(JobTransitionConflict):
+                finish_job(db, abandoned, "failed", error_code="stale_worker")
 
             changed = client.put(
                 f"/api/v1/circuits/{circuit_id}",
