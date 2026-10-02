@@ -63,3 +63,4 @@
 - 2026-10-02: Extended the connected learner acceptance journey to place a gate and save its circuit with keyboard Enter; the focused browser run passed.
 - 2026-10-02: Wrote a five-minute connected learner demo script covering prediction, saved Aer result, tutor persistence, and second-account denial; linked its hosted smoke prerequisites from the README.
 - 2026-10-03: Added redacted, request-correlated API access records and disabled raw-URL Uvicorn logging in the deployed image; backend unit, Ruff, formatting, and strict mypy checks passed.
+- 2026-10-03: Verified an expired Aer job lease is republished and completed by the real worker while the abandoned attempt is fenced; Docker integration CI passed.
