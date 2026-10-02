@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import AxeBuilder from "@axe-core/playwright"
 
 const ids = {
   user: "77777777-7777-4777-8777-777777777777",
@@ -173,7 +174,12 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /1 Learn/ }).click()
   await expect(page.getByRole("heading", { name: "Verified Superposition Lesson" })).toBeVisible()
   await expect(page.getByText("The server lesson explains a Hadamard on q0.")).toBeVisible()
-  await page.getByRole("button", { name: "Formulate Hypothesis →" }).click()
+  let accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
+  const advanceFromLearn = page.getByRole("button", { name: "Formulate Hypothesis →" })
+  await advanceFromLearn.focus()
+  await advanceFromLearn.press("Enter")
+  await expect(page.getByRole("heading", { name: "Formulate Outcome Hypothesis" })).toBeFocused()
   const firstOutcome = page.getByRole("slider", { name: "Predicted probability for |00⟩" })
   const secondOutcome = page.getByRole("slider", { name: "Predicted probability for |01⟩" })
   await firstOutcome.focus()
@@ -184,15 +190,20 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await expect(secondOutcome).toHaveValue("24")
   await expect(page.getByRole("slider", { name: "Prediction confidence" })).toHaveAttribute("aria-valuetext", /percent/)
   await page.getByRole("button", { name: "Save and Lock Prediction" }).click()
+  await expect(page.getByRole("heading", { name: "Quantum Circuit Composition" })).toBeFocused()
   await page.getByRole("button", { name: "Place H on q0 at step 0" }).click()
   await page.getByRole("region", { name: "Saved circuit library" }).getByRole("button", { name: "Save circuit" }).click()
   await expect(page.getByText("Saved Superposition circuit, revision 1.")).toBeVisible()
+  accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
   await page.getByRole("button", { name: "Proceed to Run →" }).click()
   await expect(page.getByText("Selected library circuit: Superposition circuit, revision 1.")).toBeVisible()
   await page.getByRole("button", { name: "Run saved prediction on Aer" }).click()
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).toBeVisible()
   await expect(page.getByRole("table", { name: /Server-derived outcome comparison/ })).toBeVisible()
   await expect(page.getByRole("row", { name: "|00⟩ 26.0% 50.0% +24.0 pts" })).toBeVisible()
+  accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
   expect(polls).toBeGreaterThanOrEqual(2)
   expect(writes.map((item) => item.path)).toEqual([
     "/api/v1/learning-sessions", `/api/v1/learning-sessions/${ids.currentSession}/predictions`, "/api/v1/circuits", "/api/v1/experiments/runs",
@@ -204,6 +215,8 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await page.getByRole("button", { name: "Discuss this run with Lab Partner →" }).click()
   await page.getByRole("button", { name: "Explain", exact: true }).click()
   await expect(page.getByText("Your saved prediction gave equal weight to all four outcomes.")).toBeVisible()
+  accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
   expect(writes[4].path).toBe(`/api/v1/learning-sessions/${ids.currentSession}/tutor/messages`)
   expect(writes[4].body).toMatchObject({ action: "explain", stage: "discuss", run_id: ids.currentRun })
   expect(writes[4].body).not.toHaveProperty("prediction_match")

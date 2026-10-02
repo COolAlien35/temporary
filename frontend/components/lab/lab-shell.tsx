@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { LabProvider, useLab } from "@/lib/lab-context"
 import { TopBar } from "@/components/lab/top-bar"
 import { LeftSidebar } from "@/components/lab/left-sidebar"
@@ -48,6 +49,22 @@ function LabStageRouter() {
   return <StageComponent />
 }
 
+function LabStageFocus() {
+  const { stage } = useLab()
+  const previousStage = useRef(stage)
+
+  useEffect(() => {
+    if (previousStage.current === stage) return
+    previousStage.current = stage
+    const heading = document.querySelector<HTMLElement>("#lab-stage-content h1, #lab-stage-content h2")
+    if (!heading) return
+    heading.tabIndex = -1
+    heading.focus()
+  }, [stage])
+
+  return null
+}
+
 export function LabShell({ algorithmSlug, initialStage = 1 }: { algorithmSlug: string; initialStage?: number }) {
   const accountMode = useSession((state) => state.mode)
   const learnerId = useSession((state) => state.user?.id ?? null)
@@ -57,8 +74,9 @@ export function LabShell({ algorithmSlug, initialStage = 1 }: { algorithmSlug: s
         <TopBar />
         <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
           <LeftSidebar />
-          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
+          <main id="lab-stage-content" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
             <LabStageRouter />
+            <LabStageFocus />
           </main>
           <RightSidebar />
         </div>

@@ -38,6 +38,8 @@ All service auto deploys are off. Wait for the first Blueprint sync and ensure t
 4. Check API/worker/dispatcher logs and queue backlog. Run the documented instructor provisioning command only after the intended instructor has signed in; then verify cohort access with separate instructor and learner accounts if that path is part of the demo.
 5. Record the tested commit, API and frontend URLs, account-specific resource limits, smoke results, and any open findings in the release log. Keep database backup/restore and rollback unclaimed until exercised on staging.
 
+The connected browser suite now runs automated WCAG 2.1 A/AA checks at Learn, Build, Observe, and Explain and checks keyboard focus on stage changes. Before release, complete and record a keyboard-only pass and actual screen-reader passes against the hosted build; the automated checks do not establish full WCAG conformance.
+
 For a repeatable API check, set `QL_SMOKE_API_URL` to the deployed API HTTPS origin, without `/api/v1`. Set `QL_SMOKE_SUPABASE_URL` and `QL_SMOKE_SUPABASE_PUBLISHABLE_KEY` to the project's public values. Use two **separate confirmed test learners** through `QL_SMOKE_EMAIL_A`, `QL_SMOKE_PASSWORD_A`, `QL_SMOKE_EMAIL_B`, and `QL_SMOKE_PASSWORD_B` (the same variables used by the browser smoke). Run from the repository root:
 
 ```sh
