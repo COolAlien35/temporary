@@ -435,6 +435,7 @@ The frontend now has an opt-in Supabase email/password signup, login, and passwo
 ### B21 — Security, observability, and maintenance
 
 - [x] Enforce a configurable API-wide request-body cap for declared and chunked payloads, returning a structured 413 without echoing input; verify valid-body replay and oversized rejection locally.
+- [x] Emit a request ID, method, route template, status, and duration for API requests without logging authorization headers, query values, or path parameters; disable Uvicorn's raw URL access log in the deployed API image.
 - [ ] Enforce input/body limits, authorization, rate limits, secure secret storage, restricted CORS, and CSRF protection where cookie-based requests apply.
 - [ ] Restrict provider URLs and import/download behavior to prevent arbitrary internal network requests; keep sandbox and infrastructure endpoints private.
 - [ ] Emit correlated API/job/provider logs with sensitive fields redacted; record administrative, role, publication, and grading changes in audit history.

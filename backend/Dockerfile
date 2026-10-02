@@ -32,7 +32,7 @@ USER app
 FROM runtime-common AS runtime
 COPY --from=build /app/.venv /app/.venv
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
 
 FROM runtime-common AS worker
 COPY --from=quantum-build /app/.venv /app/.venv

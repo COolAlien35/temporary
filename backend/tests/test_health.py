@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -69,6 +70,36 @@ def test_unknown_route_has_structured_error_and_bounded_request_id():
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "http_404"
     assert len(response.headers["X-Request-ID"]) <= 64
+
+
+def test_request_log_has_correlation_and_excludes_sensitive_values(caplog):
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    app = create_app()
+
+    @app.get("/saved/{run_id}")
+    def saved_run(run_id: str) -> dict[str, str]:
+        return {"id": run_id}
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/health/live?email=private@example.test",
+            headers={"X-Request-ID": "release-check-1", "Authorization": "Bearer secret-token"},
+        )
+        saved = client.get("/saved/private-run?note=hidden")
+    assert response.status_code == 200
+    assert saved.status_code == 200
+    log = "\n".join(
+        record.getMessage() for record in caplog.records if record.name == "uvicorn.error"
+    )
+    assert "request_id=release-check-1" in log
+    assert "route=/health/live" in log
+    assert "status=200" in log
+    assert "duration_ms=" in log
+    assert "route=/saved/{run_id}" in log
+    assert "secret-token" not in log
+    assert "private@example.test" not in log
+    assert "private-run" not in log
+    assert "hidden" not in log
 
 
 def test_unexpected_error_is_redacted():

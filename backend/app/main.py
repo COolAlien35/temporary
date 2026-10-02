@@ -2,6 +2,7 @@ import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from time import perf_counter
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -25,6 +26,7 @@ from app.modules.jobs.router import router as jobs_router
 from app.modules.predictions.router import router as predictions_router
 
 logger = logging.getLogger(__name__)
+access_logger = logging.getLogger("uvicorn.error")
 
 
 def error_response(request: Request, status: int, code: str, message: str) -> JSONResponse:
@@ -77,8 +79,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = (
             candidate if re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", candidate) else str(uuid4())
         )
-        response = await call_next(request)
+        started = perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            access_logger.info(
+                "api_request request_id=%s method=%s route=%s status=500 duration_ms=%.1f",
+                request.state.request_id,
+                request.method,
+                getattr(request.scope.get("route"), "path", "<unmatched>"),
+                (perf_counter() - started) * 1000,
+            )
+            raise
         response.headers["X-Request-ID"] = request.state.request_id
+        access_logger.info(
+            "api_request request_id=%s method=%s route=%s status=%d duration_ms=%.1f",
+            request.state.request_id,
+            request.method,
+            getattr(request.scope.get("route"), "path", "<unmatched>"),
+            response.status_code,
+            (perf_counter() - started) * 1000,
+        )
         return response
 
     @application.exception_handler(HTTPException)

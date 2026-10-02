@@ -26,6 +26,8 @@ When a learner selects a saved circuit in Build, Run submits that circuit's immu
 
 The API rejects request bodies larger than `QL_MAX_REQUEST_BODY_BYTES` (default 262,144 bytes) with a structured 413 response, including for chunked transfers. This cap applies before route validation; route-specific circuit, prediction, and tutor limits remain in force.
 
+The deployed API logs a bounded request record with `X-Request-ID`, method, route template, status, and elapsed milliseconds. Raw URLs, query values, bearer tokens, and request bodies are excluded. The API image disables Uvicorn's raw-URL access log; use `--no-access-log` for native Uvicorn runs as shown below.
+
 To enable connected accounts, copy `frontend/.env.example` to `frontend/.env.local` for native development and set the Supabase project URL, **publishable** key, and browser-reachable API origin. The API origin is the root URL, for example `http://127.0.0.1:8000`, without `/api/v1`. Also set `QL_AUTH_ISSUER` and optionally `QL_AUTH_AUDIENCE` in the backend environment. For Compose, put these variables in the root `.env`; the frontend values are build arguments, so rebuild the frontend image after changing them. Set the Supabase email redirect allow list to include both the frontend `/login` URL and `/reset-password?connected=1` URL. Never put a service-role key in `NEXT_PUBLIC_*`. Without all three public frontend values, signup and login use local demo mode and the Supabase choice is disabled. With them, signup defaults to Supabase and preserves the submitted name in the initial backend profile; users can explicitly choose Local demo. Provider signup can require email confirmation; the UI waits for confirmation instead of creating a false connected session. Supabase session refresh, password recovery, and logout are handled by its browser SDK; connected identity comes from the backend `/me` response. Live multi-account verification is still pending.
 
 For authenticated API requests, set `QL_AUTH_ISSUER` to the Supabase project's HTTPS issuer ending in `/auth/v1` and use an asymmetric Supabase signing key so the API can verify access tokens through the issuer's JWKS endpoint. The audience defaults to `authenticated`; configure `QL_AUTH_AUDIENCE` if the project uses another value. The API reads learner/instructor roles only from PostgreSQL profiles, never from client input or a JWT role claim. Local Compose leaves auth unconfigured, so `/api/v1/me` returns 503 for bearer tokens until an issuer is configured.
@@ -91,7 +93,7 @@ cd backend
 cp .env.example .env
 uv sync --frozen
 uv run --frozen alembic upgrade head
-uv run --frozen uvicorn app.main:app --reload
+uv run --frozen uvicorn app.main:app --reload --no-access-log
 ```
 
 In another terminal under `backend/`, run `uv run --frozen celery -A app.jobs.celery_app:celery_app worker --loglevel=INFO --concurrency=2`. Run `pnpm dev` under `frontend/` for frontend development. API and frontend hot reload are intentionally native; the Docker images test the production launch path.
