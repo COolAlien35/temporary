@@ -59,7 +59,9 @@ export function AppShell({
   useEffect(() => {
     setMounted(true)
     if (pathname === "/hardware/studio" || pathname === "/hardware/checks") {
-      void import("@/store/use-hardware").then(({ useHardware }) => useHardware.persist.rehydrate())
+      void import("@/store/use-hardware").then(({ useHardware }) => {
+        if (!useHardware.persist.hasHydrated()) return useHardware.persist.rehydrate()
+      })
     }
   }, [pathname])
 

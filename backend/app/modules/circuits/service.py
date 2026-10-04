@@ -33,6 +33,7 @@ def circuit_read(circuit: Circuit, revision: CircuitRevision) -> CircuitRead:
     return CircuitRead.model_validate(
         {
             "id": circuit.id,
+            "archived": circuit.archived,
             "revision": revision.revision,
             "snapshot": revision.snapshot,
             "checksum_sha256": revision.checksum_sha256,
@@ -120,8 +121,10 @@ def _decode_cursor(cursor: str | None) -> tuple[datetime, UUID] | None:
         raise ApiHTTPException(422, "invalid_cursor", "Invalid circuit cursor") from None
 
 
-def list_circuits(session: Session, actor: Actor, limit: int, cursor: str | None) -> CircuitPage:
-    rows = list_owned_circuits(session, actor.id, limit + 1, _decode_cursor(cursor))
+def list_circuits(
+    session: Session, actor: Actor, limit: int, cursor: str | None, archived: bool = False
+) -> CircuitPage:
+    rows = list_owned_circuits(session, actor.id, limit + 1, _decode_cursor(cursor), archived)
     visible = rows[:limit]
     items = []
     for circuit, revision in visible:
@@ -129,6 +132,7 @@ def list_circuits(session: Session, actor: Actor, limit: int, cursor: str | None
         items.append(
             CircuitSummary(
                 id=circuit.id,
+                archived=circuit.archived,
                 name=circuit.name,
                 revision=circuit.current_revision,
                 qubits=snapshot.qubits,
@@ -177,6 +181,8 @@ def update_circuit(
                 "Circuit has changed; reload before saving",
                 headers={"ETag": f'"rev-{circuit.current_revision}"'},
             )
+        if circuit.archived:
+            raise ApiHTTPException(409, "circuit_archived", "Restore the circuit before editing")
         current = get_revision(session, circuit.id, circuit.current_revision)
         assert current is not None
         if current.checksum_sha256 == checksum:
@@ -198,3 +204,35 @@ def update_circuit(
         assert created is not None
         result = circuit_read(circuit, created)
     return result
+
+
+def archive_circuit(
+    session: Session, actor: Actor, circuit_id: UUID, archived: bool, expected_revision: int
+) -> CircuitRead:
+    with session.begin():
+        circuit = get_owned_circuit(session, circuit_id, actor.id, lock=True)
+        if circuit is None:
+            raise HTTPException(status_code=404, detail="Circuit not found")
+        if circuit.current_revision != expected_revision:
+            raise ApiHTTPException(
+                412,
+                "revision_conflict",
+                "Circuit changed; refresh the library",
+                headers={"ETag": f'"rev-{circuit.current_revision}"'},
+            )
+        current = get_revision(session, circuit.id, circuit.current_revision)
+        assert current is not None
+        if circuit.archived == archived:
+            return circuit_read(circuit, current)
+        circuit.archived = archived
+        circuit.current_revision += 1
+        next_revision = CircuitRevision(
+            circuit_id=circuit.id,
+            revision=circuit.current_revision,
+            snapshot=current.snapshot,
+            checksum_sha256=current.checksum_sha256,
+        )
+        session.add(next_revision)
+        session.flush()
+        session.refresh(circuit)
+        return circuit_read(circuit, next_revision)

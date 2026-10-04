@@ -1,9 +1,11 @@
 import logging
 import re
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
+import socketio
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +14,7 @@ from starlette.exceptions import HTTPException
 
 from app.core.config import Settings, get_settings
 from app.core.errors import ApiHTTPException
+from app.core.http_limits import BodyLimitMiddleware
 from app.db.session import build_engine, get_engine
 from app.modules.ai_tutor.router import router as tutor_router
 from app.modules.circuits.router import router as circuits_router
@@ -21,7 +24,9 @@ from app.modules.experiments.router import router as experiments_router
 from app.modules.health.router import router as health_router
 from app.modules.identity.router import router as identity_router
 from app.modules.jobs.router import router as jobs_router
+from app.modules.parties.router import router as parties_router
 from app.modules.predictions.router import router as predictions_router
+from app.realtime.server import Realtime
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +45,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Engine creation is lazy about connections; each ASGI app owns and disposes its pool.
     engine = build_engine(configuration)
 
+    realtime = Realtime(configuration, engine)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        yield
-        engine.dispose()
+        await realtime.start()
+        try:
+            yield
+        finally:
+            await realtime.stop()
+            engine.dispose()
 
     application = FastAPI(title="QuantumLoop API", version="0.1.0", lifespan=lifespan)
     application.dependency_overrides[get_settings] = lambda: configuration
     application.dependency_overrides[get_engine] = lambda: engine
+    application.add_middleware(BodyLimitMiddleware, max_bytes=configuration.request_body_max_bytes)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=configuration.cors_origins,
@@ -71,8 +83,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = (
             candidate if re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", candidate) else str(uuid4())
         )
+        started = time.monotonic()
         response = await call_next(request)
         response.headers["X-Request-ID"] = request.state.request_id
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        logger.info(
+            "http_request request_id=%s method=%s status=%s duration_ms=%.1f",
+            request.state.request_id,
+            request.method,
+            response.status_code,
+            (time.monotonic() - started) * 1000,
+        )
         return response
 
     @application.exception_handler(HTTPException)
@@ -105,6 +128,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(jobs_router, prefix="/api/v1")
     application.include_router(predictions_router, prefix="/api/v1")
     application.include_router(tutor_router, prefix="/api/v1")
+    application.include_router(parties_router, prefix="/api/v1")
+    application.mount("/socket.io", socketio.ASGIApp(realtime.sio, socketio_path=""))
+    application.state.realtime = realtime
     return application
 
 

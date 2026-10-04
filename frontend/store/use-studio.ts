@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { circuitSignature } from "@/lib/studio/inspection"
 import { runCircuit } from "@/lib/sim/run-circuit"
 import type { SavedCircuit, SimResult, StudioCircuit, StudioGate } from "@/lib/studio/types"
 import { useLearnerProgress } from "@/store/use-learner-progress"
@@ -23,7 +24,10 @@ function snapshot(circuit: StudioCircuit): Snapshot {
 }
 
 interface StudioState {
+  privateOwner: string | null
+  privateDraft: StudioCircuit | null
   circuit: StudioCircuit
+  partyActive: boolean
   past: Snapshot[]
   future: Snapshot[]
   selectedGateIds: string[]
@@ -35,6 +39,7 @@ interface StudioState {
   result?: SimResult
   previousResult?: SimResult
   lastRunAt?: number
+  lastRunCircuit?: StudioCircuit
   stepIndex: number | null
   justLoadedAt: number
   savedCircuits: SavedCircuit[]
@@ -68,7 +73,10 @@ interface StudioState {
 export const useStudio = create<StudioState>()(
   persist(
     (set, get) => ({
+      privateOwner: null,
+      privateDraft: null,
       circuit: emptyCircuit(),
+      partyActive: false,
       past: [],
       future: [],
       selectedGateIds: [],
@@ -192,8 +200,8 @@ export const useStudio = create<StudioState>()(
       run: () => {
         const s = get()
         const result = runCircuit(s.circuit.qubits, s.circuit.gates, { shots: s.shots, depolarizing: s.noise.depolarizing, readoutError: s.noise.readoutError })
-        set({ previousResult: s.result, result, lastRunAt: Date.now(), stepIndex: null })
-        useLearnerProgress.getState().recordExperiment(`${s.circuit.name} simulation`, "/studio", `${s.circuit.qubits} qubits · ${s.circuit.gates.length} gates · ${s.shots.toLocaleString()} shots`)
+        set({ previousResult: s.result, result, lastRunCircuit: snapshot(s.circuit), lastRunAt: Date.now(), stepIndex: null })
+        if (!s.privateOwner && !s.partyActive) useLearnerProgress.getState().recordExperiment(`${s.circuit.name} simulation`, "/studio", `${s.circuit.qubits} qubits · ${s.circuit.gates.length} gates · ${s.shots.toLocaleString()} shots`)
       },
 
       setStepIndex: (i) => set({ stepIndex: i }),
@@ -214,9 +222,14 @@ export const useStudio = create<StudioState>()(
     }),
     {
       name: "studio:circuit-v1",
-      partialize: (s) => ({ circuit: s.circuit, shots: s.shots, noise: s.noise, savedCircuits: s.savedCircuits, viewMode: s.viewMode, codeLanguage: s.codeLanguage }),
+      partialize: (s) => ({ ...(s.privateOwner ? { circuit: s.privateDraft ?? emptyCircuit() } : s.partyActive ? {} : { circuit: s.circuit }), shots: s.shots, noise: s.noise, savedCircuits: s.savedCircuits, viewMode: s.viewMode, codeLanguage: s.codeLanguage }),
     },
   ),
 )
+
+// A circuit mutation invalidates the selected run step immediately.
+useStudio.subscribe((state, previous) => {
+  if (state.stepIndex !== null && state.circuit !== previous.circuit && circuitSignature(state.circuit) !== circuitSignature(previous.circuit)) useStudio.setState({ stepIndex: null })
+})
 
 export { MAX_QUBITS, MIN_QUBITS }

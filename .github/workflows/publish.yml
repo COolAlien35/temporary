@@ -21,7 +21,19 @@ jobs:
       packages: write
     strategy:
       matrix:
-        component: [backend, frontend]
+        include:
+          - component: backend
+            context: .
+            file: backend/Dockerfile
+            target: runtime
+          - component: worker
+            context: .
+            file: backend/Dockerfile
+            target: worker
+          - component: frontend
+            context: ./frontend
+            file: frontend/Dockerfile
+            target: runtime
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -40,8 +52,14 @@ jobs:
         run: echo "name=ghcr.io/${REPOSITORY,,}/${COMPONENT}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
-          context: ${{ matrix.component == 'backend' && '.' || './frontend' }}
-          file: ${{ matrix.component == 'backend' && 'backend/Dockerfile' || 'Dockerfile' }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          build-args: |
+            REQUIRE_CONNECTED_CONFIG=${{ matrix.component == 'frontend' && 'true' || 'false' }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_QUANTUMLOOP_API_URL=${{ vars.NEXT_PUBLIC_QUANTUMLOOP_API_URL }}
           push: true
           tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
           provenance: true

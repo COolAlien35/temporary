@@ -1,0 +1,132 @@
+{
+  "attenuator": {
+    "in": {
+      "multiple": false
+    },
+    "out": {
+      "multiple": false
+    }
+  },
+  "lowpass-filter": {
+    "in": {
+      "multiple": false
+    },
+    "out": {
+      "multiple": false
+    }
+  },
+  "circulator": {
+    "p1": {
+      "multiple": false
+    },
+    "p2": {
+      "multiple": false
+    },
+    "p3": {
+      "multiple": false
+    }
+  },
+  "hemt": {
+    "rfin": {
+      "multiple": false
+    },
+    "rfout": {
+      "multiple": false
+    },
+    "dc": {
+      "multiple": false
+    }
+  },
+  "thermometer": {
+    "sp": {
+      "multiple": false
+    },
+    "sn": {
+      "multiple": false
+    }
+  },
+  "connector": {
+    "port": {
+      "multiple": false
+    }
+  },
+  "bias-tee": {
+    "rf": {
+      "multiple": false
+    },
+    "dc": {
+      "multiple": false
+    },
+    "out": {
+      "multiple": false
+    }
+  },
+  "isolator": {
+    "in": {
+      "multiple": false
+    },
+    "out": {
+      "multiple": false
+    }
+  },
+  "directional-coupler": {
+    "in": {
+      "multiple": false
+    },
+    "out": {
+      "multiple": false
+    },
+    "coupled": {
+      "multiple": false
+    }
+  },
+  "ir-filter": {
+    "in": {
+      "multiple": false
+    },
+    "out": {
+      "multiple": false
+    }
+  },
+  "parametric-amp": {
+    "sigin": {
+      "multiple": false
+    },
+    "sigout": {
+      "multiple": false
+    },
+    "pump": {
+      "multiple": false
+    }
+  },
+  "feedthrough-panel": {
+    "grid": {
+      "multiple": true
+    },
+    "dcgrid": {
+      "multiple": true
+    }
+  },
+  "dc-filter": {
+    "in": {
+      "multiple": false
+    },
+    "out": {
+      "multiple": false
+    }
+  },
+  "sample-holder": {
+    "xy": {
+      "multiple": false
+    },
+    "flux": {
+      "multiple": false
+    },
+    "roin": {
+      "multiple": false
+    },
+    "roout": {
+      "multiple": false
+    }
+  }
+}

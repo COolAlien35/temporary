@@ -1,5 +1,7 @@
 # Infrastructure verification — 2026-09-28
 
+Latest release-preparation results and remaining hosted checks: [deployment-readiness.md](deployment-readiness.md).
+
 These results cover the infrastructure scaffold and existing frontend. They do not certify the future feature modules in `backend_plan.md`.
 
 | Check | Result |
@@ -87,3 +89,41 @@ Migration `0011_circuits` adds owner-scoped circuits and revision snapshots. The
 Qiskit Aer 0.17.2 is pinned in the `quantum` dependency group and installed only in the Celery worker/test image. Authenticated `POST /api/v1/experiments/runs` requires an idempotency key and an owned circuit revision; it atomically stores an immutable run snapshot and job/outbox intent, returns `202`, and exposes owner-scoped `GET /api/v1/experiments/runs/{id}`. The worker runs ideal circuits with bounded shots and memory, derives exact probabilities and seeded counts, and stores results under a fenced lease. Duplicate delivery cannot overwrite a completed result. Mid-circuit gates after measurement return an explicit unsupported-circuit error. Analytical tests cover gate translations, Bell-state bit ordering, subset measurements, seed/shot bounds, and simulator failures.
 
 The real PostgreSQL/Redis/Celery API-to-worker test passed. Backend Ruff/format, strict mypy across 72 source files, dependency lock check, and 77 local unit tests passed. The complete isolated Docker suite passed 94 tests at 85.15% coverage. Migration `0012_experiment_runs` passed downgrade-to-0011/re-upgrade. Alembic still reports only the separate RAG `content_chunks` table/indexes, with no experiment-run drift. Prediction pairing, noise, frontend connection, and additional providers remain open.
+
+## Collaborative parties and Studio inspection — 2026-10-04
+
+Verified the uncommitted working tree based on `ddf18d9`. B16 now includes durable 2–6 member parties, scoped invitations and roles, chat, atomic edit revisions, duplicate-event handling, rejected-edit recovery, reconnect replay, transient presence, revocation, and Redis notification delivery across API instances. A frozen party revision produces an immutable owned circuit for the real Aer worker and saved-circuit tutor context. The next completed slice is Studio state inspection and keyboard circuit editing under B06/B20; the broader accessibility workstream remains open. Protocol and usage are in [collaboration.md](collaboration.md).
+
+- `UV_CACHE_DIR=/private/tmp/quantumloop-uv-cache make backend-check backend-test`: Ruff, formatting, strict mypy across 96 source files, and 90 unit tests passed.
+- `POSTGRES_PORT=5490 BROKER_PORT=6390 API_PORT=8090 make test-integration`: 113 tests passed with real PostgreSQL, Redis, Celery, and Aer; coverage was 87.00% against the 85% gate. Alembic reported no drift. The suite creates a fresh disposable database, upgrades to head, downgrades to 0016, and upgrades again.
+- `make frontend-check`: production build, TypeScript, curriculum parity, and all 105 browser tests passed. After the final UI labels and retry/account cleanup, `pnpm build` and `PLAYWRIGHT_PRODUCTION=1 pnpm exec playwright test tests/studio-inspection.spec.ts` passed again (2 tests). Inspection checks cover analytical intermediate/final state differences, keyboard editing, first/last boundaries, zero values, stale snapshots, and focus recovery.
+- `pnpm test:parties`: the connected browser scenario passed with two isolated accounts routed to two API instances for both HTTP and WebSocket traffic. It exercises creation/join, persisted chat, convergent edits/reload, immutable party execution through the real worker, saved tutor context, and member removal. The final retry/account-cleanup changes were included in this rerun.
+- Database tests cover concurrent capacity enforcement for a six-seat room, role restrictions, invitation expiry/revocation, duplicate/conflicting edits, settings conflicts, replay gaps, Redis failure/retry, and frozen-copy retries after private circuit edits. Real Socket.IO tests cover reconnect, multiple API instances, token expiry, revoked membership, and rejection of polling transport.
+- CI workflow syntax passed `actionlint`; `git diff --check` passed.
+
+The connected browser fixture uses locally signed JWTs with a stub JWKS boundary and a deterministic tutor provider. It verifies actual API token validation and database/worker behavior, but does not establish live Supabase or live tutor-provider acceptance. Cloud deployment and actual screen-reader/WCAG assessment were not run. The missing content model was registered to match the existing 0006 schema, resolving the previously recorded content migration drift without changing that schema.
+
+## Hardware collaboration extension — 2026-10-04
+
+Hardware Studio now generates authenticated invitations that open the actual shared hardware design. Migration `0019_hardware_parties` adds a constrained document kind and defaults existing rooms to circuit mode. The same party roles, invitation policies, chat, revision locking, durable replay, presence, and Redis delivery apply to both editors. Hardware stages/components/routes merge by ID in atomic batches, with validated catalog ports and deletion cascades. Metadata conflicts and invalid wiring are rejected without advancing revision. Circuit create/action idempotency hashes remain compatible with existing rooms.
+
+The connected hardware scenario uses two editor accounts and a third view-only account, with the second editor's HTTP and WebSocket traffic routed to a separate API process. It verifies preexisting component sharing, placement, route creation, offline/reload recovery, persisted chat, rejected view-only edits, owner closure, denied access after closure, and personal draft restoration. The first browser run exposed a personal draft loss on full-page navigation; the fix preserves the original draft in localStorage throughout the party and restores it explicitly before leaving. Both circuit and hardware connected scenarios passed after that fix.
+
+- Backend lint/format, strict mypy across 97 source files, and 92 unit tests passed.
+- `POSTGRES_PORT=5490 BROKER_PORT=6390 API_PORT=8090 make test-integration` passed all 116 tests at 87.33% coverage, including concurrent independent hardware edits, movement, stale metadata, invalid/missing/reused ports, duplicate-event replay, role restrictions, revocation, deletion cascades, and rejection of quantum execution for hardware rooms. Fresh database and migration round-trip tests passed; Alembic reported no drift.
+- `make frontend-check` passed the production build, TypeScript, hardware catalog parity, and all 107 browser tests. New checks verify bounded hardware snapshot decoding and opening a demo snapshot in a separate browser with no fake party ID.
+
+General owned hardware CRUD/export and server scientific/thermal diagnostics remain B19 work. Shared hardware rooms persist in PostgreSQL; explicit hardware Save remains a browser-local personal copy. Live Supabase/provider, deployment, and full assistive-technology acceptance remain unverified as described above.
+
+## Private Circuit Studio workspace — 2026-10-04
+
+The next completed B06/B20 slice connects the owned circuit library to Studio: explicit cloud save, cross-browser reopening, stale-write recovery without discarding drafts, archive/restore, historical copies, selected browser-draft import, saved-revision Aer execution, and durable tutor/run recovery. Private records are excluded from anonymous browser persistence. Behavior and limitations are documented in [private-circuits.md](private-circuits.md).
+
+- `UV_CACHE_DIR=/private/tmp/quantumloop-uv-cache make backend-check backend-test`: Ruff and format checks, strict mypy across 97 files, and 92 unit tests passed.
+- `POSTGRES_PORT=5490 BROKER_PORT=6390 API_PORT=8090 make test-integration`: 116 tests passed, 87.44% coverage against the unchanged 85% gate, and no Alembic drift. Migration `0020_circuit_archive` is included. Database acceptance covers archive/restore preconditions, archived edit rejection, immutable historical snapshots, pagination, and ownership isolation.
+- `make frontend-check`: production build, TypeScript, hardware catalog consistency, and all 107 production browser tests passed.
+- `pnpm test:parties`: all three connected browser journeys passed across isolated sessions and two API instances: circuit party collaboration, hardware party collaboration, and the private circuit workspace. The private journey verifies stale-edit preservation, a committed update with a lost response, cross-account denial, archive/restore, real Aer execution, saved tutor history, reload recovery, and exclusion from anonymous persistence.
+- The first full backend run exposed a test reconnect race: Socket.IO membership had disconnected before Engine.IO transport teardown completed. The test now waits for both observable states before testing expired-token rejection; no production authorization behavior or assertion was weakened.
+- Browser acceptance found and fixed canonical circuit comparison depending on JSON field order, and tutor reload filtering using fields absent from the public response. Tutor history now filters the actual source record IDs.
+
+Connected acceptance uses locally signed JWTs with real API validation, PostgreSQL, Redis, Celery and Aer, plus a deterministic tutor provider. Live Supabase sign-in/refresh/password recovery, live tutor-provider behavior, production deployment, backup/rollback recovery, and full screen-reader acceptance remain release gates. General private hardware design CRUD remains open; durable hardware collaboration is already verified separately.

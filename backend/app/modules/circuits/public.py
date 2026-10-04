@@ -6,7 +6,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.modules.circuits.repository import get_owned_circuit, get_revision
-from app.modules.circuits.schemas import CircuitSnapshot
+from app.modules.circuits.schemas import CircuitDraft, CircuitRead, CircuitSnapshot
+from app.modules.identity.public import Actor
 
 
 @dataclass(frozen=True)
@@ -32,3 +33,21 @@ def owned_revision(
         CircuitSnapshot.model_validate(revision.snapshot),
         revision.checksum_sha256,
     )
+
+
+def copy_snapshot(
+    session: Session, actor: Actor, snapshot: CircuitSnapshot, key: UUID
+) -> CircuitRead:
+    """Create an owned immutable copy for a feature that already authorized its source."""
+    from app.modules.circuits.service import create_circuit, read_circuit_revision
+
+    created = create_circuit(
+        session,
+        actor,
+        CircuitDraft(name=snapshot.name, qubits=snapshot.qubits, gates=snapshot.gates),
+        key,
+    )
+    # Ordinary creation replay returns the current library head. A shared copy must
+    # keep its original snapshot even after the owner edits that library circuit.
+    with session.begin():
+        return read_circuit_revision(session, actor, created.id, 1)

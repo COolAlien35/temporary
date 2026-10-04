@@ -117,6 +117,50 @@ def test_circuit_revisions_are_durable_owner_scoped_and_stale_writes_fail():
             assert client.get("/api/v1/circuits?limit=0").status_code == 422
             assert client.get("/api/v1/circuits?cursor=invalid!").status_code == 422
 
+            archive_url = f"/api/v1/circuits/{circuit_id}/archive"
+            assert client.patch(archive_url, json={"archived": True}).status_code == 428
+            archived = client.patch(
+                archive_url, json={"archived": True}, headers={"If-Match": '"rev-2"'}
+            )
+            assert archived.status_code == 200, archived.text
+            assert archived.json()["archived"] is True
+            assert archived.json()["revision"] == 3
+            assert archived.json()["snapshot"] == updated.json()["snapshot"]
+            assert [item["id"] for item in client.get("/api/v1/circuits").json()["items"]] == [
+                other_id
+            ]
+            assert [
+                item["id"] for item in client.get("/api/v1/circuits?archived=true").json()["items"]
+            ] == [circuit_id]
+            assert (
+                client.put(
+                    f"/api/v1/circuits/{circuit_id}", json=edited, headers={"If-Match": '"rev-3"'}
+                ).status_code
+                == 409
+            )
+            assert (
+                client.patch(
+                    archive_url, json={"archived": False}, headers={"If-Match": '"rev-2"'}
+                ).status_code
+                == 412
+            )
+            restored = client.patch(
+                archive_url, json={"archived": False}, headers={"If-Match": '"rev-3"'}
+            )
+            assert restored.status_code == 200
+            assert restored.json()["revision"] == 4
+            assert restored.json()["archived"] is False
+            assert (
+                client.patch(
+                    archive_url, json={"archived": False}, headers={"If-Match": '"rev-4"'}
+                ).json()
+                == restored.json()
+            )
+            assert (
+                client.get(f"/api/v1/circuits/{circuit_id}/revisions/2").json()["snapshot"]
+                == updated.json()["snapshot"]
+            )
+
             current = IdentityClaims(second_subject, "circuit-second@example.test")
             assert client.get("/api/v1/me").status_code == 200
             assert client.get("/api/v1/circuits").json()["items"] == []
@@ -131,6 +175,12 @@ def test_circuit_revisions_are_durable_owner_scoped_and_stale_writes_fail():
                 second_owned_id
             ]
             assert client.get(f"/api/v1/circuits/{circuit_id}").status_code == 404
+            assert (
+                client.patch(
+                    archive_url, json={"archived": True}, headers={"If-Match": '"rev-4"'}
+                ).status_code
+                == 404
+            )
             assert client.get(f"/api/v1/circuits/{circuit_id}/revisions/1").status_code == 404
             assert (
                 client.put(

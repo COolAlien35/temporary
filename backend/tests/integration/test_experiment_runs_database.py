@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.db.session import get_engine
 from app.jobs.celery_app import celery_app
 from app.main import create_app
@@ -22,7 +23,7 @@ pytestmark = pytest.mark.integration
 def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> None:
     first_subject, second_subject = uuid4(), uuid4()
     current = IdentityClaims(first_subject, "aer-first@example.test")
-    app = create_app()
+    app = create_app(Settings(simulation_daily_run_limit=1))
     app.dependency_overrides[get_claims] = lambda: current
     circuit_id: UUID | None = None
     run_id: UUID | None = None
@@ -80,6 +81,13 @@ def test_owned_immutable_aer_run_reaches_real_worker_and_replays_safely() -> Non
             )
             assert conflict.status_code == 409
             assert conflict.json()["error"]["code"] == "idempotency_conflict"
+            limited = client.post(
+                "/api/v1/experiments/runs",
+                json=body,
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert limited.status_code == 429
+            assert limited.json()["error"]["code"] == "simulation_daily_limit"
             assert dispatch_once().published == 1
             receipt = AsyncResult(str(run_id), app=celery_app)
             try:

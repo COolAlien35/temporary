@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID
 
@@ -28,10 +29,16 @@ def _idempotency_lock(actor_id: UUID, key: UUID) -> int:
     return int.from_bytes(digest[:8], "big", signed=True)
 
 
-def create_run(session: Session, actor: Actor, body: RunCreate, key: UUID) -> UUID:
+def create_run(
+    session: Session, actor: Actor, body: RunCreate, key: UUID, daily_limit: int
+) -> UUID:
     request_hash = _request_hash(body)
     with session.begin():
-        # Serialize only the same actor/key pair; a unique constraint is the final defense.
+        # Serialize this actor's submissions so concurrent requests cannot bypass the quota.
+        quota_lock = int.from_bytes(
+            sha256(b"simulation_quota" + actor.id.bytes).digest()[:8], "big", signed=True
+        )
+        session.execute(select(func.pg_advisory_xact_lock(quota_lock)))
         session.execute(select(func.pg_advisory_xact_lock(_idempotency_lock(actor.id, key))))
         existing = get_run_by_key(session, actor.id, key)
         if existing is not None:
@@ -45,6 +52,21 @@ def create_run(session: Session, actor: Actor, body: RunCreate, key: UUID) -> UU
             ideal_measurement_qubits(revision.snapshot)
         except UnsupportedCircuit as exc:
             raise ApiHTTPException(422, "unsupported_circuit", str(exc)) from None
+        today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        submitted = session.scalar(
+            select(func.count())
+            .select_from(ExperimentRun)
+            .where(
+                ExperimentRun.owner_id == actor.id,
+                ExperimentRun.created_at >= today,
+            )
+        )
+        if submitted is not None and submitted >= daily_limit:
+            raise ApiHTTPException(
+                429,
+                "simulation_daily_limit",
+                "Daily simulation limit reached; try again after midnight UTC",
+            )
         job = enqueue_job(
             session,
             actor,

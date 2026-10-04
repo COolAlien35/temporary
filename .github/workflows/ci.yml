@@ -33,6 +33,11 @@ jobs:
           cache-dependency-glob: backend/uv.lock
       - run: uv lock --check
       - run: uv sync --frozen
+      - name: Audit locked production API and worker dependencies
+        run: |
+          uv export --frozen --no-dev --group quantum --no-hashes --format requirements-txt --output-file /tmp/quantumloop-requirements.txt
+          uvx --from pip-audit==2.10.1 pip-audit -r /tmp/quantumloop-requirements.txt --no-deps --disable-pip
+      - run: PYTHONPATH=. uv run --frozen python scripts/check_deployment.py
       - run: uv run --frozen ruff check .
       - run: uv run --frozen ruff format --check .
       - run: uv run --frozen mypy
@@ -67,11 +72,33 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: node --test scripts/check-release-config.test.mjs
+      - run: pnpm audit --prod --audit-level=high
       - run: pnpm curriculum:check
+      - run: pnpm hardware:check
       - run: pnpm build
       - run: pnpm exec tsc --noEmit
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.11.2'
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Prepare real collaboration services
+        run: |
+          docker compose up --build --wait api worker
+          cd ../backend
+          uv sync --frozen
+      - name: Verify circuit and hardware parties across browser accounts and API instances
+        env:
+          QL_DATABASE_URL: postgresql+psycopg://quantumloop:quantumloop@localhost:5432/quantumloop
+          QL_BROKER_URL: redis://localhost:6379/0
+        run: pnpm test:parties
+      - name: Stop collaboration test services
+        if: always()
+        run: docker compose down
       - name: Upload browser reports and traces
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -100,6 +127,8 @@ jobs:
         run: |
           docker compose run --rm migrate alembic upgrade head
           docker compose run --rm migrate alembic check
+      - name: Verify disposable backup restore and worker interruption
+        run: python3 scripts/recovery_drill.py
       - name: Check HTTP entry points
         run: |
           curl --fail --retry 5 --retry-connrefused http://localhost:8000/api/v1/health/ready

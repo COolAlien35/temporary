@@ -7,6 +7,8 @@ import { askTutor, type TutorAction } from "@/lib/ai/tutor"
 import { matchTemplateByPrompt, getTemplate, instantiateTemplate } from "@/lib/studio/templates"
 import { useStudio } from "@/store/use-studio"
 import { cn } from "@/lib/utils"
+import { useSession } from "@/store/use-session"
+import { useCloudStudio } from "@/store/use-cloud-studio"
 
 const QUICK_ACTIONS: { label: string; action: TutorAction }[] = [
   { label: "Explain this circuit", action: "explain" },
@@ -22,12 +24,17 @@ interface Message {
 }
 
 export function TutorDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const mode = useSession((state) => state.mode)
+  const cloud = useCloudStudio()
+  const party = useStudio((state) => state.partyActive)
   const circuit = useStudio((s) => s.circuit)
   const result = useStudio((s) => s.result)
   const previousResult = useStudio((s) => s.previousResult)
   const loadCircuit = useStudio((s) => s.loadCircuit)
   const [messages, setMessages] = useState<Message[]>([{ role: "tutor", text: "Ask me about this circuit, or try a quick action below." }])
   const [input, setInput] = useState("")
+
+  if (mode === "connected") return open ? <aside aria-label="Saved circuit tutor" className="absolute right-0 top-0 z-40 h-full w-80 overflow-y-auto border-l border-white/10 bg-[#0A0E17] p-3 text-xs text-white"><button aria-label="Close tutor" onClick={onClose} className="float-right">Close</button><p className="mb-3 font-semibold">Saved circuit tutor</p><p className="mb-3 text-white/60">{party ? "Use Explain saved circuit in the party panel after an Aer run." : "Explanations use a private saved circuit revision. Unsaved edits are excluded."}</p>{!party && <button disabled={!cloud.record || cloud.asking} onClick={() => void cloud.explain()} className="text-cyan-200 underline">Explain saved circuit</button>}<ol aria-label="Tutor replies" className="mt-3 space-y-3">{cloud.messages.map((message) => <li key={message.id}>{message.response_text ?? message.error_code ?? message.status} · {message.role.replaceAll("_", " ")}</li>)}</ol></aside> : null
 
   function respond(prompt: string, action: TutorAction = "generate") {
     setMessages((m) => [...m, { role: "user", text: prompt }])

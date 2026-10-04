@@ -16,6 +16,9 @@ import type { LineTypeId } from "@/lib/hardware/types"
 import { LINE_LIST } from "@/lib/hardware/lines"
 import { getPreset } from "@/lib/hardware/presets"
 import { useHardware } from "@/store/use-hardware"
+import { PartyPanel } from "@/components/studio/PartyPanel"
+import { decodeDesign } from "@/lib/hardware/url-codec"
+import { toast } from "sonner"
 
 const CryostatScene = dynamic(() => import("@/components/hardware/three/CryostatScene").then((module) => module.CryostatScene), { ssr: false })
 
@@ -33,6 +36,12 @@ export default function HardwareStudioPage() {
     const url = new URL(window.location.href)
     const lessonPath = url.searchParams.get("returnTo")
     if (lessonPath?.startsWith("/curriculum/") && !lessonPath.startsWith("//")) setReturnTo(lessonPath)
+    if (url.hash.startsWith("#design=")) {
+      const shared = decodeDesign(url.hash.slice(8))
+      if (shared) void Promise.resolve(useHardware.persist.rehydrate()).then(() => { loadDesign(shared); toast.success("Loaded shared hardware snapshot") })
+      else toast.error("This hardware snapshot link is invalid")
+      return
+    }
     const preset = getPreset(url.searchParams.get("preset") ?? "")
     if (!preset) return
     void Promise.resolve(useHardware.persist.rehydrate()).then(() => {
@@ -51,6 +60,8 @@ export default function HardwareStudioPage() {
       />
 
       {returnTo && <Link href={returnTo} className="mb-4 inline-flex rounded-lg border border-white/15 px-3 py-2 text-sm text-[#00D4FF] hover:border-[#00D4FF]/40">← Back to lesson</Link>}
+
+      <PartyPanel kind="hardware" />
 
       <div className="mb-4">
         <StudioToolbar />

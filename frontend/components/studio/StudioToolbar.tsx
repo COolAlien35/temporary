@@ -10,6 +10,8 @@ import { encodeCircuit } from "@/lib/studio/url-codec"
 import { circuitToSvgString } from "@/lib/studio/circuit-svg"
 import { cn } from "@/lib/utils"
 import { CollaborationDialog } from "@/components/studio/CollaborationDialog"
+import { useCloudStudio } from "@/store/use-cloud-studio"
+import { useSession } from "@/store/use-session"
 
 const SHOT_OPTIONS = [256, 1024, 4096, 8192]
 
@@ -54,6 +56,10 @@ function svgStringToPngDownload(svgSource: string, filename: string) {
 }
 
 export function StudioToolbar({ onToggleTutor }: { onToggleTutor: () => void }) {
+  const mode = useSession((state) => state.mode)
+  const partyActive = useStudio((state) => state.partyActive)
+  const cloud = useCloudStudio()
+  const connected = mode === "connected" && !partyActive
   const circuit = useStudio((s) => s.circuit)
   const setName = useStudio((s) => s.setName)
   const setQubits = useStudio((s) => s.setQubits)
@@ -95,6 +101,7 @@ export function StudioToolbar({ onToggleTutor }: { onToggleTutor: () => void }) 
       {editingName ? (
         <input
           autoFocus
+          aria-label="Circuit name"
           value={circuit.name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => setEditingName(false)}
@@ -137,10 +144,12 @@ export function StudioToolbar({ onToggleTutor }: { onToggleTutor: () => void }) 
       <button
         type="button"
         onClick={() => {
+          if (connected) { void cloud.save(); return }
           saveCurrentAs(circuit.name)
           toast.success("Saved to My circuits")
         }}
         aria-label="Save circuit"
+        disabled={connected && cloud.busy}
         className="rounded-md p-1.5 text-white/60 hover:bg-white/5 hover:text-white"
       >
         <Save className="h-4 w-4" />
@@ -175,9 +184,10 @@ export function StudioToolbar({ onToggleTutor }: { onToggleTutor: () => void }) 
         <button type="button" onClick={onToggleTutor} className="rounded-md border border-white/10 px-2.5 py-1.5 text-xs font-medium text-white/70 hover:bg-white/5">
           AI Tutor
         </button>
-        <button type="button" onClick={run} className={cn("flex items-center gap-1.5 rounded-md bg-[#00D4FF] px-3 py-1.5 text-xs font-semibold text-[#0A0E17] transition-transform hover:scale-[1.03]")}>
+        {connected && <button type="button" onClick={run} className="text-xs text-white/60">Preview locally</button>}
+        <button type="button" disabled={connected && (cloud.busy || cloud.running)} onClick={() => connected ? void cloud.execute() : run()} className={cn("flex items-center gap-1.5 rounded-md bg-[#00D4FF] px-3 py-1.5 text-xs font-semibold text-[#0A0E17] transition-transform hover:scale-[1.03]")}>
           <Play className="h-3.5 w-3.5" />
-          Run
+          {connected ? cloud.running ? "Running on Aer…" : "Run saved circuit on Aer" : "Run"}
         </button>
       </div>
     </div>

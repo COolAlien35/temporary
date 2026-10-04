@@ -205,6 +205,8 @@ flowchart TB
 
 Docker Compose supports local development and integration testing. GitHub Actions checks the backend, production frontend, browser journeys, migrations, and container stack. A manual release workflow publishes verified, commit-tagged images to GHCR. Production secrets, provider accounts, and deployment configuration are supplied by the selected hosting environment.
 
+The selected Render/Supabase preview deployment is defined in [`render.yaml`](render.yaml). Follow the [Render deployment runbook](docs/deploy-render.md) for provider setup, ordered release checks, and the current feature limits.
+
 ## Technology stack
 
 | Layer | Technology |

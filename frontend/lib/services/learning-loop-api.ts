@@ -17,12 +17,14 @@ export type LockedPrediction = PredictionSubmission & {
 }
 export type CircuitRecord = {
   id: string
+  archived: boolean
   revision: number
   snapshot: StudioCircuit & { schema_version: 1 }
   checksum_sha256: string
   created_at: string
   updated_at: string
 }
+export type CircuitSummary = Pick<CircuitRecord, "id" | "archived" | "revision" | "checksum_sha256" | "created_at" | "updated_at"> & { name: string; qubits: number; gate_count: number }
 export type RunAccepted = {
   job_id: string
   status: "queued"
@@ -165,6 +167,12 @@ export function createLearningLoopApi(
     getPair: (predictionId: string) => request<PredictionPair>(`/predictions/${encodeURIComponent(predictionId)}/pair`),
     createCircuit: (body: StudioCircuit, key: string) => post<CircuitRecord>("/circuits", body, key),
     getCircuit: (id: string) => request<CircuitRecord>(`/circuits/${encodeURIComponent(id)}`),
+    listCircuits: (options: { limit?: number; cursor?: string; archived?: boolean } = {}) => {
+      const path = pagePath("/circuits", options)
+      return request<Page<CircuitSummary>>(`${path}${path.includes("?") ? "&" : "?"}archived=${Boolean(options.archived)}`)
+    },
+    getCircuitRevision: (id: string, revision: number) => request<CircuitRecord>(`/circuits/${encodeURIComponent(id)}/revisions/${revision}`),
+    archiveCircuit: (id: string, archived: boolean, revision: number) => request<CircuitRecord>(`/circuits/${encodeURIComponent(id)}/archive`, { method: "PATCH", headers: { "If-Match": `"rev-${revision}"` }, body: JSON.stringify({ archived }) }),
     updateCircuit: (id: string, body: StudioCircuit, revision: number) =>
       request<CircuitRecord>(`/circuits/${encodeURIComponent(id)}`, {
         method: "PUT",

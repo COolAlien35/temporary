@@ -1,0 +1,186 @@
+# Deploys after Blueprint creation are manual so migrations can precede workers.
+# Initial Blueprint creation may start services concurrently; see the runbook.
+services:
+  - type: keyvalue
+    name: quantumloop-broker
+    plan: 256mb
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+  - type: keyvalue
+    name: quantumloop-cache
+    plan: 256mb
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: "off"
+
+  - type: web
+    name: quantumloop-api
+    runtime: docker
+    plan: 1c-2g
+    region: singapore
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health/ready
+    preDeployCommand: alembic upgrade head
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: RUNTIME_STAGE
+        value: runtime
+      - key: QL_DB_POOL_SIZE
+        value: "3"
+      - key: QL_DB_MAX_OVERFLOW
+        value: "0"
+      - key: QL_ENVIRONMENT
+        value: production
+      - key: QL_DATABASE_URL
+        sync: false
+      - key: QL_AUTH_ISSUER
+        sync: false
+      - key: QL_AUTH_AUDIENCE
+        value: authenticated
+      - key: QL_CORS_ORIGINS
+        sync: false
+      - key: QL_BROKER_URL
+        fromService:
+          type: keyvalue
+          name: quantumloop-broker
+          property: connectionString
+      - key: QL_CACHE_URL
+        fromService:
+          type: keyvalue
+          name: quantumloop-cache
+          property: connectionString
+      - key: QL_RESULT_BACKEND
+        fromService:
+          type: keyvalue
+          name: quantumloop-cache
+          property: connectionString
+
+  - type: worker
+    name: quantumloop-worker
+    runtime: docker
+    plan: 2c-4g
+    region: singapore
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    dockerCommand: celery -A app.jobs.celery_app:celery_app worker --loglevel=INFO --queues=maintenance,simulation,optimization,grading --concurrency=2
+    maxShutdownDelaySeconds: 300
+    autoDeployTrigger: "off"
+    envVars:
+      - key: RUNTIME_STAGE
+        value: worker
+      - key: QL_ENVIRONMENT
+        value: production
+      - key: QL_DATABASE_URL
+        fromService:
+          type: web
+          name: quantumloop-api
+          envVarKey: QL_DATABASE_URL
+      - key: QL_AUTH_ISSUER
+        fromService:
+          type: web
+          name: quantumloop-api
+          envVarKey: QL_AUTH_ISSUER
+      - key: QL_CORS_ORIGINS
+        fromService:
+          type: web
+          name: quantumloop-api
+          envVarKey: QL_CORS_ORIGINS
+      - key: QL_WORKER_DB_POOL_SIZE
+        value: "2"
+      - key: QL_WORKER_DB_MAX_OVERFLOW
+        value: "0"
+      - key: QL_BROKER_URL
+        fromService:
+          type: keyvalue
+          name: quantumloop-broker
+          property: connectionString
+      - key: QL_CACHE_URL
+        fromService:
+          type: keyvalue
+          name: quantumloop-cache
+          property: connectionString
+      - key: QL_RESULT_BACKEND
+        fromService:
+          type: keyvalue
+          name: quantumloop-cache
+          property: connectionString
+
+  - type: worker
+    name: quantumloop-dispatcher
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    dockerCommand: python -m app.modules.jobs.dispatcher
+    autoDeployTrigger: "off"
+    envVars:
+      - key: RUNTIME_STAGE
+        value: runtime
+      - key: QL_DB_POOL_SIZE
+        value: "3"
+      - key: QL_DB_MAX_OVERFLOW
+        value: "0"
+      - key: QL_ENVIRONMENT
+        value: production
+      - key: QL_DATABASE_URL
+        fromService:
+          type: web
+          name: quantumloop-api
+          envVarKey: QL_DATABASE_URL
+      - key: QL_AUTH_ISSUER
+        fromService:
+          type: web
+          name: quantumloop-api
+          envVarKey: QL_AUTH_ISSUER
+      - key: QL_CORS_ORIGINS
+        fromService:
+          type: web
+          name: quantumloop-api
+          envVarKey: QL_CORS_ORIGINS
+      - key: QL_WORKER_DB_POOL_SIZE
+        value: "2"
+      - key: QL_WORKER_DB_MAX_OVERFLOW
+        value: "0"
+      - key: QL_BROKER_URL
+        fromService:
+          type: keyvalue
+          name: quantumloop-broker
+          property: connectionString
+      - key: QL_CACHE_URL
+        fromService:
+          type: keyvalue
+          name: quantumloop-cache
+          property: connectionString
+      - key: QL_RESULT_BACKEND
+        fromService:
+          type: keyvalue
+          name: quantumloop-cache
+          property: connectionString
+
+  - type: web
+    name: quantumloop-web
+    runtime: docker
+    plan: 1c-2g
+    region: singapore
+    dockerfilePath: frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /
+    autoDeployTrigger: "off"
+    envVars:
+      - key: REQUIRE_CONNECTED_CONFIG
+        value: "true"
+      # NEXT_PUBLIC_* values are embedded at build time. Redeploy after changing them.
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: NEXT_PUBLIC_QUANTUMLOOP_API_URL
+        sync: false

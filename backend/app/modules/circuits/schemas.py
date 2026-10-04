@@ -142,6 +142,7 @@ class CircuitSnapshot(CircuitDraft):
 
 class CircuitRead(BaseModel):
     id: UUID
+    archived: bool = False
     revision: int = Field(ge=1)
     snapshot: CircuitSnapshot
     checksum_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
@@ -151,6 +152,7 @@ class CircuitRead(BaseModel):
 
 class CircuitSummary(BaseModel):
     id: UUID
+    archived: bool = False
     name: str
     revision: int = Field(ge=1)
     qubits: int = Field(ge=1, le=MAX_CIRCUIT_QUBITS)
@@ -163,3 +165,8 @@ class CircuitSummary(BaseModel):
 class CircuitPage(BaseModel):
     items: list[CircuitSummary]
     next_cursor: str | None
+
+
+class CircuitArchive(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    archived: bool

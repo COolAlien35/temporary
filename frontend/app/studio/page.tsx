@@ -7,6 +7,9 @@ import { DndContext, DragOverlay, pointerWithin, type DragEndEvent, type DragSta
 import { PanelLeftClose, PanelLeftOpen, PanelBottom, PanelRight } from "lucide-react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/shared/AppShell"
+import { GateSequence } from "@/components/studio/GateSequence"
+import { PartyPanel } from "@/components/studio/PartyPanel"
+import { CloudWorkspace } from "@/components/studio/CloudWorkspace"
 import { StudioToolbar } from "@/components/studio/StudioToolbar"
 import { GatePalette } from "@/components/studio/GatePalette"
 import { TemplatesPanel } from "@/components/studio/TemplatesPanel"
@@ -158,7 +161,9 @@ function StudioWorkbench() {
 
   return (
     <DndContext collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragCancel={() => setDraggedGate(null)} onDragEnd={handleDragEnd}>
+      <CloudWorkspace />
       <div className="flex h-[78vh] min-h-[600px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02]">
+        <PartyPanel />
         <StudioToolbar onToggleTutor={() => setTutorOpen((v) => !v)} />
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -213,6 +218,7 @@ function StudioWorkbench() {
           </div>
         </div>
 
+        <GateSequence />
         <StatusBar />
       </div>
 
@@ -248,7 +254,7 @@ export default function StudioPage() {
         <h1 className="text-xl font-semibold text-white" style={{ fontFamily: "var(--font-space-grotesk)" }}>
           Circuit Studio
         </h1>
-        <p className="mt-1 text-sm text-white/50">A free-form workbench for building and simulating quantum circuits — no backend required.</p>
+        <p className="mt-1 text-sm text-white/50">Build circuits, inspect quantum states, and collaborate in authenticated study parties.</p>
       </div>
       {mounted ? <StudioWorkbench /> : <div className="h-[78vh] min-h-[600px] animate-pulse rounded-2xl border border-white/10 bg-white/[0.02]" />}
     </AppShell>

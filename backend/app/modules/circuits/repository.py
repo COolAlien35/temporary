@@ -26,7 +26,11 @@ def get_revision(session: Session, circuit_id: UUID, revision: int) -> CircuitRe
 
 
 def list_owned_circuits(
-    session: Session, owner_id: UUID, limit: int, before: tuple[datetime, UUID] | None
+    session: Session,
+    owner_id: UUID,
+    limit: int,
+    before: tuple[datetime, UUID] | None,
+    archived: bool = False,
 ) -> list[tuple[Circuit, CircuitRevision]]:
     query = (
         select(Circuit, CircuitRevision)
@@ -37,7 +41,7 @@ def list_owned_circuits(
                 CircuitRevision.revision == Circuit.current_revision,
             ),
         )
-        .where(Circuit.owner_id == owner_id)
+        .where(Circuit.owner_id == owner_id, Circuit.archived.is_(archived))
         .order_by(Circuit.updated_at.desc(), Circuit.id.desc())
         .limit(limit)
     )

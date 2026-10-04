@@ -1,12 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Check, Copy, Link2, LockKeyhole, Users, UsersRound } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
+
+import { useSession } from "@/store/use-session"
+import { useStudio } from "@/store/use-studio"
+import { useHardware } from "@/store/use-hardware"
+import { partiesApi } from "@/lib/services/parties-api"
 
 type JoinPolicy = "anyone" | "invited"
 type Access = "edit" | "comment" | "view"
@@ -16,6 +21,12 @@ export function CollaborationDialog({ designName, snapshot, kind = "circuit" }: 
   snapshot: string
   kind?: "circuit" | "hardware design"
 }) {
+  const mode = useSession((s) => s.mode)
+  const actorId = useSession((s) => s.user?.id)
+  const createKey = useRef<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [partyId, setPartyId] = useState<string | null>(null)
+  const [expiry, setExpiry] = useState(24)
   const [open, setOpen] = useState(false)
   const [joinPolicy, setJoinPolicy] = useState<JoinPolicy>("anyone")
   const [access, setAccess] = useState<Access>("edit")
@@ -24,10 +35,29 @@ export function CollaborationDialog({ designName, snapshot, kind = "circuit" }: 
   const [link, setLink] = useState("")
   const [copied, setCopied] = useState(false)
 
-  function createLink() {
-    const roomId = crypto.randomUUID().slice(0, 8)
+  useEffect(() => { setPartyId(null); setLink(""); setBusy(false); createKey.current = null }, [actorId, mode])
+
+  async function createLink() {
+    if (mode === "connected") {
+      const requestActor = actorId
+      setBusy(true)
+      try {
+        const key = createKey.current ??= crypto.randomUUID()
+        const party = partyId ? { id: partyId } : kind === "hardware design"
+          ? await partiesApi.createHardware(useHardware.getState().design, Number(capacity), key)
+          : await partiesApi.create(useStudio.getState().circuit, Number(capacity), key)
+        if (useSession.getState().user?.id !== requestActor) return
+        setPartyId(party.id)
+        const invitation = await partiesApi.invite(party.id, access, joinPolicy === "invited" ? email.trim() : null, expiry)
+        if (useSession.getState().user?.id !== requestActor) return
+        setLink(`${window.location.origin}${kind === "hardware design" ? "/hardware/studio" : "/studio"}#invite=${invitation.token}`)
+        setCopied(false)
+      } catch (cause) { if (useSession.getState().user?.id === requestActor) toast.error(cause instanceof Error ? cause.message : "Could not create party") }
+      finally { if (useSession.getState().user?.id === requestActor) setBusy(false) }
+      return
+    }
     const invite = new URL(window.location.href)
-    invite.searchParams.set("party", roomId)
+    invite.searchParams.delete("party")
     invite.hash = kind === "circuit" ? `c=${snapshot}` : `design=${snapshot}`
     setLink(invite.toString())
     setCopied(false)
@@ -70,7 +100,7 @@ export function CollaborationDialog({ designName, snapshot, kind = "circuit" }: 
                 {(["anyone", "invited"] as const).map((policy) => (
                   <button key={policy} type="button" onClick={() => setJoinPolicy(policy)} className={`rounded-lg border p-3 text-left transition ${joinPolicy === policy ? "border-[#00D4FF]/50 bg-[#00D4FF]/[0.08]" : "border-white/10 bg-white/[0.02] hover:border-white/20"}`}>
                     <span className="flex items-center gap-2 text-sm font-medium">{policy === "anyone" ? <Link2 className="h-4 w-4 text-[#00D4FF]" /> : <LockKeyhole className="h-4 w-4 text-[#00D4FF]" />}{policy === "anyone" ? "Anyone with link" : "Invited people"}</span>
-                    <span className="mt-1 block text-xs leading-4 text-white/45">{policy === "anyone" ? "Link holders can request a seat" : "Only people you invite can join"}</span>
+                    <span className="mt-1 block text-xs leading-4 text-white/45">{policy === "anyone" ? "Signed-in link holders can join" : "Only people you invite can join"}</span>
                   </button>
                 ))}
               </div>
@@ -83,26 +113,27 @@ export function CollaborationDialog({ designName, snapshot, kind = "circuit" }: 
                 </select>
               </label>
               <label className="text-xs font-semibold uppercase tracking-wider text-white/45">Link expires
-                <select defaultValue="24h" className="mt-2 block w-full rounded-lg border border-white/10 bg-[#0A0E17] px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-white outline-none focus:border-[#00D4FF]/50">
-                  <option value="24h">After 24 hours</option><option value="7d">After 7 days</option><option value="never">Never</option>
+                <select value={expiry} onChange={(e) => setExpiry(Number(e.target.value))} className="mt-2 block w-full rounded-lg border border-white/10 bg-[#0A0E17] px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-white outline-none focus:border-[#00D4FF]/50">
+                  <option value={24}>After 24 hours</option><option value={168}>After 7 days</option>
                 </select>
               </label>
             </div>
 
-            {joinPolicy === "invited" && <label className="block text-xs font-semibold uppercase tracking-wider text-white/45">Invite by email <span className="font-normal normal-case tracking-normal">(optional, backend coming later)</span>
+            {joinPolicy === "invited" && <label className="block text-xs font-semibold uppercase tracking-wider text-white/45">Invite by email <span className="font-normal normal-case tracking-normal">(required for invited people)</span>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@example.com" className="mt-2 block w-full rounded-lg border border-white/10 bg-[#0A0E17] px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-white outline-none placeholder:text-white/30 focus:border-[#00D4FF]/50" />
             </label>}
 
             {link && <div className="rounded-lg border border-[#00D4FF]/20 bg-[#00D4FF]/[0.05] p-3">
-              <p className="mb-2 text-xs font-medium text-[#00D4FF]">Demo party link · frontend preview</p>
+              <p className="mb-2 text-xs font-medium text-[#00D4FF]">{mode === "connected" ? "Authenticated party invitation" : "Demo snapshot link"}</p>
               <div className="flex gap-2"><input readOnly value={link} aria-label="Generated party link" onFocus={(e) => e.currentTarget.select()} className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/20 px-2 py-2 text-xs text-white/75 outline-none" /><Button type="button" size="sm" onClick={copyLink} className="shrink-0 gap-1.5 bg-[#00D4FF] text-[#07111a] hover:bg-[#52e3ff]">{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}{copied ? "Copied" : "Copy"}</Button></div>
-              <p className="mt-2 text-[11px] leading-4 text-white/40">Room settings are a UI preview. Real-time sync, access enforcement, and invitations need the collaboration backend.</p>
+              <p className="mt-2 text-[11px] leading-4 text-white/40">{mode === "connected" ? "Share this invitation manually. Recipients sign in before joining." : "Opens a separate copy. Sign in with a connected account for shared editing and chat."}</p>
             </div>}
           </div>
 
+          {partyId && <a className="text-sm text-cyan-200 underline" href={`${kind === "hardware design" ? "/hardware/studio" : "/studio"}?party=${partyId}`}>Open your party</a>}
           <DialogFooter className="sm:justify-between sm:items-center">
             <span className="text-[11px] text-white/35">2–6 people · {access} access · {joinPolicy === "anyone" ? "link access" : "invite only"}</span>
-            <Button type="button" onClick={createLink} className="bg-[#00D4FF] font-semibold text-[#07111a] hover:bg-[#52e3ff]">{link ? "Regenerate link" : "Generate party link"}</Button>
+            <Button type="button" onClick={() => void createLink()} disabled={busy || (mode === "connected" && joinPolicy === "invited" && !email.trim())} className="bg-[#00D4FF] font-semibold text-[#07111a] hover:bg-[#52e3ff]">{busy ? "Creating…" : link ? "Regenerate link" : "Generate party link"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

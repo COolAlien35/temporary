@@ -86,7 +86,10 @@ def curriculum_chunks(data: dict[str, Any]) -> list[dict[str, Any]]:
                     unit_id=unit_id,
                     lesson_id=lesson_id,
                     key=f"question:{question['id']}",
-                    content=f"Quiz question: {question['prompt']} Explanation: {question['explanation']}",
+                    content=(
+                        f"Quiz question: {question['prompt']} "
+                        f"Explanation: {question['explanation']}"
+                    ),
                     concept_tags=question["tags"],
                     review_status=review_status,
                     is_placeholder=is_placeholder,
@@ -148,7 +151,8 @@ def _embed_batch(chunks: list[dict[str, Any]]) -> list[list[float]]:
     if settings.embedding_dim != MIGRATION_EMBEDDING_DIM:
         raise RuntimeError(
             f"EMBEDDING_DIM={settings.embedding_dim} does not match migration dimension "
-            f"{MIGRATION_EMBEDDING_DIM}; changing dimensions requires a new migration and re-embedding"
+            f"{MIGRATION_EMBEDDING_DIM}; changing dimensions requires "
+            "a new migration and re-embedding"
         )
     request_body = json.dumps(
         {
@@ -173,7 +177,9 @@ def _embed_batch(chunks: list[dict[str, Any]]) -> list[list[float]]:
         error.read()
         raise RuntimeError(f"Embedding provider returned HTTP {error.code}") from error
     vectors = [row["embedding"] for row in payload["data"]]
-    if len(vectors) != len(chunks) or any(len(vector) != settings.embedding_dim for vector in vectors):
+    if len(vectors) != len(chunks) or any(
+        len(vector) != settings.embedding_dim for vector in vectors
+    ):
         raise RuntimeError("Embedding provider returned an unexpected vector count or dimension")
     return vectors
 

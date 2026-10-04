@@ -2,7 +2,7 @@
 
 ## Current implementation boundary
 
-The backend provides infrastructure, health endpoints, Supabase JWT verification, durable `GET/PATCH /api/v1/me` profiles, cohort membership/invitation APIs, a read-only learner-safe curriculum unit API, learner-owned lesson sessions and locked predictions, owner-scoped circuit revisions and a paginated circuit library, and local Qiskit Aer simulations through durable jobs. A locked prediction can bind to one exact owned run, and `GET /api/v1/predictions/{id}/pair` derives agreement from a successful persisted result. `GET /api/v1/learning-sessions/{id}/agreement-history` exposes bounded successful-pair context for the tutor. Frontend Supabase signup/login is now opt-in, while recovery, account workflows, noise, grading, storage, and collaboration remain tracked in `backend_plan.md`. Most frontend pages still use labeled browser demo services; starting both containers does not connect those pages to the backend.
+The backend provides infrastructure, health endpoints, Supabase JWT verification, durable `GET/PATCH /api/v1/me` profiles, cohort membership/invitation APIs, a read-only learner-safe curriculum unit API, learner-owned lesson sessions and locked predictions, owner-scoped circuit revisions and a paginated circuit library, and local Qiskit Aer simulations through durable jobs. A locked prediction can bind to one exact owned run, and `GET /api/v1/predictions/{id}/pair` derives agreement from a successful persisted result. `GET /api/v1/learning-sessions/{id}/agreement-history` exposes bounded successful-pair context for the tutor. Frontend Supabase signup/login is now opt-in, while recovery, account workflows, noise, grading, and storage remain tracked in `backend_plan.md`. Most frontend pages still use labeled browser demo services; starting both containers does not connect those pages to the backend.
 
 [API contract revision 1](api-contract.md) records shared wire conventions and labels implemented and planned endpoints separately. Profile edits require the ETag from `GET /api/v1/me` in `If-Match`; stale saves return `412`. Circuit creates and simulation submissions use UUID idempotency keys. Circuit/run routes are owner-scoped. Idempotency and cursor pagination have not yet been added to existing cohort routes.
 
@@ -80,6 +80,8 @@ In another terminal under `backend/`, run `uv run --frozen celery -A app.jobs.ce
 
 ## Required test loop
 
+For release preparation, use `make release-check`; see [deployment readiness](deployment-readiness.md) for the verified scope and hosted acceptance steps. This target also verifies configuration and runs a disposable backup/restore and worker interruption drill.
+
 After every major task: add behavior/acceptance tests, run its gate in the plan, investigate failures, fix the cause, and rerun the affected regression suites. Do not check off a task while required suites are failing or unavailable.
 
 ```sh
@@ -129,3 +131,11 @@ Select the digest of the built artifact for production promotion. The current pu
 - API readiness checks database and both Redis services; worker health is proven by the integration round trip, not merely by process startup. Add queue-age/heartbeat alerting with B21.
 - Size PostgreSQL connections as `API processes × (API pool size + API overflow) + DB-using worker children × (worker pool size + worker overflow)`, with headroom for migrations/operators. The development defaults are 5+5 per API process and 2+0 per worker child; configure managed database pooling before scaling.
 - External credentials and real scientific/sandbox integrations remain explicit future acceptance gates. No empty or skipped tests represent those services as implemented.
+
+## Collaborative parties
+
+Connected Circuit Studio and Hardware Studio now create and join durable 2–6 member study parties, with role-scoped editing/chat, expiring invitations, revocation, Redis Socket.IO fan-out, and PostgreSQL replay. Circuit rooms also provide frozen revision copies for Aer runs. Hardware rooms validate component/port/route structure and preserve personal drafts. See [the protocol and browser acceptance instructions](collaboration.md). Run `make test-parties` after preparing the migrated database, Redis, and simulation worker. The backend gate includes real two-instance WebSocket, concurrent capacity/edit, token expiry, revocation, hardware wiring integrity, and snapshot convergence coverage. Full live-provider and screen-reader acceptance remains open.
+
+## Private Circuit Studio
+
+Connected Studio now saves and reopens owned circuits, handles stale revisions without losing local edits, archives/restores circuits, loads historical copies, executes exact saved revisions on Aer, and recovers saved run and tutor results after reload. My Circuits separates the cloud library from explicit browser-draft imports. Migration `0020_circuit_archive` adds the archive state. See [private workspace behavior and acceptance](private-circuits.md). `make test-parties` includes this connected journey alongside both collaboration editors. Private hardware CRUD and learner stage-progress resume remain separate work.

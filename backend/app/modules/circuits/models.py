@@ -28,6 +28,7 @@ class Circuit(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("profiles.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    archived: Mapped[bool] = mapped_column(default=False, server_default="false", nullable=False)
     current_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     idempotency_key: Mapped[UUID] = mapped_column(nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)

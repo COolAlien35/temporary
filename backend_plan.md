@@ -184,12 +184,14 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B06 — Circuits, revisions, sharing, and storage
 
-**Current checkpoint:** Authenticated learners can create and reopen owner-scoped circuits, list their library with cursor pagination, update them with `If-Match` revision checks, and read immutable historical revision snapshots. Simulation requests pin an exact circuit revision and checksum. Creation requires an idempotency key. The validator bounds qubits, gates, steps, angles, IDs, and payload bytes, rejects collisions, and prevents later operations on measured qubits. Local Aer supports ideal terminal measurement and rejects later gates after a measurement. Archive/restore, sharing, import/export, object storage, accessible browser editing, and connected frontend use remain open.
+**Current checkpoint:** Authenticated learners can create and reopen owner-scoped circuits, list their library with cursor pagination, update them with `If-Match` revision checks, and read immutable historical revision snapshots. Simulation requests pin an exact circuit revision and checksum. Creation requires an idempotency key. The validator bounds qubits, gates, steps, angles, IDs, and payload bytes, rejects collisions, and prevents later operations on measured qubits. Local Aer supports ideal terminal measurement and rejects later gates after a measurement. B16 now connects shared Studio circuits to owned immutable copies and Aer runs. Keyboard gate editing and selected-step state inspection are implemented. Private-library frontend wiring, archive/restore, historical copies, saved Aer runs, and tutor recovery are now connected and tested across browsers. General circuit sharing, import/export, object storage, and full accessibility acceptance remain open.
 
 - [ ] Apply the cross-cutting accessibility workstream below: synchronized readable gate sequence, keyboard placement/editing, and step inspection tied to immutable run snapshots.
+- [x] Complete the focused Studio inspection slice: readable gate sequence with keyboard placement/edit/move/delete and focus recovery; selected-step probability/statevector/Bloch tables, zero values, labeled slider boundaries, and stale-run invalidation. Analytical and production keyboard tests pass; full assistive-technology/WCAG acceptance stays open.
 - [x] Implement owner-scoped circuit create/read/update, immutable revision snapshots, and stale-save checks using `If-Match`.
 - [x] Pin every submitted simulation to the exact authorized circuit revision and checksum.
-- [ ] Add paginated circuit list and archive/restore lifecycle.
+- [x] Add paginated circuit list and archive/restore lifecycle, with ownership checks, revision preconditions, and immutable history.
+- [x] Complete the private Circuit Studio browser journey: cloud save/reopen across browsers, preserved stale edits and lost-response recovery, archive/restore, historical copies, real saved-revision Aer execution, persisted tutor recovery, and account isolation. See [private workspace](docs/private-circuits.md).
 - [x] Validate gate IDs, references, controls, angles, steps, collisions, and bounded payloads; reject unsupported mid-circuit measurement for local Aer.
 - [ ] Define and implement reset, measurement collapse, and other dynamic-circuit semantics across supported adapters.
 - [ ] Add private-by-default share links with explicit view/edit permissions, expiry, revocation, and safe copy-to-own-library behavior.
@@ -330,16 +332,18 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B16 — Parties, study sessions, presence, and collaborative circuits
 
-- [ ] Implement party/session creation, membership roles, owner controls, maximum room size, and expiring/revocable invitations redeemable after authentication.
-- [ ] Authenticate Socket.IO connections and every room join/action; use Redis fan-out for multiple API instances.
-- [ ] Persist study-session metadata and chat history; track transient presence with heartbeat expiry and explicit disconnect handling.
-- [ ] Define edit event schemas with event ID, circuit ID, base revision, actor, and operation payload. Validate permissions and circuit constraints before acceptance.
-- [ ] Choose WebSocket-only transport for horizontally scaled MVP rooms, or configure sticky routing if HTTP long-polling is retained. Redis fan-out does not remove the affinity requirement for polling.
-- [ ] Assign revisions atomically per shared circuit using a database transaction/lock; persist accepted operations before acknowledging/broadcasting them.
-- [ ] Implement the selected last-write-wins policy precisely, including conflicting gate edits/deletes, invalid operations, duplicate events, and rejected optimistic edits.
-- [ ] Support reconnect using a last-seen revision and ordered replay or a full snapshot when history is unavailable; never depend on Redis pub/sub for durable replay.
-- [ ] Add chat/edit rate limits and immediate room removal when membership is revoked; link shared runs and tutor context to a stable circuit revision.
-- [ ] Add the frontend party/join/session controls and event adapter where the current UI lacks production collaboration wiring.
+**Implemented 2026-10-04:** Durable parties for Circuit Studio and Hardware Studio, role-scoped invitations/chat/edits, WebSocket-only Redis hints with a PostgreSQL outbox, revision replay/snapshot recovery, and connected Studio controls. Hardware components, stages, and routes merge atomically with structural validation and deletion cascades; personal drafts survive shared sessions. Frozen circuit party revisions copy into owned immutable circuits for real Aer execution and saved-circuit tutor context. Local acceptance uses two API instances and isolated browsers; live provider/deployment and full accessibility checks remain in B22–B23. See [collaboration protocol](docs/collaboration.md) and [verification](docs/verification.md).
+
+- [x] Implement party/session creation, membership roles, owner controls, maximum room size, and expiring/revocable invitations redeemable after authentication.
+- [x] Authenticate Socket.IO connections and every room join/action; use Redis fan-out for multiple API instances.
+- [x] Persist study-session metadata and chat history; track transient presence with heartbeat expiry and explicit disconnect handling.
+- [x] Define edit event schemas with event ID, circuit ID, base revision, actor, and operation payload. Validate permissions and circuit constraints before acceptance.
+- [x] Choose WebSocket-only transport for horizontally scaled MVP rooms, or configure sticky routing if HTTP long-polling is retained. Redis fan-out does not remove the affinity requirement for polling.
+- [x] Assign revisions atomically per shared circuit using a database transaction/lock; persist accepted operations before acknowledging/broadcasting them.
+- [x] Implement the selected last-write-wins policy precisely, including conflicting gate edits/deletes, invalid operations, duplicate events, and rejected optimistic edits.
+- [x] Support reconnect using a last-seen revision and ordered replay or a full snapshot when history is unavailable; never depend on Redis pub/sub for durable replay.
+- [x] Add chat/edit rate limits and immediate room removal when membership is revoked; link shared runs and tutor context to a stable circuit revision.
+- [x] Add the frontend party/join/session controls and event adapter where the current UI lacks production collaboration wiring.
 
 **Done when:** 2–6 users on separate browsers can edit/chat across multiple API instances and converge after disconnects and conflicting edits.
 
@@ -366,6 +370,10 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B19 — Hardware Studio persistence and validation
 
+**Collaboration checkpoint 2026-10-04:** B16 provides durable shared hardware documents, authenticated invitations/roles/chat, concurrent entity edits, structural component/port/route validation, reconnect recovery, and connected Hardware Studio links. Local snapshot links also load validated designs. General owned design CRUD/revisions, server scientific rules/thermal calculations, artifact exports, exercise progress, and hardware tutor context remain open below.
+
+- [x] Connect Hardware Studio collaboration links to durable shared designs with role-scoped components/stages/routes, chat, replay, and personal draft restoration; verify separate accounts across two API instances.
+
 - [ ] Include keyboard placement/routing, readable design state, focus recovery, and accessible diagnostics in the shared accessibility gate; audit the existing list view before crediting any requirement as complete.
 - [ ] Serve versioned component/stage/line catalogs and presets with stable IDs aligned to existing frontend definitions.
 - [ ] Implement owned hardware design CRUD, revisions, optional sharing, and export/import through the artifact service.
@@ -377,6 +385,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B20 — Connect the frontend and transition browser data
 
+- [x] Connect the private Circuit Studio library, explicit browser-draft import, revision conflict controls, archive/history, saved Aer execution and tutor recovery; keep private data out of anonymous persistence. Live managed-auth/provider acceptance remains open.
 - [x] Add a focused, typed learning-loop HTTP client for the implemented session, prediction, circuit, run, pair, and tutor routes. Fetch a current managed-auth bearer token per request; preserve idempotency keys, revision preconditions, and structured service errors.
 - [x] Bind the opt-in learning-loop client to the configured Supabase browser session, fetching its current access token for every request. Connected login resolves identity through the authenticated backend `/me` route; demo sign-in remains browser-local.
 - [x] Connect the Superposition lab's Run stage to a first Aer path: fetch the live lesson version, create a learner session, lock the ordered prediction, save the exact circuit, submit the paired durable run, poll its status, and show the server-derived sampled comparison. Add a recent-pair recovery action using owner-scoped discovery. Live-provider/browser verification and the full persistent Observe-stage integration remain open.
@@ -416,6 +425,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B21 — Security, observability, and maintenance
 
+- [x] Complete the focused preview release controls: bounded HTTP bodies, account Aer quota with idempotent replay, private API cache policy, safe Docker contexts, correlated request metadata, production configuration validation, dependency audits and local recovery drill. Broader B21 controls below remain open. See [release evidence](docs/deployment-readiness.md).
 - [ ] Enforce input/body limits, authorization, rate limits, secure secret storage, restricted CORS, and CSRF protection where cookie-based requests apply.
 - [ ] Restrict provider URLs and import/download behavior to prevent arbitrary internal network requests; keep sandbox and infrastructure endpoints private.
 - [ ] Emit correlated API/job/provider logs with sensitive fields redacted; record administrative, role, publication, and grading changes in audit history.
@@ -446,6 +456,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B23 — Deploy and hand over
 
+- [x] Prepare the scoped Render/Supabase Blueprint and release runbook, fix worker/dispatcher startup settings, validate connected frontend builds, configure publication of distinct API/worker/web images through checked CI, and provide a sequential local release gate. Actual provisioning, publication and hosted smoke checks remain open.
 - [ ] Provision staging/production API, worker queues, scheduler if needed, managed PostgreSQL, compatible Redis, object storage, and the isolated grading service.
 - [ ] Configure provider secrets, DNS/TLS, frontend origins, auth redirect URLs, storage CORS, realtime proxy timeouts, and health probes.
 - [ ] Build CI/CD gates for static checks, tests, images, and controlled migrations; run migrations once per release before incompatible application traffic.
@@ -602,9 +613,9 @@ For each item, produce a short decision note with a minimal demonstrator, compat
 - [ ] Frame an original QuantumLoop event around existing contests, with rules, schedule, eligibility, accommodations, support, and moderation ownership. QHack is inspiration, not an affiliation or proof that our event operations exist.
 - [ ] Allocate pitch/event preparation separately. Add engineering work only if the event requires capabilities beyond B17, and scope those before promising them.
 
-#### #13 — Inspect-mode parity check (review completed; fixes belong to B06/B20)
+#### #13 — Inspect-mode parity check (focused implementation completed; B06/B20)
 
-The source audit found working previous/next buttons and a native range control for highlighting, but no selected-step binding in Studio's result panel and no accessible slider name. Do not call this full live-state inspection or IBM parity. Extend the existing component, then test arrow-key stepping, first/last boundaries, circuit changes that invalidate a step, state table/Bloch updates, and unavailable remote step snapshots. The source check is complete; the implementation and assistive-technology checks remain open.
+Implemented 2026-10-04: the selected step now binds probability, statevector, and Bloch tables to the matching immutable local run. The named slider supports arrow keys and first/last boundaries; circuit edits invalidate inspection. A readable gate sequence supports keyboard placement, editing, movement, deletion, and focus recovery. Analytical H→H tests distinguish intermediate and final states; production browser tests cover boundaries, zero amplitudes, stale results, and keyboard editing. Runs without step snapshots disable intermediate inspection. Full assistive-technology acceptance and WCAG assessment remain open; this does not establish IBM parity. See [verification](docs/verification.md).
 
 ### Already covered — no duplicate implementation tracks
 

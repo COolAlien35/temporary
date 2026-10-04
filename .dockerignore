@@ -1,5 +1,14 @@
 .git
 .github
+**/.env
+**/.env.*
+!**/.env.example
+**/.aws
+**/.codex
+**/.agents
+**/*.pem
+**/*.key
+**/.DS_Store
 **/node_modules
 **/.next
 **/dist

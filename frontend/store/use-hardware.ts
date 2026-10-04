@@ -15,6 +15,8 @@ interface PendingRoute {
 }
 
 interface HardwareState {
+  partyActive: boolean
+  partyDraft: Design | null
   design: Design
   savedDesigns: SavedDesign[]
   favorites: string[]
@@ -68,6 +70,8 @@ function touch(design: Design): Design {
 export const useHardware = create<HardwareState>()(
   persist(
     (set, get) => ({
+      partyActive: false,
+      partyDraft: null,
       design: emptyDesign(),
       savedDesigns: [],
       favorites: [],
@@ -224,7 +228,7 @@ export const useHardware = create<HardwareState>()(
       name: "hardware:design-v1",
       skipHydration: true,
       partialize: (s) => ({
-        design: s.design,
+        design: s.partyActive ? s.partyDraft ?? emptyDesign() : s.design,
         savedDesigns: s.savedDesigns,
         favorites: s.favorites,
         bookmarks: s.bookmarks,

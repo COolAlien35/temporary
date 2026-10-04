@@ -3,11 +3,32 @@
 import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useStudio } from "@/store/use-studio"
+import { useSession } from "@/store/use-session"
+import { useCloudStudio } from "@/store/use-cloud-studio"
+
+function PrivateCircuits() {
+  const cloud = useCloudStudio()
+  const party = useStudio((state) => state.partyActive)
+  const drafts = useStudio((state) => state.savedCircuits)
+  return <section aria-label="Private circuit library" className="space-y-3 text-xs text-white">
+    <p className="text-white/50">Saved to your account. Open a circuit here on any device.</p>
+    <div className="flex flex-wrap gap-2"><button disabled={cloud.loading} className="underline" onClick={() => void cloud.list(false)}>Active circuits</button><button disabled={cloud.loading} className="underline" onClick={() => void cloud.list(true)}>Archived circuits</button><button disabled={cloud.loading} className="underline" onClick={() => void cloud.list()}>Refresh library</button></div>
+    {party && <p>Leave the party to open or save private circuits.</p>}
+    {cloud.loading && <p role="status">Loading private circuits…</p>}
+    {!cloud.loading && !cloud.items.length && <p>No {cloud.archived ? "archived" : "saved"} circuits in this account.</p>}
+    {cloud.items.map((item) => <div key={item.id} className="space-y-2 rounded-lg border border-white/10 p-2"><button disabled={cloud.busy || party} onClick={() => void cloud.open(item.id)} className="w-full text-left"><strong>{item.name}</strong><p className="text-white/50">revision {item.revision} · {item.qubits} qubits · {item.gate_count} gates</p></button><button disabled={cloud.busy || party} onClick={() => void cloud.archive(item, !item.archived)} className="underline">{item.archived ? "Restore" : "Archive"} {item.name}</button></div>)}
+    {cloud.cursor && <button disabled={cloud.loading} className="underline" onClick={() => void cloud.list(cloud.archived, true)}>Load more circuits</button>}
+    {drafts.length > 0 && <details><summary className="cursor-pointer">Import a browser draft</summary><p className="mt-2 text-white/50">Select a local circuit to validate and save a private cloud copy.</p>{drafts.map((draft) => <button key={draft.id} disabled={cloud.busy || party} onClick={() => { cloud.newDraft(draft); void cloud.save(true) }} className="mt-2 block text-left underline">Import {draft.name}</button>)}</details>}
+  </section>
+}
 
 export function MyCircuits() {
+  const mode = useSession((state) => state.mode)
   const savedCircuits = useStudio((s) => s.savedCircuits)
   const loadSaved = useStudio((s) => s.loadSaved)
   const deleteSaved = useStudio((s) => s.deleteSaved)
+
+  if (mode === "connected") return <PrivateCircuits />
 
   if (savedCircuits.length === 0) {
     return <p className="text-xs text-white/40">Nothing saved yet. Use &ldquo;Save&rdquo; in the toolbar to keep a circuit here.</p>

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Download } from "lucide-react"
+import { circuitSignature, inspectedResult } from "@/lib/studio/inspection"
 import { useStudio } from "@/store/use-studio"
 import { AmplitudeBars, BlochMini, PhasorWheel } from "./blocks"
 import { NoiseLab } from "./NoiseLab"
@@ -30,9 +31,15 @@ function downloadCsv(counts: Record<string, number>, shots: number) {
 export function ResultsPanel() {
   const [tab, setTab] = useState<Tab>("Histogram")
   const [showSampled, setShowSampled] = useState(false)
-  const result = useStudio((s) => s.result)
+  const savedResult = useStudio((s) => s.result)
+  const lastRunCircuit = useStudio((s) => s.lastRunCircuit)
+  const stepIndex = useStudio((s) => s.stepIndex)
   const circuit = useStudio((s) => s.circuit)
-  const shots = useStudio((s) => s.shots)
+  const stale = Boolean(savedResult && lastRunCircuit && circuitSignature(circuit) !== circuitSignature(lastRunCircuit))
+  const stepping = stepIndex !== null && !stale && Boolean(savedResult?.stepStates[stepIndex])
+  const result = savedResult ? inspectedResult(savedResult, stepping ? stepIndex : null) : undefined
+  const shots = result?.shots ?? 0
+  const stepTime = lastRunCircuit ? [...new Set(lastRunCircuit.gates.map((gate) => gate.step))].sort((a, b) => a - b)[stepIndex ?? 0] : 0
 
   const sampledProbabilities = result
     ? Object.fromEntries(Object.entries(result.counts).map(([k, c]) => [k, c / shots]))
@@ -53,6 +60,7 @@ export function ResultsPanel() {
         ))}
       </div>
 
+      {savedResult && <p role="status" aria-live="polite" className="border-b border-white/10 px-3 py-2 text-xs text-cyan-200">{stale ? "Circuit changed. Showing the previous run; rerun to inspect this circuit." : stepping ? `Inspecting ideal state after time step ${stepTime}. Sampled counts describe the final run.` : "Showing final run state."}</p>}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!result && tab !== "Circuit info" && tab !== "Noise Lab" && (
           <div className="flex h-full items-center justify-center p-6 text-center text-xs text-white/40">Press Run to simulate this circuit.</div>
@@ -65,7 +73,7 @@ export function ResultsPanel() {
                 <button type="button" onClick={() => setShowSampled(false)} className={cn("rounded-full border px-2 py-0.5", !showSampled ? "border-[#00D4FF]/50 text-[#00D4FF]" : "border-white/10")}>
                   Ideal
                 </button>
-                <button type="button" onClick={() => setShowSampled(true)} className={cn("rounded-full border px-2 py-0.5", showSampled ? "border-[#00D4FF]/50 text-[#00D4FF]" : "border-white/10")}>
+                <button type="button" disabled={stepping} onClick={() => setShowSampled(true)} className={cn("rounded-full border px-2 py-0.5", showSampled ? "border-[#00D4FF]/50 text-[#00D4FF]" : "border-white/10")}>
                   Sampled ({shots})
                 </button>
               </div>
@@ -75,16 +83,17 @@ export function ResultsPanel() {
               </button>
             </div>
             <div className="min-h-[160px] flex-1">
-              <AmplitudeBars probabilities={showSampled ? sampledProbabilities : result.probabilities} max={16} />
+              <AmplitudeBars probabilities={showSampled && !stepping ? sampledProbabilities : result.probabilities} max={16} />
             </div>
-            <WhatChangedCard />
+            <table aria-label="Outcome probabilities" className="text-left text-xs"><thead><tr><th scope="col">Outcome</th><th scope="col">{showSampled && !stepping ? "Sampled final frequency" : "Ideal probability"}</th></tr></thead><tbody>{Object.entries(showSampled && !stepping ? sampledProbabilities : result.probabilities).map(([label, probability]) => <tr key={label}><th scope="row">|{label}⟩</th><td>{(probability * 100).toFixed(2)}%</td></tr>)}</tbody></table>
+            {!stepping && <WhatChangedCard />}
           </div>
         )}
 
         {result && tab === "Statevector" && (
           <div className="flex flex-col gap-4 p-4 sm:flex-row">
             <div className="flex-1 overflow-x-auto">
-              <table className="w-full text-left text-[11px]">
+              <table aria-label="Quantum statevector" className="w-full text-left text-[11px]">
                 <thead className="text-white/40">
                   <tr>
                     <th className="pb-2 pr-3 font-medium">Basis</th>
@@ -96,15 +105,14 @@ export function ResultsPanel() {
                 </thead>
                 <tbody className="font-mono text-white/75">
                   {result.statevector.map((amp, i) => {
-                    const key = i.toString(2).padStart(circuit.qubits, "0")
+                    const key = i.toString(2).padStart(result.qubits, "0")
                     const mag = Math.sqrt(amp.re * amp.re + amp.im * amp.im)
-                    if (mag < 1e-6) return null
                     return (
                       <tr key={key} className="border-t border-white/5">
                         <td className="py-1.5 pr-3">|{key}⟩</td>
                         <td className="py-1.5 pr-3">{amp.re.toFixed(3)} {amp.im >= 0 ? "+" : "-"} {Math.abs(amp.im).toFixed(3)}i</td>
                         <td className="py-1.5 pr-3">{mag.toFixed(3)}</td>
-                        <td className="py-1.5 pr-3">{phaseDegrees(amp.re, amp.im)}°</td>
+                        <td className="py-1.5 pr-3">{mag < 1e-12 ? "Undefined (zero amplitude)" : `${phaseDegrees(amp.re, amp.im)}°`}</td>
                         <td className="py-1.5">{(mag * mag * 100).toFixed(1)}%</td>
                       </tr>
                     )
@@ -121,6 +129,7 @@ export function ResultsPanel() {
 
         {result && tab === "Bloch" && (
           <div className="flex flex-wrap justify-center gap-4 p-4">
+            <table aria-label="Bloch coordinates" className="w-full text-left text-xs"><thead><tr><th scope="col">Qubit</th><th scope="col">X</th><th scope="col">Y</th><th scope="col">Z</th><th scope="col">Reduced state</th></tr></thead><tbody>{result.blochVectors.map((vector, index) => <tr key={index}><th scope="row">q{index}</th><td>{vector.x.toFixed(3)}</td><td>{vector.y.toFixed(3)}</td><td>{vector.z.toFixed(3)}</td><td>{vector.mixed ? "Mixed" : "Pure"}</td></tr>)}</tbody></table>
             {result.blochVectors.map((v, i) => (
               <BlochMini key={i} vector={v} label={`q[${i}]`} />
             ))}
