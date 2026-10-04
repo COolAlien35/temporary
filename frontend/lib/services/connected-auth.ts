@@ -54,7 +54,18 @@ export async function profileForToken(token: string, fetcher: typeof fetch = fet
       (value.role !== "learner" && value.role !== "instructor")) {
     throw new Error("Invalid account profile response.")
   }
-  return { mode: "connected", user: { id: value.id, name: value.name, email: value.email, role: value.role } }
+  const rawPreferences = value.preferences
+  if (rawPreferences !== undefined && (!rawPreferences || typeof rawPreferences !== "object" ||
+      !["foundations", "algorithms", "hardware"].includes((rawPreferences as Record<string, unknown>).focus as string) ||
+      !["guided", "self-paced"].includes((rawPreferences as Record<string, unknown>).pace as string) ||
+      typeof (rawPreferences as Record<string, unknown>).reduceMotion !== "boolean")) {
+    throw new Error("Invalid account preferences response.")
+  }
+  return {
+    mode: "connected",
+    user: { id: value.id, name: value.name, email: value.email, role: value.role },
+    ...(rawPreferences ? { preferences: rawPreferences as NonNullable<AuthResult["preferences"]> } : {}),
+  }
 }
 
 export async function signInConnected(email: string, password: string): Promise<AuthResult> {
@@ -78,4 +89,23 @@ export async function signOutConnected(): Promise<void> {
   if (!connectedAuthConfigured) return
   const { error } = await connectedProvider().auth.signOut({ scope: "local" })
   if (error) throw error
+}
+
+export async function requestConnectedPasswordReset(email: string): Promise<void> {
+  const { error } = await connectedProvider().auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password?connected=1`,
+  })
+  if (error) throw error
+}
+
+export async function connectedRecoverySessionAvailable(): Promise<boolean> {
+  const { data, error } = await connectedProvider().auth.getSession()
+  if (error) throw error
+  return Boolean(data.session)
+}
+
+export async function updateConnectedPassword(password: string): Promise<void> {
+  const { error } = await connectedProvider().auth.updateUser({ password })
+  if (error) throw error
+  await signOutConnected()
 }

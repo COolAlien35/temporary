@@ -12,8 +12,18 @@ import { qecAnimation } from "@/lib/algo-animations/qec"
 const AlgoAnimationPlayer = dynamic(() => import("@/components/lab/anim/AlgoAnimationPlayer").then((mod) => mod.AlgoAnimationPlayer), { ssr: false })
 const ANIMATIONS = { "deutsch-jozsa": deutschJozsaAnimation, grover: groverAnimation, qft: qftAnimation, shor: shorAnimation, qec: qecAnimation }
 import { StageHeader } from "@/components/lab/stage-header"
+import { ConnectedLearn } from "../connected-learn"
+import { connectedAuthConfigured } from "@/lib/services/connected-auth"
+import { useSession } from "@/store/use-session"
 
 export function StageLearn() {
+  const accountMode = useSession((state) => state.mode)
+  const { algorithm } = useLab()
+  if (connectedAuthConfigured && accountMode !== "demo" && algorithm.slug === "superposition") return <ConnectedLearn />
+  return <DemoStageLearn />
+}
+
+function DemoStageLearn() {
   const { algorithm, advanceStage } = useLab()
   const animation = ANIMATIONS[algorithm.slug as keyof typeof ANIMATIONS]
 

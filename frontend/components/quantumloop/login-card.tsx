@@ -69,11 +69,12 @@ export function LoginCard({ initialMode = "login" }: { initialMode?: Mode }) {
   return (
     <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_60px_-15px_rgba(0,212,255,0.35)] backdrop-blur-xl sm:p-8">
       <p className="mb-5 rounded-lg border border-[#F5B942]/20 bg-[#F5B942]/5 px-3 py-2 text-xs leading-5 text-[#F5B942]">
-        {accountMode === "demo" ? "Frontend demo: this creates a local session in your browser. No account or password is sent to a server." : "Connected account: sign in with Supabase. Learning-loop pages are still being connected to saved backend data."}
+        {accountMode === "demo" ? "Local demo: this creates a browser-only session. No account or password is sent to a server." : "Supabase account: signup and login create a real account for the connected learning loop."}
       </p>
-      {connectedAuthConfigured && <div className="mb-5 flex rounded-full border border-white/10 bg-black/30 p-1 text-sm font-medium" aria-label="Connection mode">
-        {(["connected", "demo"] as const).map((item) => <button key={item} type="button" onClick={() => { setAccountMode(item); setError(""); setNotice("") }} aria-pressed={accountMode === item} className={`flex-1 rounded-full px-3 py-1.5 ${accountMode === item ? "bg-[#4FD1E8] text-[#0A0E17]" : "text-white/60 hover:text-white"}`}>{item === "connected" ? "Connected account" : "Local demo"}</button>)}
-      </div>}
+      <div className="mb-5 flex rounded-full border border-white/10 bg-black/30 p-1 text-sm font-medium" aria-label="Connection mode">
+        {(["connected", "demo"] as const).map((item) => <button key={item} type="button" disabled={item === "connected" && !connectedAuthConfigured} onClick={() => { setAccountMode(item); setError(""); setNotice("") }} aria-pressed={accountMode === item} className={`flex-1 rounded-full px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-40 ${accountMode === item ? "bg-[#4FD1E8] text-[#0A0E17]" : "text-white/60 hover:text-white"}`}>{item === "connected" ? "Supabase account" : "Local demo"}</button>)}
+      </div>
+      {!connectedAuthConfigured && <p className="-mt-3 mb-5 text-xs text-white/45">Supabase signup is unavailable until the public connection settings are configured.</p>}
       <div className="mb-6 flex rounded-full border border-white/10 bg-black/30 p-1 text-sm font-medium" aria-label="Account mode">
         {(["login", "signup"] as const).map((item) => (
           <button key={item} type="button" onClick={() => changeMode(item)} aria-pressed={mode === item} className={`flex-1 rounded-full px-3 py-1.5 transition-colors ${mode === item ? "bg-[#4FD1E8] text-[#0A0E17]" : "text-white/60 hover:text-white"}`}>

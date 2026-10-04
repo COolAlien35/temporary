@@ -3,6 +3,7 @@ import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from time import perf_counter
 from uuid import uuid4
 
 import socketio
@@ -12,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException
 
+from app.core.body_limit import RequestBodyLimitMiddleware
 from app.core.config import Settings, get_settings
 from app.core.errors import ApiHTTPException
 from app.core.http_limits import BodyLimitMiddleware
@@ -29,6 +31,7 @@ from app.modules.predictions.router import router as predictions_router
 from app.realtime.server import Realtime
 
 logger = logging.getLogger(__name__)
+access_logger = logging.getLogger("uvicorn.error")
 
 
 def error_response(request: Request, status: int, code: str, message: str) -> JSONResponse:
@@ -61,6 +64,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.dependency_overrides[get_engine] = lambda: engine
     application.add_middleware(BodyLimitMiddleware, max_bytes=configuration.request_body_max_bytes)
     application.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=configuration.max_request_body_bytes,
+        error_response=error_response,
+    )
+    application.add_middleware(
         CORSMiddleware,
         allow_origins=configuration.cors_origins,
         allow_credentials=False,
@@ -72,7 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Idempotency-Key",
             "If-Match",
         ],
-        expose_headers=["X-Request-ID", "ETag"],
+        expose_headers=["X-Request-ID", "ETag", "Retry-After"],
     )
 
     @application.middleware("http")
@@ -83,18 +91,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = (
             candidate if re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", candidate) else str(uuid4())
         )
-        started = time.monotonic()
-        response = await call_next(request)
+        started = perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            access_logger.info(
+                "api_request request_id=%s method=%s route=%s status=500 duration_ms=%.1f",
+                request.state.request_id,
+                request.method,
+                getattr(request.scope.get("route"), "path", "<unmatched>"),
+                (perf_counter() - started) * 1000,
+            )
+            raise
         response.headers["X-Request-ID"] = request.state.request_id
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
-        logger.info(
-            "http_request request_id=%s method=%s status=%s duration_ms=%.1f",
+        access_logger.info(
+            "api_request request_id=%s method=%s route=%s status=%d duration_ms=%.1f",
             request.state.request_id,
             request.method,
+            getattr(request.scope.get("route"), "path", "<unmatched>"),
             response.status_code,
-            (time.monotonic() - started) * 1000,
+            (perf_counter() - started) * 1000,
         )
         return response
 

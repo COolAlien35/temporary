@@ -51,6 +51,17 @@ def test_valid_provider_token_extracts_identity(signer):
     assert identity.email == "learner@example.test"
 
 
+def test_signup_display_name_is_read_from_verified_user_metadata(signer):
+    named = verify_access_token(
+        signer(user_metadata={"name": "  Quantum Learner  "}), Settings(auth_issuer=ISSUER)
+    )
+    assert named.display_name == "Quantum Learner"
+    invalid = verify_access_token(
+        signer(user_metadata={"name": "x" * 121}), Settings(auth_issuer=ISSUER)
+    )
+    assert invalid.display_name is None
+
+
 @pytest.mark.parametrize(
     "override",
     [

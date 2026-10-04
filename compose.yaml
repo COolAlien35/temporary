@@ -9,6 +9,7 @@ x-backend-environment: &backend-environment
   QL_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
   QL_AUTH_ISSUER: ${QL_AUTH_ISSUER:-}
   QL_AUTH_AUDIENCE: ${QL_AUTH_AUDIENCE:-authenticated}
+  QL_SIMULATION_DAILY_RUN_LIMIT: ${QL_SIMULATION_DAILY_RUN_LIMIT:-100}
   EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
   EMBEDDING_DIM: ${EMBEDDING_DIM:-1536}
   EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}

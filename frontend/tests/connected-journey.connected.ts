@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test"
+import AxeBuilder from "@axe-core/playwright"
 
 const ids = {
   user: "77777777-7777-4777-8777-777777777777",
@@ -77,6 +78,7 @@ test("connected learner opens another saved run in Explain and reloads its run-b
   await expect(page.getByRole("heading", { name: "Prediction vs. Actual" })).toBeVisible()
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 98.0 percent.")).toBeVisible()
   await expect(page.getByRole("region", { name: "Recent saved Superposition rounds" }).getByRole("button", { name: /75\.0% agreement · Open/ })).toBeVisible()
+  await expect(page.getByRole("table", { name: /Prediction agreement history/ }).getByRole("row", { name: /75\.0% 80% sampled frequency 1,024/ })).toBeVisible()
   await page.getByRole("button", { name: /75\.0% agreement · Open/ }).click()
   await expect(page.getByText(`Run ID: ${ids.olderRun}`)).toBeVisible()
   await expect(page).toHaveURL(new RegExp(`run=${ids.olderRun}`))
@@ -90,11 +92,16 @@ test("connected learner opens another saved run in Explain and reloads its run-b
   await page.goto(`/lab/superposition?stage=6&run=${ids.currentRun}`)
   await expect(page.getByText("Server-derived prediction agreement 98.0 percent.")).toBeVisible()
   await expect(page.getByText(`Saved run: ${ids.currentRun}`)).toBeVisible()
+  await expect(page.getByRole("banner").getByText("98.0%", { exact: true })).toBeVisible()
   await expect(page.getByText("The 00 outcome increased in this saved run.")).not.toBeVisible()
   await page.getByRole("button", { name: "Explain", exact: true }).click()
   expect(tutorPosts[1]).toMatchObject({ action: "explain", run_id: ids.currentRun })
   await page.reload()
   await expect(page.getByText("The 00 outcome increased in this saved run.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Proceed to Debug Challenge" })).toHaveCount(0)
+  await page.goto("/lab/superposition?stage=8")
+  await expect(page.getByText("Connected grading is not available yet")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Submit for Scoring" })).toHaveCount(0)
 })
 
 test("connected learner locks a prediction, runs the exact circuit, and asks the tutor about the saved pair", async ({ page }) => {
@@ -103,6 +110,7 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, idempotency-key", "Content-Type": "application/json" }
   const writes: { path: string; body: Record<string, unknown>; key: string | undefined }[] = []
   let polls = 0
+  let submittedRuns = 0
 
   await page.route("https://provider.example.test/**", async (route) => {
     const path = new URL(route.request().url()).pathname
@@ -117,12 +125,26 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors })
     if (request.headers().authorization !== `Bearer ${token}`) return route.fulfill({ status: 401, headers: cors, json: { error: { code: "authentication_required", message: "Sign in" } } })
     if (path === "/api/v1/me") return route.fulfill({ headers: cors, json: { id: ids.user, name: "Connected Learner", email: user.email, role: "learner" } })
-    if (path === "/api/v1/curriculum/units/u1") return route.fulfill({ headers: cors, json: { content_version: 1, lessons: [{ id: "u1-quantum-foundations" }] } })
+    if (path === "/api/v1/curriculum/units/u1") return route.fulfill({ headers: cors, json: {
+      id: "u1", title: "Quantum Foundations", content_version: 1, review_status: "faculty-reviewed", is_placeholder: false,
+      lessons: [{ id: "u1-quantum-foundations", title: "Verified Superposition Lesson", sections: [{ type: "paragraph", text: "The server lesson explains a Hadamard on q0." }], takeaways: ["Compare the saved measurement with your prediction."] }],
+    } })
+    if (path === "/api/v1/learning-sessions" && request.method() === "GET") return route.fulfill({ headers: cors, json: { items: [{ id: ids.olderSession, lesson_id: "u1-quantum-foundations", lesson_version: 1 }], next_cursor: null } })
+    if (path === `/api/v1/learning-sessions/${ids.olderSession}/predictions` && request.method() === "GET") return route.fulfill({ headers: cors, json: { items: [{ id: ids.olderPrediction, lesson_id: "u1-quantum-foundations", lesson_version: 1, learning_session_id: ids.olderSession, prediction_vector: [0.5, 0.5, 0, 0], basis_labels: ["00", "01", "10", "11"], confidence: 0.7, pairing_status: "unpaired", run_id: null }], next_cursor: null } })
     if (request.method() === "POST") writes.push({ path, body: request.postDataJSON() as Record<string, unknown>, key: request.headers()["idempotency-key"] })
     if (path === "/api/v1/learning-sessions" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentSession, lesson_id: "u1-quantum-foundations", lesson_version: 1 } })
-    if (path === `/api/v1/learning-sessions/${ids.currentSession}/predictions` && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: ids.currentPrediction } })
-    if (path === "/api/v1/circuits" && request.method() === "POST") return route.fulfill({ headers: cors, json: { id: "99999999-9999-4999-8999-999999999999", revision: 1 } })
-    if (path === "/api/v1/experiments/runs" && request.method() === "POST") return route.fulfill({ headers: cors, json: { resource_id: ids.currentRun, status: "queued" } })
+    if (path === `/api/v1/learning-sessions/${ids.currentSession}/predictions` && request.method() === "POST") return route.fulfill({ headers: cors, json: { ...request.postDataJSON() as Record<string, unknown>, id: ids.currentPrediction, locked_at: "2026-09-29T12:00:00Z", pairing_status: "unpaired", run_id: null } })
+    if (path === "/api/v1/circuits" && request.method() === "GET") return route.fulfill({ headers: cors, json: { items: [], next_cursor: null } })
+    if (path === "/api/v1/circuits" && request.method() === "POST") return route.fulfill({ headers: cors, json: {
+      id: "99999999-9999-4999-8999-999999999999", revision: 1,
+      snapshot: { schema_version: 1, ...request.postDataJSON() as Record<string, unknown> },
+      checksum_sha256: "a".repeat(64), created_at: "2026-09-29T12:00:00Z", updated_at: "2026-09-29T12:00:00Z",
+    } })
+    if (path === "/api/v1/experiments/runs" && request.method() === "POST") {
+      submittedRuns += 1
+      if (submittedRuns > 1) return route.fulfill({ status: 429, headers: cors, json: { error: { code: "simulation_daily_limit", message: "Daily Aer run limit reached" } } })
+      return route.fulfill({ headers: cors, json: { resource_id: ids.currentRun, status: "queued" } })
+    }
     if (path === `/api/v1/experiments/runs/${ids.currentRun}`) return route.fulfill({ headers: cors, json: {
       id: ids.currentRun, status: ++polls === 1 ? "queued" : "succeeded", prediction_id: ids.currentPrediction,
       backend: "qiskit_aer", shots: 1024, circuit_revision: 1,
@@ -147,10 +169,17 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await page.getByLabel("Email").fill(user.email)
   await page.locator("#password").fill("test-password")
   await page.locator("form").getByRole("button", { name: "Log in" }).click()
-  await expect(page.getByRole("button", { name: "Save prediction and run on Aer" })).toBeDisabled()
-  await expect(page.getByText("Lock a prediction in Predict before starting a new Aer run.", { exact: false })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Run saved prediction on Aer" })).toBeDisabled()
+  await expect(page.getByText("Save and lock a prediction in Predict before starting a new Aer run", { exact: false })).toBeVisible()
   await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /1 Learn/ }).click()
-  await page.getByRole("button", { name: "Formulate Hypothesis →" }).click()
+  await expect(page.getByRole("heading", { name: "Verified Superposition Lesson" })).toBeVisible()
+  await expect(page.getByText("The server lesson explains a Hadamard on q0.")).toBeVisible()
+  let accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
+  const advanceFromLearn = page.getByRole("button", { name: "Formulate Hypothesis →" })
+  await advanceFromLearn.focus()
+  await advanceFromLearn.press("Enter")
+  await expect(page.getByRole("heading", { name: "Formulate Outcome Hypothesis" })).toBeFocused()
   const firstOutcome = page.getByRole("slider", { name: "Predicted probability for |00⟩" })
   const secondOutcome = page.getByRole("slider", { name: "Predicted probability for |01⟩" })
   await firstOutcome.focus()
@@ -160,27 +189,50 @@ test("connected learner locks a prediction, runs the exact circuit, and asks the
   await expect(firstOutcome).toHaveValue("26")
   await expect(secondOutcome).toHaveValue("24")
   await expect(page.getByRole("slider", { name: "Prediction confidence" })).toHaveAttribute("aria-valuetext", /percent/)
-  await page.getByRole("button", { name: "Lock Prediction & Arm Simulation Gate" }).click()
-  await page.getByRole("button", { name: "Place H on q0 at step 0" }).click()
+  await page.getByRole("button", { name: "Save and Lock Prediction" }).click()
+  await expect(page.getByRole("heading", { name: "Quantum Circuit Composition" })).toBeFocused()
+  const placeHadamard = page.getByRole("button", { name: "Place H on q0 at step 0" })
+  await placeHadamard.focus()
+  await placeHadamard.press("Enter")
+  const saveCircuit = page.getByRole("region", { name: "Saved circuit library" }).getByRole("button", { name: "Save circuit" })
+  await saveCircuit.focus()
+  await saveCircuit.press("Enter")
+  await expect(page.getByText("Saved Superposition circuit, revision 1.")).toBeVisible()
+  accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
   await page.getByRole("button", { name: "Proceed to Run →" }).click()
-  await page.getByRole("button", { name: "Save prediction and run on Aer" }).click()
+  await expect(page.getByText("Selected library circuit: Superposition circuit, revision 1.")).toBeVisible()
+  await page.getByRole("button", { name: "Run saved prediction on Aer" }).click()
   await expect(page.getByText("Saved Aer comparison ready. Prediction agreement 50.0 percent.")).toBeVisible()
   await expect(page.getByRole("table", { name: /Server-derived outcome comparison/ })).toBeVisible()
   await expect(page.getByRole("row", { name: "|00⟩ 26.0% 50.0% +24.0 pts" })).toBeVisible()
+  accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
   expect(polls).toBeGreaterThanOrEqual(2)
   expect(writes.map((item) => item.path)).toEqual([
     "/api/v1/learning-sessions", `/api/v1/learning-sessions/${ids.currentSession}/predictions`, "/api/v1/circuits", "/api/v1/experiments/runs",
   ])
   expect(writes.every((item) => Boolean(item.key))).toBe(true)
-  expect(writes[1].body).toMatchObject({ learning_session_id: ids.currentSession, prediction_vector: [0.26, 0.24, 0.25, 0.25] })
   expect(writes[2].body).toMatchObject({ qubits: 2, gates: [expect.objectContaining({ type: "H", step: 0, qubit: 0 })] })
-  expect(writes[3].body).toMatchObject({ prediction_id: ids.currentPrediction, circuit_revision: 1, backend: "qiskit_aer" })
+  expect(writes[1].body).toMatchObject({ learning_session_id: ids.currentSession, prediction_vector: [0.26, 0.24, 0.25, 0.25] })
+  expect(writes[3].body).toMatchObject({ prediction_id: ids.currentPrediction, circuit_id: "99999999-9999-4999-8999-999999999999", circuit_revision: 1, backend: "qiskit_aer" })
   await page.getByRole("button", { name: "Discuss this run with Lab Partner →" }).click()
   await page.getByRole("button", { name: "Explain", exact: true }).click()
   await expect(page.getByText("Your saved prediction gave equal weight to all four outcomes.")).toBeVisible()
+  accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze()
+  expect(accessibility.violations.map((violation) => ({ id: violation.id, nodes: violation.nodes.map((node) => node.target) }))).toEqual([])
   expect(writes[4].path).toBe(`/api/v1/learning-sessions/${ids.currentSession}/tutor/messages`)
   expect(writes[4].body).toMatchObject({ action: "explain", stage: "discuss", run_id: ids.currentRun })
   expect(writes[4].body).not.toHaveProperty("prediction_match")
+  await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /4 Run/ }).click()
+  await page.getByRole("button", { name: "Recover saved prediction" }).click()
+  await expect(page.getByText("Recovered your saved locked prediction. You can now run this circuit.")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Run saved prediction on Aer" })).toBeEnabled()
+  await page.getByRole("button", { name: "Run saved prediction on Aer" }).click()
+  await expect(page.locator('p[role="alert"]')).toContainText("Daily Aer run limit reached. You can submit a new run after midnight UTC.")
+  await expect(page.getByRole("button", { name: "Retry the same run" })).toHaveCount(0)
+  await page.getByRole("navigation", { name: "Lab stages" }).getByRole("button", { name: /Predict/ }).click()
+  await expect(page.getByRole("slider", { name: "Prediction confidence" })).toHaveAttribute("aria-valuenow", "70")
 })
 
 test("switching connected accounts clears the open learner's lab draft and cannot show their run", async ({ context, page }) => {

@@ -1,7 +1,7 @@
 import type { GatePlacement } from "@/lib/lab-data"
 import type { StudioCircuit } from "@/lib/studio/types"
 import type { PredictionPair } from "./contracts"
-import { createLearningLoopApi, LearningLoopApiError, type SavedRun } from "./learning-loop-api"
+import { createLearningLoopApi, LearningLoopApiError, type CircuitRecord, type LockedPrediction, type SavedRun } from "./learning-loop-api"
 import { percentConfidenceToUnit, percentagesToPredictionVector } from "./prediction-vector"
 
 type Api = ReturnType<typeof createLearningLoopApi>
@@ -11,7 +11,11 @@ export type ConnectedLabInput = {
   confidence: number
   gates: GatePlacement[]
   shots: number
+  savedCircuit?: CircuitRecord | null
+  lockedPrediction?: ConnectedPredictionLock | null
 }
+
+export type ConnectedPredictionLock = { learningSessionId: string; prediction: LockedPrediction }
 
 export type ConnectedLabKeys = {
   session: string
@@ -24,7 +28,7 @@ export type ConnectedLabResult = { pair: PredictionPair; run: SavedRun; learning
 export type PendingConnectedRun = { pendingRunId: string }
 
 export class ConnectedRunUnavailableError extends Error {
-  constructor(public readonly kind: "pending" | "failed" | "missing" | "mismatch", message: string) {
+  constructor(public readonly kind: "pending" | "failed" | "missing" | "mismatch", message: string, public readonly cancellable = false) {
     super(message)
     this.name = "ConnectedRunUnavailableError"
   }
@@ -37,6 +41,54 @@ export function newConnectedLabKeys(): ConnectedLabKeys {
 const RECOVERY_PAGE_SIZE = 10
 const RECOVERY_MAX_PAGES = 5
 export const RECENT_COMPARISON_EMPTY_MESSAGE = "No completed Superposition comparison was found in the latest 50 sessions (up to 50 predictions each)."
+
+export async function lockConnectedSuperpositionPrediction(
+  api: Api,
+  hypothesis: Record<string, number>,
+  confidence: number,
+  keys: Pick<ConnectedLabKeys, "session" | "prediction">,
+): Promise<ConnectedPredictionLock> {
+  const lessonId = "u1-quantum-foundations"
+  const labels = ["00", "01", "10", "11"]
+  const vector = percentagesToPredictionVector(hypothesis, labels)
+  const unit = await api.getCurriculumUnit("u1")
+  if (unit.is_placeholder || !unit.lessons.some((lesson) => lesson.id === lessonId)) throw new Error("The superposition lesson is unavailable.")
+  const session = await api.createSession({ lesson_id: lessonId, lesson_version: unit.content_version }, keys.session)
+  const prediction = await api.lockPrediction(session.id, {
+    schema_version: 1,
+    lesson_id: lessonId,
+    lesson_version: unit.content_version,
+    learning_session_id: session.id,
+    prediction_vector: vector,
+    basis_labels: labels,
+    measurement_qubits: [1, 0],
+    comparison_basis: "sampled_frequency",
+    confidence: percentConfidenceToUnit(confidence),
+  }, keys.prediction)
+  return { learningSessionId: session.id, prediction }
+}
+
+export async function latestUnpairedConnectedPrediction(api: Api): Promise<ConnectedPredictionLock | null> {
+  let sessionCursor: string | undefined
+  for (let sessionPage = 0; sessionPage < RECOVERY_MAX_PAGES; sessionPage++) {
+    const sessions = await api.listSessions({ lessonId: "u1-quantum-foundations", limit: RECOVERY_PAGE_SIZE, cursor: sessionCursor })
+    for (const session of sessions.items) {
+      let predictionCursor: string | undefined
+      for (let predictionPage = 0; predictionPage < RECOVERY_MAX_PAGES; predictionPage++) {
+        const predictions = await api.listPredictions(session.id, { limit: RECOVERY_PAGE_SIZE, cursor: predictionCursor })
+        const unpaired = predictions.items.find((prediction) => prediction.pairing_status === "unpaired" && !prediction.run_id && prediction.lesson_id === "u1-quantum-foundations")
+        if (unpaired) return { learningSessionId: session.id, prediction: unpaired }
+        if (!predictions.next_cursor) break
+        if (predictions.next_cursor === predictionCursor) throw new Error("Saved prediction list did not advance. Please retry.")
+        predictionCursor = predictions.next_cursor
+      }
+    }
+    if (!sessions.next_cursor) break
+    if (sessions.next_cursor === sessionCursor) throw new Error("Saved session list did not advance. Please retry.")
+    sessionCursor = sessions.next_cursor
+  }
+  return null
+}
 
 /** Find a recent owned Superposition run, optionally including work still processing. */
 export async function latestConnectedSuperposition(api: Api): Promise<ConnectedLabResult | null>
@@ -97,7 +149,7 @@ export async function connectedSuperpositionForRun(api: Api, runId: string): Pro
     throw new ConnectedRunUnavailableError("mismatch", "This saved run does not match the requested link. Try another saved run.")
   }
   if (run.status === "queued" || run.status === "running") {
-    throw new ConnectedRunUnavailableError("pending", `This saved Aer run is ${run.status}. Check again for its comparison.`)
+    throw new ConnectedRunUnavailableError("pending", `This saved Aer run is ${run.status}. Check again for its comparison.`, run.status === "queued")
   }
   if (run.status !== "succeeded") {
     const status = run.status === "timed_out" ? "timed out" : run.status === "unknown" ? "unavailable" : run.status
@@ -130,6 +182,14 @@ function circuitFromGates(gates: GatePlacement[]): StudioCircuit {
   }
 }
 
+function matchesSavedCircuit(gates: GatePlacement[], saved: CircuitRecord): boolean {
+  if (saved.snapshot.qubits !== 2 || saved.snapshot.gates.some((gate) => gate.theta !== undefined || gate.control2 !== undefined)) return false
+  const signature = (items: StudioCircuit["gates"]) => items
+    .map((gate) => `${gate.id}:${gate.type}:${gate.step}:${gate.qubit}:${gate.target ?? ""}`)
+    .sort()
+  return JSON.stringify(signature(circuitFromGates(gates).gates)) === JSON.stringify(signature(saved.snapshot.gates))
+}
+
 async function pause(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) throw new DOMException("Operation cancelled", "AbortError")
   await new Promise<void>((resolve, reject) => {
@@ -150,6 +210,7 @@ export async function runConnectedSuperposition(
   keys: ConnectedLabKeys,
   onStatus: (status: string) => void,
   signal?: AbortSignal,
+  onSubmitted?: (runId: string) => void,
 ): Promise<ConnectedLabResult> {
   if (!Number.isInteger(input.shots) || input.shots < 1 || input.shots > 8192) throw new Error("Choose 1 to 8,192 shots.")
   const lessonId = "u1-quantum-foundations"
@@ -158,29 +219,40 @@ export async function runConnectedSuperposition(
   const confidence = percentConfidenceToUnit(input.confidence)
   const circuit = circuitFromGates(input.gates)
 
-  onStatus("Checking the current lesson version…")
-  const unit = await api.getCurriculumUnit("u1")
-  if (!unit.lessons.some((lesson) => lesson.id === lessonId)) throw new Error("The superposition lesson is unavailable.")
+  let sessionId: string
+  let predictionId: string
+  if (input.lockedPrediction) {
+    const { learningSessionId, prediction } = input.lockedPrediction
+    if (prediction.learning_session_id !== learningSessionId || prediction.lesson_id !== lessonId ||
+      prediction.pairing_status !== "unpaired" || prediction.run_id ||
+      prediction.prediction_vector.length !== vector.length ||
+      prediction.prediction_vector.some((value, index) => Math.abs(value - vector[index]) > 1e-9) ||
+      Math.abs((prediction.confidence ?? 0) - confidence) > 1e-9) {
+      throw new Error("The editor prediction differs from the saved lock. Recover or lock a new prediction.")
+    }
+    onStatus("Using your saved locked prediction…")
+    sessionId = learningSessionId
+    predictionId = prediction.id
+  } else {
+    onStatus("Checking the current lesson version…")
+    const unit = await api.getCurriculumUnit("u1")
+    if (!unit.lessons.some((lesson) => lesson.id === lessonId)) throw new Error("The superposition lesson is unavailable.")
+    ensureActive(signal)
+    onStatus("Saving your learning session…")
+    const session = await api.createSession({ lesson_id: lessonId, lesson_version: unit.content_version }, keys.session)
+    ensureActive(signal)
+    onStatus("Locking your prediction…")
+    const prediction = await api.lockPrediction(session.id, {
+      schema_version: 1, lesson_id: lessonId, lesson_version: unit.content_version, learning_session_id: session.id,
+      prediction_vector: vector, basis_labels: labels, measurement_qubits: [1, 0], comparison_basis: "sampled_frequency", confidence,
+    }, keys.prediction)
+    sessionId = session.id
+    predictionId = prediction.id
+  }
   ensureActive(signal)
-
-  onStatus("Saving your learning session…")
-  const session = await api.createSession({ lesson_id: lessonId, lesson_version: unit.content_version }, keys.session)
-  ensureActive(signal)
-  onStatus("Locking your prediction…")
-  const prediction = await api.lockPrediction(session.id, {
-    schema_version: 1,
-    lesson_id: lessonId,
-    lesson_version: unit.content_version,
-    learning_session_id: session.id,
-    prediction_vector: vector,
-    basis_labels: labels,
-    measurement_qubits: [1, 0],
-    comparison_basis: "sampled_frequency",
-    confidence,
-  }, keys.prediction)
-  ensureActive(signal)
-  onStatus("Saving the exact circuit…")
-  const saved = await api.createCircuit(circuit, keys.circuit)
+  const reuseSaved = input.savedCircuit && matchesSavedCircuit(input.gates, input.savedCircuit)
+  onStatus(reuseSaved ? "Using the selected saved circuit revision…" : "Saving the exact circuit…")
+  const saved = reuseSaved && input.savedCircuit ? input.savedCircuit : await api.createCircuit(circuit, keys.circuit)
   ensureActive(signal)
   onStatus("Submitting the Aer run…")
   const accepted = await api.submitRun({
@@ -188,17 +260,19 @@ export async function runConnectedSuperposition(
     circuit_revision: saved.revision,
     backend: "qiskit_aer",
     shots: input.shots,
-    prediction_id: prediction.id,
+    prediction_id: predictionId,
   }, keys.run)
+  ensureActive(signal)
+  onSubmitted?.(accepted.resource_id)
 
   for (let attempt = 0; attempt < 60; attempt++) {
     ensureActive(signal)
     const run = await api.getRun(accepted.resource_id, signal)
     if (run.status === "succeeded") {
       onStatus("Loading the verified comparison…")
-      const pair = await api.getPair(prediction.id)
-      if (pair.run_id !== run.id || pair.prediction_id !== prediction.id) throw new Error("The saved comparison does not match this run.")
-      return { pair, run, learningSessionId: session.id }
+      const pair = await api.getPair(predictionId)
+      if (pair.run_id !== run.id || pair.prediction_id !== predictionId) throw new Error("The saved comparison does not match this run.")
+      return { pair, run, learningSessionId: sessionId }
     }
     if (["failed", "cancelled", "timed_out", "unknown"].includes(run.status)) {
       throw new LearningLoopApiError(409, run.error_code ?? "run_failed", "The Aer run did not complete. Review the circuit and retry.")

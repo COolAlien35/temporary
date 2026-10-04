@@ -74,12 +74,27 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node --test scripts/check-release-config.test.mjs
       - run: pnpm audit --prod --audit-level=high
+      - name: Check connected image configuration gate
+        run: |
+          sh scripts/check-connected-config.sh
+          if REQUIRE_CONNECTED_CONFIG=1 sh scripts/check-connected-config.sh >/dev/null 2>&1; then exit 1; fi
+          REQUIRE_CONNECTED_CONFIG=1 \
+            NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co \
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=example-public-key \
+            NEXT_PUBLIC_QUANTUMLOOP_API_URL=https://api.example.com \
+            sh scripts/check-connected-config.sh
+          if REQUIRE_CONNECTED_CONFIG=1 \
+            NEXT_PUBLIC_SUPABASE_URL=http://example.supabase.co \
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=example-public-key \
+            NEXT_PUBLIC_QUANTUMLOOP_API_URL=https://api.example.com \
+            sh scripts/check-connected-config.sh >/dev/null 2>&1; then exit 1; fi
       - run: pnpm curriculum:check
       - run: pnpm hardware:check
       - run: pnpm build
       - run: pnpm exec tsc --noEmit
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - run: pnpm test:connected
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           version: '0.11.2'
@@ -127,6 +142,14 @@ jobs:
         run: |
           docker compose run --rm migrate alembic upgrade head
           docker compose run --rm migrate alembic check
+      - name: Rehearse PostgreSQL backup and restore
+        env:
+          QL_RESTORE_REHEARSAL: '1'
+        run: sh backend/scripts/rehearse_restore.sh
+      - name: Rehearse queued task across worker restart
+        env:
+          QL_WORKER_RESTART_REHEARSAL: '1'
+        run: sh backend/scripts/rehearse_worker_restart.sh
       - name: Verify disposable backup restore and worker interruption
         run: python3 scripts/recovery_drill.py
       - name: Check HTTP entry points
@@ -136,6 +159,7 @@ jobs:
       - name: Collect container logs
         if: always()
         run: |
+          if [ -d reports ]; then sudo chown -R "$(id -u):$(id -g)" reports; fi
           mkdir -p reports
           docker compose --profile web logs --no-color > reports/compose.log
       - name: Upload integration results

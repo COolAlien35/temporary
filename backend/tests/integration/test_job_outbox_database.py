@@ -106,10 +106,15 @@ def test_outbox_retries_broker_failure_and_delivers_to_real_worker():
                 cancelled_id = create_dispatchable_job(
                     session, owner, kind="export", task_name="quantumloop.jobs.probe"
                 ).id
+            cancelled = client.post(f"/api/v1/jobs/{cancelled_id}/cancel")
+            assert cancelled.status_code == 200
+            assert cancelled.json()["status"] == "cancelled"
+            assert cancelled.json()["finished_at"] is not None
+            assert client.post(f"/api/v1/jobs/{cancelled_id}/cancel").json() == cancelled.json()
             with Session(engine) as session:
-                transition_job(session, cancelled_id, "queued", "cancelled")
+                assert dispatch_pending(session).published == 0
             with Session(engine) as session:
-                assert dispatch_pending(session).discarded == 1
+                assert claim_job(session, cancelled_id, lease_seconds=5) is None
             with Session(engine) as session:
                 cancelled_message = get_outbox_for_job(session, cancelled_id)
                 assert cancelled_message is not None
@@ -267,7 +272,7 @@ def test_reconciler_replays_only_safe_expired_jobs_and_caps_attempts():
                 assert capped_message is not None and capped_message.discarded_at is not None
                 assert uncertain_message is not None and uncertain_message.discarded_at is not None
 
-            assert dispatch_once().published == 1
+            dispatch_once()
             receipt = AsyncResult(str(safe_id), app=celery_app)
             try:
                 assert receipt.get(timeout=30) == "succeeded"
@@ -275,7 +280,9 @@ def test_reconciler_replays_only_safe_expired_jobs_and_caps_attempts():
                 receipt.forget()
             with Session(engine) as session:
                 safe = session.get(Job, safe_id)
+                safe_message = get_outbox_for_job(session, safe_id)
                 assert safe is not None
+                assert safe_message is not None and safe_message.published_at is not None
                 assert safe.status == "succeeded"
                 assert safe.attempt_count == 2
                 assert safe.result_summary == {"diagnostic": "ok"}

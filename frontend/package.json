@@ -13,7 +13,8 @@
     "curriculum:check": "node scripts/export-curriculum.mjs --check",
     "test:e2e": "playwright test",
     "test:parties": "playwright test --config playwright.parties.config.ts",
-    "test:connected": "playwright test --config playwright.connected.config.ts"
+    "test:connected": "playwright test --config playwright.connected.config.ts",
+    "test:deployment": "playwright test --config playwright.deployment.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -48,6 +49,7 @@
     }
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24",

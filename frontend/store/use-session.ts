@@ -31,10 +31,10 @@ export const useSession = create<SessionState>()(
       mode: null,
       profiles: {},
       preferences: defaultLearningPreferences,
-      startSession: ({ user, mode }) => set((state) => {
+      startSession: ({ user, mode, preferences: accountPreferences }) => set((state) => {
         const saved = mode === "demo" ? state.profiles[user.id] : undefined
         const resolvedUser = saved ? { ...user, name: saved.name } : user
-        const preferences = saved?.preferences ?? defaultLearningPreferences
+        const preferences = mode === "connected" ? accountPreferences ?? defaultLearningPreferences : saved?.preferences ?? defaultLearningPreferences
         return {
           user: resolvedUser,
           mode,

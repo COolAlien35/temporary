@@ -34,6 +34,7 @@ class TutorMessage(Base):
     learning_session_id: Mapped[UUID] = mapped_column(
         ForeignKey("learning_sessions.id"), nullable=False
     )
+    run_id: Mapped[UUID | None] = mapped_column(ForeignKey("experiment_runs.id"))
     idempotency_key: Mapped[UUID] = mapped_column(nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[str] = mapped_column(String(24), nullable=False)

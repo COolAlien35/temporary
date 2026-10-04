@@ -139,15 +139,18 @@ Implement migration infrastructure and the identity foundation first. The follow
 
 ### B04 — Managed authentication, authorization, and cohorts
 
-The current backend implements operator-only instructor promotion, cohort creation/listing, owner-controlled instructor assignment, member listing/removal, single-use email-bound learner invitations, and revision-protected self-profile/settings edits with an IANA timezone. Browser CORS now allows the required `If-Match` request header and exposes the `ETag` response header. Cohort APIs derive actors from verified tokens; password recovery, account workflows, connected assignments, and authorization for future resources are still open.
+The current backend implements operator-only instructor promotion, cohort creation/listing, owner-controlled instructor assignment, member listing/removal, single-use email-bound learner invitations, and revision-protected self-profile/settings edits with an IANA timezone. Browser CORS now allows the required `If-Match` request header and exposes the `ETag` response header. Cohort APIs derive actors from verified tokens; account workflows, connected assignments, and authorization for future resources are still open.
 
-The frontend now has an opt-in Supabase email/password signup and login path, canonical `/me` identity lookup, browser-session restore, token refresh through the provider SDK, and local-scope logout. Demo mode remains explicit. Live-provider verification, password recovery, profile/settings persistence, and connected feature screens are open; keep the full B04 acceptance item unchecked.
+The frontend now has an opt-in Supabase email/password signup, login, and password recovery path, canonical `/me` identity lookup, browser-session restore, token refresh through the provider SDK, local-scope logout, and revision-checked connected profile/settings saves. Demo mode remains explicit. Live-provider verification and other connected feature screens are open; keep the full B04 acceptance item unchecked.
 
 - [ ] Integrate provider signup, login, logout, session refresh, and password recovery through the provider's supported frontend flow.
-- [x] Wire config-gated Supabase email/password signup/login, email-confirmation pending state, backend-verified `/me` identity, SDK session restore/refresh, and local-scope logout. No connected identity is persisted in the demo session store. Password recovery and live multi-account verification remain open.
+- [x] Wire config-gated Supabase email/password signup/login, email-confirmation pending state, backend-verified `/me` identity, SDK session restore/refresh, and local-scope logout. No connected identity is persisted in the demo session store. Live multi-account verification remains open.
+- [x] Show separate Supabase and local-demo signup choices, preserve signup metadata name on first backend profile creation, and verify confirmation-pending and immediate-session paths in mocked browser tests.
+- [x] Connect password-reset email requests and password updates to the Supabase browser SDK, then sign out locally; keep demo recovery explicitly local and cover both paths in mocked browser tests.
 - [ ] Verify JWT signature, issuer, audience, expiry, and key rotation in FastAPI and Socket.IO handshakes; define token expiry/revalidation for long connections.
 - [x] Create/update local profiles from verified identities. This implementation uses authenticated requests, not webhooks.
 - [x] Add self-profile and preferences APIs with timezone validation, `ETag`/`If-Match` revisions, and stale-write rejection.
+- [x] Load connected name and preferences from `/me` at sign-in and session restore; save settings with `If-Match`, reload after a 412 conflict, and keep demo settings browser-local.
 - [ ] Add account export/deletion workflows and session cleanup on sign-out.
 - [ ] Define learner/instructor permissions and an operator-controlled instructor provisioning path. Never accept instructor role selection from the demo UI.
 - [ ] Add cohort creation, instructor assignment, enrollment/invitation acceptance, and removal. Scope “all learners” assignments to an authorized cohort.
@@ -157,7 +160,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B05 — Curriculum and experiment learning sessions
 
-**Current checkpoint:** Read-only unit list/detail routes serve the exported curriculum with stable IDs, lesson content, separate format/content versions, review labels, and placeholder flags. Explicit learner schemas omit checkpoint answer keys and unreleased explanations. Matching prediction submission/pair shapes and a versioned TVD agreement function exist, with explicit 0–100% to 0–1 conversion utilities. Authenticated learners can create durable lesson sessions and immutable locked predictions, then discover them through owner-scoped cursor-paginated lists for cross-device resume. A prediction can bind to one owned Aer run for an exact circuit revision, and a successful run yields a server-derived owner-scoped pair. A bounded, owner-scoped agreement projection exposes recent successful pairs across the learner's sessions for the same lesson version, with unavailable sources identified explicitly. Curriculum and lab pages remain in demo mode. Current authored checkpoint answers heavily favor the first option and frontend demo bundles still contain keys; these checkpoints cannot be trusted for grading. Versioned database content, full stage progress, quiz/glossary/algorithm routes, full tutor history sources, and connected frontend pages remain open.
+**Current checkpoint:** Read-only unit list/detail routes serve the exported curriculum with stable IDs, lesson content, separate format/content versions, review labels, and placeholder flags. Explicit learner schemas omit checkpoint answer keys and unreleased explanations. Matching prediction submission/pair shapes and a versioned TVD agreement function exist, with explicit 0–100% to 0–1 conversion utilities. Authenticated learners can create durable lesson sessions and immutable locked predictions, then discover them through owner-scoped cursor-paginated lists for cross-device resume. A prediction can bind to one owned Aer run for an exact circuit revision, and a successful run yields a server-derived owner-scoped pair. A bounded, owner-scoped agreement projection exposes recent successful pairs across the learner's sessions for the same lesson version, with unavailable sources identified explicitly. Connected Superposition Learn now renders the learner-safe versioned unit payload; other curriculum and lab pages remain in demo mode. Current authored checkpoint answers heavily favor the first option and frontend demo bundles still contain keys; these checkpoints cannot be trusted for grading. Versioned database content, full stage progress, quiz/glossary/algorithm routes, and full tutor history sources remain open.
 
 - [ ] Serve units, lessons, quizzes, glossary/concept references, and supported algorithm metadata using existing IDs and review labels.
 - [ ] Exclude correct answers and unreleased explanations from learner-facing assessment payloads.
@@ -188,6 +191,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 - [ ] Apply the cross-cutting accessibility workstream below: synchronized readable gate sequence, keyboard placement/editing, and step inspection tied to immutable run snapshots.
 - [x] Complete the focused Studio inspection slice: readable gate sequence with keyboard placement/edit/move/delete and focus recovery; selected-step probability/statevector/Bloch tables, zero values, labeled slider boundaries, and stale-run invalidation. Analytical and production keyboard tests pass; full assistive-technology/WCAG acceptance stays open.
+- [x] Add a readable, time-ordered gate sequence beside the guided Build grid, with qubit labels, grid-focus and removal actions, live gate-count feedback, and focus recovery after removal. Full Studio parity and screen-reader acceptance remain open.
 - [x] Implement owner-scoped circuit create/read/update, immutable revision snapshots, and stale-save checks using `If-Match`.
 - [x] Pin every submitted simulation to the exact authorized circuit revision and checksum.
 - [x] Add paginated circuit list and archive/restore lifecycle, with ownership checks, revision preconditions, and immutable history.
@@ -204,10 +208,14 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B07 — Reliable async jobs and event delivery
 
-**Current checkpoint:** Job persistence, transitions, an owner-scoped status read, transactional outbox, and bounded recovery are implemented. Simulation submission now creates a durable run snapshot and job/outbox intent in one transaction, returns `202`, and stores the worker result in PostgreSQL under a fenced lease. Local Aer runs are deterministic/replay-safe; duplicate deliveries cannot replace completed results. Job cancellation/history, additional domain task policies, and release-wide operations remain open.
+**Current checkpoint:** Job persistence, transitions, owner-scoped job and run history, transactional outbox, and bounded recovery are implemented. Simulation submission creates a durable run snapshot and job/outbox intent in one transaction, returns `202`, and stores the worker result in PostgreSQL under a fenced lease. Local Aer runs are deterministic/replay-safe; duplicate deliveries cannot replace completed results. Queued jobs can be cancelled; active cancellation, additional domain task policies, and release-wide operations remain open.
 
 - [x] Define durable job records and transitions: queued, running, succeeded, failed, cancelled, timed out, and unknown; map them to frontend statuses.
 - [x] For local simulation, return `202` plus run/job ID and status URL, then provide owner-scoped run/job status and results.
+- [x] Expose owner-scoped cursor-paginated job summaries so interrupted clients can discover durable status records without downloading result payloads.
+- [x] Expose owner-scoped cursor-paginated Aer run summaries and browse them from the connected Run stage, including runs older than the recent-pair scan window.
+- [x] Bound new Aer submissions per learner per UTC day with a configurable quota, transactional owner lock across concurrent keys, and `429`/`Retry-After`; preserve idempotent replays after the limit.
+- [x] Let an owner cancel a queued job idempotently, discard its unpublished dispatch intent, and fence late worker claims; expose cancellation for a queued saved Aer run in connected Observe.
 - [ ] Add authorized cancellation and paginated run/job history endpoints.
 - [ ] Create separate Celery queues and concurrency/resource limits for simulation, optimization, code grading, and maintenance/export tasks.
 - [x] Use a transactional outbox so committed jobs remain dispatchable through broker outages.
@@ -389,6 +397,15 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 - [x] Add a focused, typed learning-loop HTTP client for the implemented session, prediction, circuit, run, pair, and tutor routes. Fetch a current managed-auth bearer token per request; preserve idempotency keys, revision preconditions, and structured service errors.
 - [x] Bind the opt-in learning-loop client to the configured Supabase browser session, fetching its current access token for every request. Connected login resolves identity through the authenticated backend `/me` route; demo sign-in remains browser-local.
 - [x] Connect the Superposition lab's Run stage to a first Aer path: fetch the live lesson version, create a learner session, lock the ordered prediction, save the exact circuit, submit the paired durable run, poll its status, and show the server-derived sampled comparison. Add a recent-pair recovery action using owner-scoped discovery. Live-provider/browser verification and the full persistent Observe-stage integration remain open.
+- [x] Connect the Superposition Build stage to the owned circuit library: list and reopen compatible saved circuits, create a named circuit, and update it with a revision precondition. Preserve gate IDs on reopen and verify recovery after clearing the local draft.
+- [x] Keep connected Superposition within the verified learner loop: show server agreement in the header, block local Debug/Challenge/Master grading and local result previews, and expose the accepted saved run link while Aer polling continues.
+- [x] Render the learner-safe versioned Superposition lesson in connected Learn before prediction, and show an accessible table of recent server-derived agreement, self-rated confidence, result basis, and shots in Observe.
+- [x] Pin a selected owned circuit revision in the connected Aer submission when its gates still match the editor; save a fresh immutable circuit snapshot after an edit. Verify both paths in service tests and the saved-revision path through the learner browser journey.
+- [x] Save the Superposition prediction and lesson session when the learner locks Predict, then reuse that immutable prediction for Aer submission. Recover a recent unpaired prediction through owner-scoped discovery after a local draft is lost.
+- [x] Connect Settings to the owned `/me` profile, including saved learning preferences, revision preconditions, conflict recovery, and account-scoped session hydration.
+- [x] Route connected home to the implemented Superposition learning loop and account settings, with honest scope text; hide browser-demo XP and streak metrics from the connected home shell.
+- [x] Keep an active connected learner in the lab when a same-account token refresh meets a temporary backend profile outage; clear immediately on account switch or rejected identity, and verify refresh plus the next authenticated lesson request in the connected browser suite.
+- [x] Load the connected curriculum index from the backend learner-safe unit list, link supported Superposition into its saved lab, and keep browser-demo XP/progress off the connected index. Route connected learners away from legacy demo-scored curriculum lessons and quizzes.
 - [ ] Add explicit demo/connected environment selection in `frontend/lib/services/index.ts`, authenticated requests, typed errors, and token-refresh behavior.
 - [ ] Set the API adapter base to `/api/v1`; replace provisional password APIs with managed-auth integration and update obsolete actor-ID/vote contracts.
 - [ ] Extend adapters and frontend stores for each backend feature. Replace direct local grading, mock tutor calls, coursework reads, and summary calculations in connected mode.
@@ -416,6 +433,7 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 - [x] Clear an older in-memory comparison before opening a recovered run ID, require Observe's visible result to match the URL, and verify a pending run never shows the older table or tutor action.
 - [x] Require Explain's visible comparison and tutor context to match the requested saved run ID, recovering that run when the in-memory comparison belongs to another round; verify run-bound tutor replies across saved-run navigation and reload.
 - [x] Give direct saved-run links in Explain explicit queued/failed/unavailable recovery: recheck pending work, retry transient errors, and return to saved-run discovery after failure; keep tutor actions hidden until the comparison is ready.
+- [x] Bind the connected Predict button to the server lock before advancing to Build; require that saved lock in Run and support bounded recovery of an unpaired lock after refresh.
 - [ ] Load the immutable B05.P pair by run ID, including after refresh/on another device. Display prediction, actual distribution, per-outcome signed delta, agreement score, result basis, shots, backend, and circuit revision.
 - [ ] Provide side-by-side visual comparison and an equivalent always-available numeric table, readable labels, and concise live announcements. Distinguish missing/pending/failed results, stale current edits, and low-shot sampled uncertainty.
 - [ ] Link the paired mismatch/context to the B13 tutor without trusting a browser-recomputed score. Keep previous rounds reviewable and clearly separate from the current unsaved circuit.
@@ -426,6 +444,8 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 ### B21 — Security, observability, and maintenance
 
 - [x] Complete the focused preview release controls: bounded HTTP bodies, account Aer quota with idempotent replay, private API cache policy, safe Docker contexts, correlated request metadata, production configuration validation, dependency audits and local recovery drill. Broader B21 controls below remain open. See [release evidence](docs/deployment-readiness.md).
+- [x] Enforce a configurable API-wide request-body cap for declared and chunked payloads, returning a structured 413 without echoing input; verify valid-body replay and oversized rejection locally.
+- [x] Emit a request ID, method, route template, status, and duration for API requests without logging authorization headers, query values, or path parameters; disable Uvicorn's raw URL access log in the deployed API image.
 - [ ] Enforce input/body limits, authorization, rate limits, secure secret storage, restricted CORS, and CSRF protection where cookie-based requests apply.
 - [ ] Restrict provider URLs and import/download behavior to prevent arbitrary internal network requests; keep sandbox and infrastructure endpoints private.
 - [ ] Emit correlated API/job/provider logs with sensitive fields redacted; record administrative, role, publication, and grading changes in audit history.
@@ -437,6 +457,8 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 
 ### B22 — Verification and release acceptance
 
+- [x] Include the mocked connected learner browser suite in CI alongside production demo browser tests; reconcile existing content-chunk migration metadata so schema drift remains a meaningful gate.
+- [x] Run automated WCAG 2.1 A/AA scans at connected Learn, Build, Observe, and Explain in the browser acceptance journey; move keyboard focus to each new lab stage heading and verify Enter-key progression. Manual screen-reader and full-route audits remain open.
 - [ ] After every major task, add its acceptance tests, run its required suites, debug failures, and rerun the affected regression suites before marking it complete. Use the task-specific matrix below.
 - [ ] Require GitHub Actions `Required checks` in branch protection; require success on the latest commit. A workflow file alone does not enable repository rules.
 - [ ] Keep production-build frontend browser tests and real PostgreSQL/Redis/worker integration tests in CI. Do not use eager Celery or SQLite as evidence that the deployed stack works.
@@ -457,6 +479,19 @@ The frontend now has an opt-in Supabase email/password signup and login path, ca
 ### B23 — Deploy and hand over
 
 - [x] Prepare the scoped Render/Supabase Blueprint and release runbook, fix worker/dispatcher startup settings, validate connected frontend builds, configure publication of distinct API/worker/web images through checked CI, and provide a sequential local release gate. Actual provisioning, publication and hosted smoke checks remain open.
+- [x] Build and boot the local production frontend image with configured public Supabase values alongside the API, PostgreSQL, Redis, and Aer worker; check frontend signup/home and API readiness responses.
+- [x] Prepare a Render Blueprint for the learner deployment slice with distinct API, Aer worker, dispatcher, frontend, broker, and cache services; document Supabase values and rollout/smoke steps. Live provisioning and recovery acceptance remain open.
+- [x] Add a credentialed two-account deployment smoke command for health, saved learner Aer pairing, tutor, and cross-account denials. Execution against a hosted provider remains open.
+- [x] Persist and return each tutor message's exact optional run ID so connected Explain restores the correct saved discussion after reload; verify owner-scoped read/list behavior. Existing messages before this migration have no recoverable exact run ID.
+- [x] Add a credentialed, unmocked Playwright deployment journey for two Supabase learners, saved Aer comparison, tutor reload, and cross-account denial; execution against live hosting remains open.
+- [x] Add a disposable PostgreSQL backup/restore rehearsal to CI with a saved-row and Alembic-version check. Supabase staging recovery, artifact access, and Redis reconstruction remain open.
+- [x] Rehearse a queued diagnostic task across a local Compose worker stop/restart in CI, using the real broker and result backend. In-flight Aer drain and hosted worker recovery remain open.
+- [x] Recover an expired local Aer job lease through the real PostgreSQL/Redis worker stack and reject the abandoned attempt's stale completion. Graceful in-flight worker draining and hosted recovery remain open.
+- [x] Require valid public connected-account settings during the Render frontend build and exclude local `.env` files from the backend Docker context; CI checks the build gate. Live Blueprint application remains open.
+- [x] Let the hosted API smoke sign in two Supabase test learners from environment credentials, matching the browser smoke, with sanitized authentication failures; live execution remains open.
+- [x] Make the live browser smoke use two isolated browser contexts and verify learner A retains access while learner B is denied; execution against a hosted deployment remains open.
+- [x] Add a manually dispatched hosted learner smoke workflow that runs the credentialed API and independent-session browser journeys from the default branch; repository test secrets and live execution remain open.
+- [x] Prepare a concise, reproducible two-account connected learner demo script with expected saved-run and tutor behavior, quotas, and an honest provider-outage fallback. Hosted execution remains open.
 - [ ] Provision staging/production API, worker queues, scheduler if needed, managed PostgreSQL, compatible Redis, object storage, and the isolated grading service.
 - [ ] Configure provider secrets, DNS/TLS, frontend origins, auth redirect URLs, storage CORS, realtime proxy timeouts, and health probes.
 - [ ] Build CI/CD gates for static checks, tests, images, and controlled migrations; run migrations once per release before incompatible application traffic.

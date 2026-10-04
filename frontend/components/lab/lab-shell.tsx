@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { LabProvider, useLab } from "@/lib/lab-context"
 import { TopBar } from "@/components/lab/top-bar"
 import { LeftSidebar } from "@/components/lab/left-sidebar"
@@ -31,11 +32,37 @@ const STAGE_COMPONENTS: Record<number, React.ComponentType> = {
 }
 
 function LabStageRouter() {
-  const { stage, activeTab } = useLab()
+  const { stage, activeTab, connectedRunMode, goToStage, setActiveTab } = useLab()
+  if (connectedRunMode && stage > 6) return <section role="status" className="mx-auto max-w-xl rounded-xl border border-border bg-card/60 p-6">
+    <h2 className="text-lg font-semibold">Connected grading is not available yet</h2>
+    <p className="mt-2 text-sm text-muted-foreground">Debug, Challenge, and Master still use local practice checks. Return to your saved Aer comparison and Lab Partner discussion.</p>
+    <button type="button" onClick={() => { setActiveTab("circuit"); goToStage(5) }} className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Review saved comparison</button>
+  </section>
   if (activeTab === "code") return <CodeEditorPanel />
+  if (connectedRunMode && activeTab !== "circuit") return <section role="status" className="mx-auto max-w-xl rounded-xl border border-border bg-card/60 p-6">
+    <h2 className="text-lg font-semibold">Saved Aer visualization is in Observe</h2>
+    <p className="mt-2 text-sm text-muted-foreground">This local preview does not represent a saved server run. Connected comparisons appear in Observe after an Aer run.</p>
+    <button type="button" onClick={() => setActiveTab("circuit")} className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Open circuit view</button>
+  </section>
   if (activeTab === "histogram" || activeTab === "statevector" || activeTab === "bloch") return <LabToolPanel tab={activeTab} />
   const StageComponent = STAGE_COMPONENTS[stage] ?? StageLearn
   return <StageComponent />
+}
+
+function LabStageFocus() {
+  const { stage } = useLab()
+  const previousStage = useRef(stage)
+
+  useEffect(() => {
+    if (previousStage.current === stage) return
+    previousStage.current = stage
+    const heading = document.querySelector<HTMLElement>("#lab-stage-content h1, #lab-stage-content h2")
+    if (!heading) return
+    heading.tabIndex = -1
+    heading.focus()
+  }, [stage])
+
+  return null
 }
 
 export function LabShell({ algorithmSlug, initialStage = 1 }: { algorithmSlug: string; initialStage?: number }) {
@@ -47,8 +74,9 @@ export function LabShell({ algorithmSlug, initialStage = 1 }: { algorithmSlug: s
         <TopBar />
         <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
           <LeftSidebar />
-          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
+          <main id="lab-stage-content" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
             <LabStageRouter />
+            <LabStageFocus />
           </main>
           <RightSidebar />
         </div>

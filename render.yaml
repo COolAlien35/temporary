@@ -1,5 +1,7 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
 # Deploys after Blueprint creation are manual so migrations can precede workers.
 # Initial Blueprint creation may start services concurrently; see the runbook.
+# Change every region together before creating the Blueprint if the database is elsewhere.
 services:
   - type: keyvalue
     name: quantumloop-broker
@@ -28,14 +30,12 @@ services:
     preDeployCommand: alembic upgrade head
     autoDeployTrigger: "off"
     envVars:
-      - key: PORT
-        value: "8000"
+      - key: DEPLOY_STAGE
+        value: runtime
       - key: RUNTIME_STAGE
         value: runtime
-      - key: QL_DB_POOL_SIZE
-        value: "3"
-      - key: QL_DB_MAX_OVERFLOW
-        value: "0"
+      - key: PORT
+        value: "8000"
       - key: QL_ENVIRONMENT
         value: production
       - key: QL_DATABASE_URL
@@ -46,6 +46,14 @@ services:
         value: authenticated
       - key: QL_CORS_ORIGINS
         sync: false
+      - key: QL_TUTOR_API_KEY
+        sync: false
+      - key: QL_SIMULATION_DAILY_RUN_LIMIT
+        value: "100"
+      - key: QL_DB_POOL_SIZE
+        value: "3"
+      - key: QL_DB_MAX_OVERFLOW
+        value: "0"
       - key: QL_BROKER_URL
         fromService:
           type: keyvalue
@@ -73,10 +81,14 @@ services:
     maxShutdownDelaySeconds: 300
     autoDeployTrigger: "off"
     envVars:
+      - key: DEPLOY_STAGE
+        value: worker
       - key: RUNTIME_STAGE
         value: worker
       - key: QL_ENVIRONMENT
         value: production
+      - key: QL_TASK_TIME_LIMIT
+        value: "270"
       - key: QL_DATABASE_URL
         fromService:
           type: web
@@ -122,14 +134,16 @@ services:
     dockerCommand: python -m app.modules.jobs.dispatcher
     autoDeployTrigger: "off"
     envVars:
+      - key: DEPLOY_STAGE
+        value: runtime
       - key: RUNTIME_STAGE
         value: runtime
+      - key: QL_ENVIRONMENT
+        value: production
       - key: QL_DB_POOL_SIZE
         value: "3"
       - key: QL_DB_MAX_OVERFLOW
         value: "0"
-      - key: QL_ENVIRONMENT
-        value: production
       - key: QL_DATABASE_URL
         fromService:
           type: web
@@ -175,6 +189,8 @@ services:
     healthCheckPath: /
     autoDeployTrigger: "off"
     envVars:
+      - key: PORT
+        value: "3000"
       - key: REQUIRE_CONNECTED_CONFIG
         value: "true"
       # NEXT_PUBLIC_* values are embedded at build time. Redeploy after changing them.

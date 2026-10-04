@@ -10,7 +10,7 @@ import { ConnectedLabPartnerChat } from "./connected-lab-partner-chat"
 import { StageHeader } from "./stage-header"
 
 export function ConnectedExplain() {
-  const { connectedResult, gates, advanceStage, goToStage } = useLab()
+  const { connectedResult, gates, rememberConnectedResult, goToStage } = useLab()
   const learnerId = useSession((state) => state.user?.id ?? null)
   const runId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("run")
   const [recovered, setRecovered] = useState<ConnectedLabResult | null>(null)
@@ -28,7 +28,7 @@ export function ConnectedExplain() {
     setRunUnavailable(null)
     setEmpty(false)
     void (runId ? connectedSuperpositionForRun(connectedLearningLoopApi(), runId) : latestConnectedSuperposition(connectedLearningLoopApi()))
-      .then((saved) => { if (active) { setRecovered(saved); setEmpty(!saved) } })
+      .then((saved) => { if (active) { setRecovered(saved); setEmpty(!saved); if (saved) rememberConnectedResult(saved) } })
       .catch((cause) => {
         if (!active) return
         if (cause instanceof ConnectedRunUnavailableError) setRunUnavailable(cause)
@@ -36,7 +36,7 @@ export function ConnectedExplain() {
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [connectedResult, learnerId, reload, runId])
+  }, [connectedResult, learnerId, reload, rememberConnectedResult, runId])
 
   const matchesRun = (result: ConnectedLabResult | null) => result && (!runId || result.run.id.toLowerCase() === runId.toLowerCase()) ? result : null
   const result = matchesRun(connectedResult) ?? matchesRun(recovered)
@@ -46,10 +46,11 @@ export function ConnectedExplain() {
   if (!learnerId) return <div className="mx-auto max-w-3xl"><StageHeader eyebrow="Stage 6 of 9 · Saved Run Discussion" title="Discuss Your Aer Result" /><p role="status" className="mt-4 text-sm text-muted-foreground">Sign in to load your saved run and tutor messages.</p><Link href="/login" className="mt-4 inline-block text-sm font-semibold text-primary">Go to login →</Link></div>
 
   return <div>
-    <StageHeader eyebrow="Stage 6 of 9 · Saved Run Discussion" title="Discuss Your Aer Result" action={pair && <button type="button" onClick={() => advanceStage(6, 7)} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-black">Proceed to Debug Challenge →</button>} />
+    <StageHeader eyebrow="Stage 6 of 9 · Saved Run Discussion" title="Discuss Your Aer Result" action={pair && <button type="button" onClick={() => goToStage(5)} className="rounded-full border border-border px-4 py-2 text-sm font-semibold">Review comparison</button>} />
     <p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{loading ? "Loading the saved Aer result…" : pair ? `Server-derived prediction agreement ${(pair.prediction_match * 100).toFixed(1)} percent.` : empty ? RECENT_COMPARISON_EMPTY_MESSAGE : runUnavailable?.message || error || "Open a completed Aer run to discuss its comparison."}</p>
     {(error || runUnavailable) && <button type="button" onClick={() => setReload((n) => n + 1)} className="mt-4 rounded-full border border-border px-4 py-2 text-sm font-semibold">{runUnavailable?.kind === "pending" ? "Check again" : "Retry"}</button>}
     {((runUnavailable && runUnavailable.kind !== "pending") || empty) && <button type="button" onClick={() => goToStage(4)} className="mt-4 ml-3 rounded-full border border-border px-4 py-2 text-sm font-semibold">Find another saved run</button>}
+    {pair && <p className="mt-3 text-xs text-muted-foreground">Connected Debug and Challenge grading are coming later. This saved discussion does not award a score or XP.</p>}
     {pair && run && result && <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_1fr]">
       <div>
         <h3 className="text-sm font-semibold text-foreground">Saved run summary</h3>

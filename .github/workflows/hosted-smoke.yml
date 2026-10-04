@@ -1,0 +1,75 @@
+name: Hosted learner smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: Deployed API HTTPS origin
+        required: true
+        type: string
+      frontend_url:
+        description: Deployed frontend HTTPS origin
+        required: true
+        type: string
+      supabase_url:
+        description: Supabase project HTTPS origin
+        required: true
+        type: string
+      supabase_publishable_key:
+        description: Public Supabase publishable key
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosted-learner-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Two-account hosted learner journey
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      QL_SMOKE_API_URL: ${{ inputs.api_url }}
+      QL_SMOKE_FRONTEND_URL: ${{ inputs.frontend_url }}
+      QL_SMOKE_SUPABASE_URL: ${{ inputs.supabase_url }}
+      QL_SMOKE_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase_publishable_key }}
+      QL_SMOKE_EMAIL_A: ${{ secrets.QL_SMOKE_EMAIL_A }}
+      QL_SMOKE_PASSWORD_A: ${{ secrets.QL_SMOKE_PASSWORD_A }}
+      QL_SMOKE_EMAIL_B: ${{ secrets.QL_SMOKE_EMAIL_B }}
+      QL_SMOKE_PASSWORD_B: ${{ secrets.QL_SMOKE_PASSWORD_B }}
+    steps:
+      - name: Require main and separate configured test accounts
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || { echo 'Run this workflow from the default branch.' >&2; exit 1; }
+          for name in QL_SMOKE_EMAIL_A QL_SMOKE_PASSWORD_A QL_SMOKE_EMAIL_B QL_SMOKE_PASSWORD_B; do
+            test -n "${!name}" || { echo "$name repository secret is missing." >&2; exit 1; }
+          done
+          test "$QL_SMOKE_EMAIL_A" != "$QL_SMOKE_EMAIL_B" || { echo 'Use two separate test accounts.' >&2; exit 1; }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check hosted API, Aer worker, tutor, and owner isolation
+        run: python3 backend/scripts/deployment_smoke.py --supabase-login --tutor
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install browser test dependencies
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: Check hosted browser login, saved run, tutor, and account isolation
+        working-directory: frontend
+        run: pnpm test:deployment

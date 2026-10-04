@@ -1,9 +1,11 @@
+import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.exc import OperationalError
@@ -70,6 +72,36 @@ def test_unknown_route_has_structured_error_and_bounded_request_id():
     assert len(response.headers["X-Request-ID"]) <= 64
 
 
+def test_request_log_has_correlation_and_excludes_sensitive_values(caplog):
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
+    app = create_app()
+
+    @app.get("/saved/{run_id}")
+    def saved_run(run_id: str) -> dict[str, str]:
+        return {"id": run_id}
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/health/live?email=private@example.test",
+            headers={"X-Request-ID": "release-check-1", "Authorization": "Bearer secret-token"},
+        )
+        saved = client.get("/saved/private-run?note=hidden")
+    assert response.status_code == 200
+    assert saved.status_code == 200
+    log = "\n".join(
+        record.getMessage() for record in caplog.records if record.name == "uvicorn.error"
+    )
+    assert "request_id=release-check-1" in log
+    assert "route=/health/live" in log
+    assert "status=200" in log
+    assert "duration_ms=" in log
+    assert "route=/saved/{run_id}" in log
+    assert "secret-token" not in log
+    assert "private@example.test" not in log
+    assert "private-run" not in log
+    assert "hidden" not in log
+
+
 def test_unexpected_error_is_redacted():
     app = create_app()
 
@@ -94,6 +126,26 @@ def test_validation_error_does_not_echo_input():
         response = client.get("/validated?count=secret-value")
     assert response.status_code == 422
     assert "secret-value" not in response.text
+
+
+def test_request_body_limit_replays_valid_body_and_rejects_oversized_streams():
+    app = create_app(Settings(max_request_body_bytes=1024))
+
+    @app.post("/echo")
+    async def echo(request: Request) -> dict[str, int]:
+        return {"size": len(await request.body())}
+
+    with TestClient(app) as client:
+        valid = client.post("/echo", content=b"x" * 1024)
+        oversized = client.post("/echo", content=b"secret" * 200)
+        streamed = client.post("/echo", content=iter([b"x" * 600, b"secret" * 100]))
+    assert valid.status_code == 200
+    assert valid.json() == {"size": 1024}
+    for response in (oversized, streamed):
+        assert response.status_code == 413
+        assert response.json()["error"]["code"] == "request_too_large"
+        assert response.json()["error"]["requestId"] == response.headers["X-Request-ID"]
+        assert "secret" not in response.text
 
 
 def test_cors_allows_only_configured_origins():

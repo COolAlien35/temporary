@@ -32,6 +32,7 @@ class TutorMessageRead(BaseModel):
 
     id: UUID
     learning_session_id: UUID
+    run_id: UUID | None
     action: TutorAction
     stage: TutorStage
     prompt: str

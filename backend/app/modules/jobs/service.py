@@ -1,14 +1,23 @@
 import json
+from base64 import b64decode, urlsafe_b64encode
+from binascii import Error as Base64Error
 from datetime import UTC, datetime
+from typing import cast
 from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.errors import ApiHTTPException
 from app.modules.identity.public import Actor
 from app.modules.jobs.models import Job
-from app.modules.jobs.repository import get_job_for_update, get_owned_job
-from app.modules.jobs.schemas import JobKind, JobStatus
+from app.modules.jobs.repository import (
+    get_job_for_update,
+    get_outbox_for_job,
+    get_owned_job,
+    list_owned_jobs,
+)
+from app.modules.jobs.schemas import FRONTEND_STATUS, JobKind, JobPage, JobStatus, JobSummary
 
 QUEUE_FOR_KIND: dict[JobKind, str] = {
     "simulation": "simulation",
@@ -48,6 +57,69 @@ def read_job(session: Session, actor: Actor, job_id: UUID) -> Job:
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+def cancel_queued_job(session: Session, actor: Actor, job_id: UUID) -> Job:
+    """Cancel before worker claim; a published delivery remains fenced by job status."""
+    with session.begin():
+        job = get_job_for_update(session, job_id)
+        if job is None or job.owner_id != actor.id:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.status == "cancelled":
+            return job
+        if job.status != "queued":
+            raise ApiHTTPException(409, "job_not_queued", "Only queued jobs can be cancelled")
+        now = datetime.now(UTC)
+        job.status = "cancelled"
+        job.finished_at = now
+        message = get_outbox_for_job(session, job_id)
+        if message is not None and message.published_at is None:
+            message.discarded_at = now
+        session.flush()
+        session.refresh(job)
+        return job
+
+
+def _decode_cursor(cursor: str | None) -> tuple[datetime, UUID] | None:
+    if cursor is None:
+        return None
+    try:
+        if not 1 <= len(cursor) <= 256:
+            raise ValueError
+        raw = b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
+        value = json.loads(raw)
+        if not isinstance(value, dict) or set(value) != {"created_at", "id"}:
+            raise ValueError
+        created_at = datetime.fromisoformat(value["created_at"])
+        if created_at.tzinfo is None or created_at.utcoffset() is None:
+            raise ValueError
+        return created_at, UUID(value["id"])
+    except (ValueError, TypeError, KeyError, Base64Error, UnicodeDecodeError):
+        raise ApiHTTPException(422, "invalid_cursor", "Invalid job cursor") from None
+
+
+def list_jobs(session: Session, actor: Actor, limit: int, cursor: str | None) -> JobPage:
+    rows = list_owned_jobs(session, actor.id, limit + 1, _decode_cursor(cursor))
+    visible = rows[:limit]
+    items = [
+        JobSummary(
+            id=job.id,
+            kind=cast(JobKind, job.kind),
+            status=cast(JobStatus, job.status),
+            frontend_status=FRONTEND_STATUS[job.status],
+            error_code=job.error_code,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            finished_at=job.finished_at,
+        )
+        for job in visible
+    ]
+    next_cursor = None
+    if len(rows) > limit and visible:
+        last = visible[-1]
+        payload = json.dumps({"created_at": last.created_at.isoformat(), "id": str(last.id)})
+        next_cursor = urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    return JobPage(items=items, next_cursor=next_cursor)
 
 
 def transition_job(

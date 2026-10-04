@@ -151,8 +151,8 @@ def _embed_batch(chunks: list[dict[str, Any]]) -> list[list[float]]:
     if settings.embedding_dim != MIGRATION_EMBEDDING_DIM:
         raise RuntimeError(
             f"EMBEDDING_DIM={settings.embedding_dim} does not match migration dimension "
-            f"{MIGRATION_EMBEDDING_DIM}; changing dimensions requires "
-            "a new migration and re-embedding"
+            f"{MIGRATION_EMBEDDING_DIM}; changing dimensions requires a new migration "
+            "and re-embedding"
         )
     request_body = json.dumps(
         {

@@ -30,13 +30,19 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
             owner_id = owner.id
             current = IdentityClaims(subjects[1], "other-job-user@example.test")
             assert client.get("/api/v1/me").status_code == 200
+            assert client.get("/api/v1/jobs").json() == {"items": [], "next_cursor": None}
 
             with Session(engine) as session:
                 job_id = create_job(session, owner, "simulation").id
             assert client.get(f"/api/v1/jobs/{job_id}").status_code == 404
+            assert client.post(f"/api/v1/jobs/{job_id}/cancel").status_code == 404
             assert client.get(f"/api/v1/jobs/{uuid4()}").status_code == 404
 
             current = IdentityClaims(subjects[0], "job-owner@example.test")
+            bad_cursor = client.get("/api/v1/jobs?cursor=not-a-cursor")
+            assert bad_cursor.status_code == 422
+            assert bad_cursor.json()["error"]["code"] == "invalid_cursor"
+            assert client.get("/api/v1/jobs?limit=51").status_code == 422
             queued = client.get(f"/api/v1/jobs/{job_id}")
             assert queued.status_code == 200
             assert queued.json()["status"] == "queued"
@@ -46,6 +52,9 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
             with Session(engine) as session:
                 running = transition_job(session, job_id, "queued", "running")
                 assert running.started_at is not None
+            running_cancel = client.post(f"/api/v1/jobs/{job_id}/cancel")
+            assert running_cancel.status_code == 409
+            assert running_cancel.json()["error"]["code"] == "job_not_queued"
             with Session(engine) as session:
                 transition_job(session, job_id, "running", "unknown")
             unknown = client.get(f"/api/v1/jobs/{job_id}")
@@ -78,7 +87,9 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
             assert completed_response.json()["status"] == "succeeded"
             assert completed_response.json()["frontend_status"] == "completed"
             assert completed_response.json()["result_summary"] == result
+            assert client.post(f"/api/v1/jobs/{job_id}/cancel").status_code == 409
 
+            other_ids: list[UUID] = []
             for target, expected, error_code in (
                 ("cancelled", "queued", None),
                 ("failed", "running", "provider_unavailable"),
@@ -86,6 +97,7 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
             ):
                 with Session(engine) as session:
                     other_id = create_job(session, owner, "export").id
+                other_ids.append(other_id)
                 if expected == "running":
                     with Session(engine) as session:
                         transition_job(session, other_id, "queued", "running")
@@ -95,6 +107,25 @@ def test_durable_jobs_are_owner_scoped_and_terminal_writes_are_fenced():
                 assert response.json()["status"] == target
                 assert response.json()["frontend_status"] == "failed"
                 assert response.json()["finished_at"] is not None
+
+            first_page = client.get("/api/v1/jobs?limit=2")
+            assert first_page.status_code == 200
+            assert len(first_page.json()["items"]) == 2
+            assert first_page.json()["next_cursor"]
+            assert all("result_summary" not in item for item in first_page.json()["items"])
+            second_page = client.get(
+                "/api/v1/jobs", params={"limit": 2, "cursor": first_page.json()["next_cursor"]}
+            )
+            assert second_page.status_code == 200
+            assert len(second_page.json()["items"]) == 2
+            assert second_page.json()["next_cursor"] is None
+            listed_ids = {
+                item["id"] for page in (first_page, second_page) for item in page.json()["items"]
+            }
+            assert listed_ids == {str(job_id), *(str(item) for item in other_ids)}
+            current = IdentityClaims(subjects[1], "other-job-user@example.test")
+            assert client.get("/api/v1/jobs").json() == {"items": [], "next_cursor": None}
+            current = IdentityClaims(subjects[0], "job-owner@example.test")
 
             with Session(engine) as session, pytest.raises(ValueError):
                 transition_job(session, job_id, "succeeded", "running")

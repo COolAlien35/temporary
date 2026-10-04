@@ -1,8 +1,20 @@
 import type { StudioCircuit } from "@/lib/studio/types"
 import type { PredictionPair, PredictionSubmission } from "./contracts"
 import type { LearnerUnit } from "./contracts"
+import type { LearningPreferences } from "./contracts"
 
 export type Page<T> = { items: T[]; next_cursor: string | null }
+export type ConnectedProfile = {
+  id: string
+  email: string
+  name: string
+  role: "learner" | "instructor"
+  preferences: LearningPreferences
+  timezone: string
+  revision: number
+  created_at: string
+  updated_at: string
+}
 export type LearningSession = {
   id: string
   lesson_id: string
@@ -46,6 +58,7 @@ export type SavedRun = {
   result: Record<string, unknown> | null
   created_at: string
 }
+export type RunSummary = Pick<SavedRun, "id" | "status" | "error_code" | "circuit_id" | "circuit_revision" | "backend" | "shots" | "prediction_id" | "created_at">
 export type AgreementHistory = {
   lesson_id: string
   lesson_version: number
@@ -77,9 +90,10 @@ export type TutorRequestBody = {
   circuit_id?: string
   circuit_revision?: number
 }
-export type SavedTutorMessage = TutorRequestBody & {
+export type SavedTutorMessage = Pick<TutorRequestBody, "action" | "stage" | "prompt"> & {
   id: string
   learning_session_id: string
+  run_id: string | null
   status: "pending" | "completed" | "failed"
   role: "pedagogical_guide" | "circuit_debugger" | "analytics_planner"
   prompt_version: string
@@ -152,7 +166,15 @@ export function createLearningLoopApi(
   const sessionPath = (id: string) => `/learning-sessions/${encodeURIComponent(id)}`
 
   return {
+    getProfile: () => request<ConnectedProfile>("/me"),
+    updateProfile: (patch: { name?: string; preferences?: Partial<LearningPreferences> }, revision: number) =>
+      request<ConnectedProfile>("/me", {
+        method: "PATCH",
+        headers: { "If-Match": `"rev-${revision}"` },
+        body: JSON.stringify(patch),
+      }),
     getCurriculumUnit: (id: string) => request<LearnerUnit>(`/curriculum/units/${encodeURIComponent(id)}`),
+    listCurriculumUnits: () => request<LearnerUnit[]>("/curriculum/units"),
     listSessions: (options?: { lessonId?: string; limit?: number; cursor?: string }) =>
       request<Page<LearningSession>>(pagePath("/learning-sessions", options)),
     createSession: (body: { lesson_id: string; lesson_version: number }, key: string) =>
@@ -182,6 +204,9 @@ export function createLearningLoopApi(
     submitRun: (body: { circuit_id: string; circuit_revision: number; backend: "qiskit_aer"; shots: number; seed?: number; prediction_id?: string }, key: string) =>
       post<RunAccepted>("/experiments/runs", body, key),
     getRun: (id: string, signal?: AbortSignal) => request<SavedRun>(`/experiments/runs/${encodeURIComponent(id)}`, { signal }),
+    listRuns: (options?: { limit?: number; cursor?: string }) =>
+      request<Page<RunSummary>>(pagePath("/experiments/runs", options)),
+    cancelJob: (id: string) => request<{ id: string; status: SavedRun["status"] }>(`/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
     listTutorMessages: (sessionId: string) => request<SavedTutorMessage[]>(`${sessionPath(sessionId)}/tutor/messages`),
     sendTutorMessage: (sessionId: string, body: TutorRequestBody, key: string) =>
       post<SavedTutorMessage>(`${sessionPath(sessionId)}/tutor/messages`, body, key),

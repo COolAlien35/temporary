@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     auth_issuer: str | None = None
     auth_audience: str = "authenticated"
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    max_request_body_bytes: int = Field(default=262_144, ge=1024, le=10_485_760)
     db_pool_size: int = Field(default=5, ge=1, le=50)
     db_max_overflow: int = Field(default=5, ge=0, le=50)
     worker_db_pool_size: int = Field(default=2, ge=1, le=20)
@@ -28,9 +29,8 @@ class Settings(BaseSettings):
     tutor_model: str = "gpt-5.4-mini"
     tutor_timeout_seconds: int = Field(default=15, ge=1, le=60)
     tutor_max_completion_tokens: int = Field(default=256, ge=64, le=1024)
-    tutor_daily_request_limit: int = Field(default=20, ge=1, le=100)
-    simulation_daily_run_limit: int = Field(default=100, ge=1, le=1000)
-    request_body_max_bytes: int = Field(default=262144, ge=65536, le=1048576)
+    simulation_daily_run_limit: int = Field(default=100, ge=1, le=10_000)
+    request_body_max_bytes: int = Field(default=262_144, ge=1024, le=10_485_760)
     embedding_model: str = Field(
         default="text-embedding-3-small", validation_alias="EMBEDDING_MODEL"
     )

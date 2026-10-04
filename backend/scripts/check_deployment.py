@@ -68,6 +68,8 @@ def validate() -> None:
                 value = "https://release.supabase.co/auth/v1"
             elif key == "QL_CORS_ORIGINS":
                 value = '["https://web.example.test"]'
+            elif key in {"QL_TUTOR_API_KEY", "QL_EMBEDDING_API_KEY"}:
+                value = ""
             else:
                 value = f"redis://{item['fromService']['name']}:6379/0"
             values[key[3:].lower()] = json.loads(value) if key == "QL_CORS_ORIGINS" else value

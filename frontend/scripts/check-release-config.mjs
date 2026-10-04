@@ -1,5 +1,5 @@
 // Render opts into connected release validation; local demo builds stay available.
-if (process.env.REQUIRE_CONNECTED_CONFIG === "true") {
+if (process.env.REQUIRE_CONNECTED_CONFIG === "true" || process.env.REQUIRE_CONNECTED_CONFIG === "1") {
   const keys = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_QUANTUMLOOP_API_URL"]
   for (const key of keys) {
     const value = process.env[key]

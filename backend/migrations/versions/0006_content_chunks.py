@@ -47,7 +47,10 @@ def upgrade() -> None:
     )
     op.create_index("ix_content_chunks_unit_lesson", "content_chunks", ["unit_id", "lesson_id"])
     op.create_index(
-        "ix_content_chunks_concept_tags", "content_chunks", ["concept_tags"], postgresql_using="gin"
+        "ix_content_chunks_concept_tags",
+        "content_chunks",
+        ["concept_tags"],
+        postgresql_using="gin",
     )
 
 

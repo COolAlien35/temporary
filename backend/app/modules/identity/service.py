@@ -9,9 +9,11 @@ from app.modules.identity.repository import upsert_profile
 from app.modules.identity.schemas import LearningPreferences, ProfilePatch
 
 
-def get_or_create_profile(session: Session, subject: UUID, email: str) -> Profile:
+def get_or_create_profile(
+    session: Session, subject: UUID, email: str, display_name: str | None = None
+) -> Profile:
     with session.begin():
-        profile = upsert_profile(session, subject, email)
+        profile = upsert_profile(session, subject, email, display_name)
     return profile
 
 

@@ -1,5 +1,7 @@
 import json
-from datetime import UTC, datetime
+from base64 import b64decode, urlsafe_b64encode
+from binascii import Error as Base64Error
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
 
@@ -7,15 +9,21 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings
 from app.core.errors import ApiHTTPException
 from app.integrations.quantum.contract import UnsupportedCircuit, ideal_measurement_qubits
 from app.modules.circuits.public import owned_revision
 from app.modules.circuits.schemas import CircuitSnapshot
 from app.modules.experiments.models import ExperimentRun
-from app.modules.experiments.repository import get_owned_run, get_run_by_key
-from app.modules.experiments.schemas import RunCreate, RunRead
+from app.modules.experiments.repository import (
+    count_owned_runs_since,
+    get_owned_run,
+    get_run_by_key,
+    list_owned_runs,
+)
+from app.modules.experiments.schemas import RunCreate, RunPage, RunRead, RunSummary
 from app.modules.identity.public import Actor
-from app.modules.jobs.public import enqueue_job, owned_job_state
+from app.modules.jobs.public import enqueue_job, owned_job_state, owned_job_summaries
 from app.modules.predictions.public import bind_prediction
 
 
@@ -24,27 +32,36 @@ def _request_hash(body: RunCreate) -> str:
     return sha256(encoded.encode()).hexdigest()
 
 
-def _idempotency_lock(actor_id: UUID, key: UUID) -> int:
-    digest = sha256(actor_id.bytes + key.bytes).digest()
+def _owner_lock(actor_id: UUID) -> int:
+    digest = sha256(b"aer-daily-quota:" + actor_id.bytes).digest()
     return int.from_bytes(digest[:8], "big", signed=True)
 
 
 def create_run(
-    session: Session, actor: Actor, body: RunCreate, key: UUID, daily_limit: int
+    session: Session, actor: Actor, body: RunCreate, key: UUID, settings: Settings
 ) -> UUID:
     request_hash = _request_hash(body)
     with session.begin():
-        # Serialize this actor's submissions so concurrent requests cannot bypass the quota.
-        quota_lock = int.from_bytes(
-            sha256(b"simulation_quota" + actor.id.bytes).digest()[:8], "big", signed=True
-        )
-        session.execute(select(func.pg_advisory_xact_lock(quota_lock)))
-        session.execute(select(func.pg_advisory_xact_lock(_idempotency_lock(actor.id, key))))
+        # Serialize an owner's submissions across keys before checking the durable quota.
+        session.execute(select(func.pg_advisory_xact_lock(_owner_lock(actor.id))))
         existing = get_run_by_key(session, actor.id, key)
         if existing is not None:
             if existing.request_hash != request_hash:
                 raise ApiHTTPException(409, "idempotency_conflict", "Idempotency key already used")
             return existing.id
+        now = datetime.now(UTC)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if (
+            count_owned_runs_since(session, actor.id, day_start)
+            >= settings.simulation_daily_run_limit
+        ):
+            retry_after = int(((day_start + timedelta(days=1)) - now).total_seconds()) + 1
+            raise ApiHTTPException(
+                429,
+                "simulation_daily_limit",
+                "Daily Aer run limit reached",
+                headers={"Retry-After": str(retry_after)},
+            )
         revision = owned_revision(session, actor.id, body.circuit_id, body.circuit_revision)
         if revision is None:
             raise HTTPException(status_code=404, detail="Circuit revision not found")
@@ -52,21 +69,6 @@ def create_run(
             ideal_measurement_qubits(revision.snapshot)
         except UnsupportedCircuit as exc:
             raise ApiHTTPException(422, "unsupported_circuit", str(exc)) from None
-        today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-        submitted = session.scalar(
-            select(func.count())
-            .select_from(ExperimentRun)
-            .where(
-                ExperimentRun.owner_id == actor.id,
-                ExperimentRun.created_at >= today,
-            )
-        )
-        if submitted is not None and submitted >= daily_limit:
-            raise ApiHTTPException(
-                429,
-                "simulation_daily_limit",
-                "Daily simulation limit reached; try again after midnight UTC",
-            )
         job = enqueue_job(
             session,
             actor,
@@ -122,3 +124,51 @@ def read_run(session: Session, actor: Actor, run_id: UUID) -> RunRead:
         result=job.result_summary if job.status == "succeeded" else None,
         created_at=run.created_at,
     )
+
+
+def _decode_cursor(cursor: str | None) -> tuple[datetime, UUID] | None:
+    if cursor is None:
+        return None
+    try:
+        if not 1 <= len(cursor) <= 256:
+            raise ValueError
+        raw = b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
+        value = json.loads(raw)
+        if not isinstance(value, dict) or set(value) != {"created_at", "id"}:
+            raise ValueError
+        created_at = datetime.fromisoformat(value["created_at"])
+        if created_at.tzinfo is None or created_at.utcoffset() is None:
+            raise ValueError
+        return created_at, UUID(value["id"])
+    except (ValueError, TypeError, KeyError, Base64Error, UnicodeDecodeError):
+        raise ApiHTTPException(422, "invalid_cursor", "Invalid run cursor") from None
+
+
+def list_runs(session: Session, actor: Actor, limit: int, cursor: str | None) -> RunPage:
+    rows = list_owned_runs(session, actor.id, limit + 1, _decode_cursor(cursor))
+    visible = rows[:limit]
+    statuses = owned_job_summaries(session, actor, [run.id for run in visible])
+    items = []
+    for run in visible:
+        job = statuses.get(run.id)
+        if job is None:
+            raise RuntimeError("Experiment run is missing its job")
+        items.append(
+            RunSummary(
+                id=run.id,
+                status=job.status,
+                error_code=job.error_code,
+                circuit_id=run.circuit_id,
+                circuit_revision=run.circuit_revision,
+                backend=run.backend,
+                shots=run.shots,
+                prediction_id=run.prediction_id,
+                created_at=run.created_at,
+            )
+        )
+    next_cursor = None
+    if len(rows) > limit and visible:
+        last = visible[-1]
+        payload = json.dumps({"created_at": last.created_at.isoformat(), "id": str(last.id)})
+        next_cursor = urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    return RunPage(items=items, next_cursor=next_cursor)

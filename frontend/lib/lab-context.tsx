@@ -13,7 +13,8 @@ import {
 import { getAlgorithmConfig } from "@/lib/algorithms"
 import { runCircuit } from "@/lib/sim/run-circuit"
 import type { SimResult, StudioGate } from "@/lib/studio/types"
-import type { ConnectedLabResult } from "@/lib/services/connected-lab-run"
+import type { ConnectedLabResult, ConnectedPredictionLock } from "@/lib/services/connected-lab-run"
+import type { CircuitRecord } from "@/lib/services/learning-loop-api"
 import { useLearnerProgress } from "@/store/use-learner-progress"
 import { useSession } from "@/store/use-session"
 
@@ -50,6 +51,14 @@ interface LabState {
   resultsStale: boolean
   simulationError: string
   connectedResult: ConnectedLabResult | null
+  savedCircuit: CircuitRecord | null
+  rememberSavedCircuit: (circuit: CircuitRecord) => void
+  connectedPrediction: ConnectedPredictionLock | null
+  rememberConnectedPrediction: (lock: ConnectedPredictionLock) => void
+  restoreConnectedPrediction: (lock: ConnectedPredictionLock) => void
+  consumeConnectedPrediction: () => void
+  connectedRunMode: boolean
+  rememberConnectedResult: (result: ConnectedLabResult) => void
   showConnectedResult: (result: ConnectedLabResult) => void
   openConnectedRun: (runId: string) => void
 }
@@ -62,7 +71,7 @@ interface LabContextValue extends LabState {
   lockPrediction: () => void
   addGate: (gate: Omit<GatePlacement, "id">) => void
   removeGate: (id: string) => void
-  replaceGates: (gates: Omit<GatePlacement, "id">[]) => void
+  replaceGates: (gates: (Omit<GatePlacement, "id"> & { id?: string })[]) => void
   setShots: (n: number) => void
   setNoiseEnabled: (v: boolean) => void
   setBackend: (name: string) => void
@@ -145,6 +154,10 @@ export function LabProvider({
   const [lastRunGates, setLastRunGates] = useState<GatePlacement[]>([])
   const [simulationError, setSimulationError] = useState("")
   const [connectedResult, setConnectedResult] = useState<ConnectedLabResult | null>(null)
+  const [savedCircuit, setSavedCircuit] = useState<CircuitRecord | null>(null)
+  const [savedCircuitOwnerId, setSavedCircuitOwnerId] = useState<string | null>(null)
+  const [connectedPrediction, setConnectedPrediction] = useState<ConnectedPredictionLock | null>(null)
+  const [connectedPredictionOwnerId, setConnectedPredictionOwnerId] = useState<string | null>(null)
   const [connectedResultOwnerId, setConnectedResultOwnerId] = useState<string | null>(null)
   const [hydratedSessionKey, setHydratedSessionKey] = useState<string | null>(null)
   const learnerId = useSession((state) => state.user?.id ?? null)
@@ -158,18 +171,43 @@ export function LabProvider({
   const recordCalibration = useLearnerProgress((state) => state.addCalibration)
   const resultsStale = hasRun && JSON.stringify(gates) !== JSON.stringify(lastRunGates)
 
-  useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null) }, [learnerId, algorithm.slug])
+  useEffect(() => { setConnectedResult(null); setConnectedResultOwnerId(null); setSavedCircuit(null); setSavedCircuitOwnerId(null); setConnectedPrediction(null); setConnectedPredictionOwnerId(null) }, [learnerId, algorithm.slug])
 
-  const showConnectedResult = useCallback((result: ConnectedLabResult) => {
+  const rememberConnectedPrediction = useCallback((lock: ConnectedPredictionLock) => {
+    setConnectedPrediction(lock)
+    setConnectedPredictionOwnerId(learnerId)
+  }, [learnerId])
+  const restoreConnectedPrediction = useCallback((lock: ConnectedPredictionLock) => {
+    rememberConnectedPrediction(lock)
+    setHypothesisState(Object.fromEntries(lock.prediction.basis_labels.map((label, index) =>
+      [label, lock.prediction.prediction_vector[index] * 100])) as Record<BasisState, number>)
+    setConfidenceState((lock.prediction.confidence ?? 0) * 100)
+    setPredictionLocked(true)
+  }, [rememberConnectedPrediction])
+  const consumeConnectedPrediction = useCallback(() => {
+    setConnectedPrediction(null)
+    setConnectedPredictionOwnerId(null)
+    setPredictionLocked(false)
+  }, [])
+
+  const rememberSavedCircuit = useCallback((circuit: CircuitRecord) => {
+    setSavedCircuit(circuit)
+    setSavedCircuitOwnerId(learnerId)
+  }, [learnerId])
+
+  const rememberConnectedResult = useCallback((result: ConnectedLabResult) => {
     setConnectedResult(result)
     setConnectedResultOwnerId(learnerId)
+  }, [learnerId])
+  const showConnectedResult = useCallback((result: ConnectedLabResult) => {
+    rememberConnectedResult(result)
     setStage(5)
     setActiveTab("circuit")
     const url = new URL(window.location.href)
     url.searchParams.set("stage", "5")
     url.searchParams.set("run", result.run.id)
     window.history.replaceState(window.history.state, "", url)
-  }, [learnerId])
+  }, [rememberConnectedResult])
   const openConnectedRun = useCallback((runId: string) => {
     setConnectedResult(null)
     setConnectedResultOwnerId(null)
@@ -181,6 +219,8 @@ export function LabProvider({
     window.history.replaceState(window.history.state, "", url)
   }, [])
   const currentConnectedResult = connectedResultOwnerId === learnerId ? connectedResult : null
+  const currentSavedCircuit = savedCircuitOwnerId === learnerId ? savedCircuit : null
+  const currentConnectedPrediction = connectedPredictionOwnerId === learnerId ? connectedPrediction : null
 
   useEffect(() => {
     setHydratedSessionKey(null)
@@ -237,6 +277,7 @@ export function LabProvider({
 
   const isStageUnlocked = useCallback(
     (n: number) => {
+      if (connectedRunMode && n > 6) return false
       if (n === 1) return true
       if (connectedRunMode && n === 5) return true
       // Any stage already reached (current or earlier) is always revisitable.
@@ -305,7 +346,7 @@ export function LabProvider({
       nextSet.add(completed)
       return nextSet
     })
-    if (next < 1 || next > STAGES.length) return
+    if (next < 1 || next > STAGES.length || (connectedRunMode && next > 6)) return
     setStage(next)
     if (connectedRunMode) {
       const url = new URL(window.location.href)
@@ -343,8 +384,8 @@ export function LabProvider({
     setChallengeScore(null)
   }, [])
 
-  const replaceGates = useCallback((next: Omit<GatePlacement, "id">[]) => {
-    setGates(next.map((g, i) => ({ ...g, id: `gate-${i}-${Date.now()}` })))
+  const replaceGates = useCallback((next: (Omit<GatePlacement, "id"> & { id?: string })[]) => {
+    setGates(next.map((g, i) => ({ ...g, id: g.id ?? `gate-${i}-${Date.now()}` })))
     setChallengeSubmitted(false)
     setChallengeScore(null)
   }, [])
@@ -452,6 +493,10 @@ export function LabProvider({
     setSimulationError("")
     setConnectedResult(null)
     setConnectedResultOwnerId(null)
+    setSavedCircuit(null)
+    setSavedCircuitOwnerId(null)
+    setConnectedPrediction(null)
+    setConnectedPredictionOwnerId(null)
   }, [algorithm.basisStates])
 
   const value: LabContextValue = {
@@ -484,6 +529,14 @@ export function LabProvider({
     resultsStale,
     simulationError,
     connectedResult: currentConnectedResult,
+    savedCircuit: currentSavedCircuit,
+    rememberSavedCircuit,
+    connectedPrediction: currentConnectedPrediction,
+    rememberConnectedPrediction,
+    restoreConnectedPrediction,
+    consumeConnectedPrediction,
+    connectedRunMode,
+    rememberConnectedResult,
     showConnectedResult,
     openConnectedRun,
     goToStage,

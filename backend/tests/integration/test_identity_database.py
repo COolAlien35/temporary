@@ -17,7 +17,7 @@ pytestmark = pytest.mark.integration
 def test_profiles_are_durable_isolated_and_roles_cannot_be_client_assigned():
     app = create_app()
     first_subject, second_subject = uuid4(), uuid4()
-    current = IdentityClaims(first_subject, "first@example.test")
+    current = IdentityClaims(first_subject, "first@example.test", "Signup Name")
     app.dependency_overrides[get_claims] = lambda: current
     try:
         with TestClient(app) as client:
@@ -25,6 +25,7 @@ def test_profiles_are_durable_isolated_and_roles_cannot_be_client_assigned():
             assert first.status_code == 200, first.text
             first_id = first.json()["id"]
             assert first.json()["role"] == "learner"
+            assert first.json()["name"] == "Signup Name"
             assert first.json()["timezone"] == "UTC"
             assert first.json()["revision"] == 1
             initial_etag = first.headers["ETag"]

@@ -1,37 +1,10 @@
 import { AppShell } from "@/components/shared/AppShell"
-import { CurrentModuleCard } from "@/components/dashboard/current-module-card"
-import { AlgorithmsList } from "@/components/dashboard/algorithms-list"
-import { PlaygroundCard } from "@/components/dashboard/playground-card"
-import { TelemetryPanel } from "@/components/dashboard/telemetry-panel"
-import { ConsistencyPanel } from "@/components/dashboard/consistency-panel"
-import { DailyChallenge } from "@/components/dashboard/daily-challenge"
-import { FacultyDispatch } from "@/components/dashboard/faculty-dispatch"
-import { SectionDivider } from "@/components/home/accents/SectionDivider"
-import { AssignedWorkCard } from "@/components/dashboard/assigned-work-card"
-import { RecentActivityCard } from "@/components/dashboard/recent-activity-card"
+import { HomeContent } from "@/components/dashboard/HomeContent"
 
 export default function HomePage() {
   return (
     <AppShell variant="roadmap">
-      <div className="relative z-0">
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <div className="min-w-0">
-            <CurrentModuleCard />
-            <SectionDivider />
-            <AlgorithmsList />
-            <PlaygroundCard />
-          </div>
-
-          <aside className="flex flex-col gap-4">
-            <AssignedWorkCard />
-            <RecentActivityCard />
-            <TelemetryPanel />
-            <ConsistencyPanel />
-            <DailyChallenge />
-            <FacultyDispatch />
-          </aside>
-        </div>
-      </div>
+      <HomeContent />
     </AppShell>
   )
 }

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test"
-import { connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition, runConnectedSuperposition, type ConnectedLabKeys } from "../lib/services/connected-lab-run"
-import { createLearningLoopApi } from "../lib/services/learning-loop-api"
+import { connectedCircuitIsStale, connectedSuperpositionForRun, latestConnectedSuperposition, latestUnpairedConnectedPrediction, lockConnectedSuperpositionPrediction, runConnectedSuperposition, type ConnectedLabKeys } from "../lib/services/connected-lab-run"
+import { createLearningLoopApi, type CircuitRecord } from "../lib/services/learning-loop-api"
 
 const keys: ConnectedLabKeys = { session: "session-key", prediction: "prediction-key", circuit: "circuit-key", run: "run-key" }
 const input = {
@@ -31,7 +31,8 @@ test("connected superposition saves prediction before the exact circuit run and 
   }) as typeof fetch
   const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "current-token", fetcher)
   const statuses: string[] = []
-  const result = await runConnectedSuperposition(api, input, keys, (message) => statuses.push(message))
+  const submitted: string[] = []
+  const result = await runConnectedSuperposition(api, input, keys, (message) => statuses.push(message), undefined, (runId) => submitted.push(runId))
 
   expect(result.pair.prediction_match).toBe(0.98)
   expect(result.learningSessionId).toBe("session-1")
@@ -48,12 +49,86 @@ test("connected superposition saves prediction before the exact circuit run and 
   expect(calls.slice(1, 5).map((item) => (item.init.headers as Record<string, string>)["Idempotency-Key"])).toEqual([keys.session, keys.prediction, keys.circuit, keys.run])
   expect(calls.every((item) => (item.init.headers as Record<string, string>).Authorization === "Bearer current-token")).toBe(true)
   expect(statuses).toContain("Loading the verified comparison…")
+  expect(submitted).toEqual(["run-1"])
 })
 
 test("invalid prediction is rejected before any connected write", async () => {
   const fetcher = (async () => { throw new Error("Unexpected request") }) as typeof fetch
   const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
   await expect(runConnectedSuperposition(api, { ...input, hypothesis: { ...input.hypothesis, "00": 60 } }, keys, () => {})).rejects.toThrow("sum to 100")
+})
+
+test("Predict saves a lock that Run reuses without creating another prediction", async () => {
+  const calls: string[] = []
+  const savedPrediction = {
+    id: "prediction-1", learning_session_id: "session-1", lesson_id: "u1-quantum-foundations",
+    prediction_vector: [0.5, 0.5, 0, 0], basis_labels: ["00", "01", "10", "11"],
+    confidence: 0.8, pairing_status: "unpaired", run_id: null,
+  }
+  const fetcher = (async (url: string | URL | Request) => {
+    const path = new URL(String(url)).pathname
+    calls.push(path)
+    if (path.endsWith("/curriculum/units/u1")) return Response.json({ content_version: 3, is_placeholder: false, lessons: [{ id: "u1-quantum-foundations" }] })
+    if (path.endsWith("/learning-sessions")) return Response.json({ id: "session-1" })
+    if (path.endsWith("/learning-sessions/session-1/predictions")) return Response.json(savedPrediction)
+    if (path.endsWith("/circuits")) return Response.json({ id: "circuit-1", revision: 1 })
+    if (path.endsWith("/experiments/runs")) return Response.json({ resource_id: "run-1" })
+    if (path.endsWith("/experiments/runs/run-1")) return Response.json({ id: "run-1", status: "succeeded" })
+    if (path.endsWith("/predictions/prediction-1/pair")) return Response.json({ run_id: "run-1", prediction_id: "prediction-1" })
+    throw new Error(`Unexpected request: ${path}`)
+  }) as typeof fetch
+  const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
+  const lock = await lockConnectedSuperpositionPrediction(api, input.hypothesis, input.confidence, keys)
+  const result = await runConnectedSuperposition(api, { ...input, lockedPrediction: lock }, keys, () => {})
+  expect(result.learningSessionId).toBe("session-1")
+  expect(calls.filter((path) => path.endsWith("/learning-sessions"))).toHaveLength(1)
+  expect(calls.filter((path) => path.endsWith("/learning-sessions/session-1/predictions"))).toHaveLength(1)
+  expect(calls).toContain("/api/v1/experiments/runs")
+  await expect(runConnectedSuperposition(api, { ...input, confidence: 70, lockedPrediction: lock }, keys, () => {})).rejects.toThrow("differs from the saved lock")
+})
+
+test("unpaired prediction recovery skips already paired records", async () => {
+  const fetcher = (async (url: string | URL | Request) => {
+    const path = new URL(String(url)).pathname
+    if (path.endsWith("/learning-sessions")) return Response.json({ items: [{ id: "session-1" }], next_cursor: null })
+    if (path.endsWith("/learning-sessions/session-1/predictions")) return Response.json({ items: [
+      { id: "paired", lesson_id: "u1-quantum-foundations", pairing_status: "paired", run_id: "run-1" },
+      { id: "unpaired", lesson_id: "u1-quantum-foundations", pairing_status: "unpaired", run_id: null, prediction_vector: [0.5, 0.5, 0, 0], basis_labels: ["00", "01", "10", "11"], confidence: 0.8 },
+    ], next_cursor: null })
+    throw new Error(`Unexpected request: ${path}`)
+  }) as typeof fetch
+  const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
+  expect((await latestUnpairedConnectedPrediction(api))?.prediction.id).toBe("unpaired")
+})
+
+test("connected run pins the selected saved revision only while its gates match", async () => {
+  const selected: CircuitRecord = {
+    id: "library-circuit", archived: false, revision: 3, checksum_sha256: "a".repeat(64),
+    created_at: "2026-09-29T12:00:00Z", updated_at: "2026-09-29T12:00:00Z",
+    snapshot: { schema_version: 1, name: "Learner circuit", qubits: 2, gates: [{ id: "h-q0", type: "H", step: 0, qubit: 0 }] },
+  }
+  const writes: { path: string; body: Record<string, unknown> }[] = []
+  const fetcher = (async (url: string | URL | Request, init: RequestInit = {}) => {
+    const path = new URL(String(url)).pathname
+    if (init.method === "POST") writes.push({ path, body: JSON.parse(String(init.body)) as Record<string, unknown> })
+    if (path.endsWith("/curriculum/units/u1")) return Response.json({ content_version: 1, lessons: [{ id: "u1-quantum-foundations" }] })
+    if (path.endsWith("/learning-sessions")) return Response.json({ id: "session-1" })
+    if (path.endsWith("/learning-sessions/session-1/predictions")) return Response.json({ id: "prediction-1" })
+    if (path.endsWith("/circuits")) return Response.json({ id: "new-circuit", revision: 1 })
+    if (path.endsWith("/experiments/runs") && init.method === "POST") return Response.json({ resource_id: "run-1" })
+    if (path.endsWith("/experiments/runs/run-1")) return Response.json({ id: "run-1", status: "succeeded" })
+    if (path.endsWith("/predictions/prediction-1/pair")) return Response.json({ run_id: "run-1", prediction_id: "prediction-1" })
+    throw new Error(`Unexpected request: ${path}`)
+  }) as typeof fetch
+  const api = createLearningLoopApi("https://api.example.test/api/v1", async () => "token", fetcher)
+  await runConnectedSuperposition(api, { ...input, savedCircuit: selected }, keys, () => {})
+  expect(writes.map((item) => item.path)).not.toContain("/api/v1/circuits")
+  expect(writes.find((item) => item.path.endsWith("/experiments/runs"))?.body).toMatchObject({ circuit_id: selected.id, circuit_revision: 3 })
+
+  writes.length = 0
+  await runConnectedSuperposition(api, { ...input, gates: [...input.gates, { id: "x-q1", gate: "X", step: 1, qubit: 1 }], savedCircuit: selected }, keys, () => {})
+  expect(writes.map((item) => item.path)).toContain("/api/v1/circuits")
+  expect(writes.find((item) => item.path.endsWith("/experiments/runs"))?.body).toMatchObject({ circuit_id: "new-circuit", circuit_revision: 1 })
 })
 
 test("recent connected comparison is recovered through owner-scoped session and prediction lists", async () => {
