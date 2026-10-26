@@ -28,7 +28,7 @@ dev = [
   "ruff>=0.11,<1",
   "websocket-client>=1.9.2",
 ]
-quantum = ["qiskit-aer==0.17.2"]
+quantum = ["qiskit-aer==0.18.0"]
 
 [tool.uv]
 package = false
